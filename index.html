@@ -45,8 +45,9 @@ h1{
 }
 .stars{
     margin-top:8px;
-    color:#FFD700;
-    font-size:18px;
+    color:#bbb;
+    font-size:14px;
+    letter-spacing:1px;
 }
 </style>
 </head>
@@ -85,7 +86,7 @@ fetch(url)
         <div class="card">
             <div class="name">${row.Коктейль}</div>
             <div class="price">${row.Цена}</div>
-            <div class="stars">${stars}</div>
+            <div class="stars">Крепость — ${stars}</div>
             <div class="comp">${row.Состав}</div>
         </div>`;
     });
