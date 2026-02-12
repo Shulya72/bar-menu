@@ -200,6 +200,9 @@ function randomDrink(){
 
     if(cocktails.length===0) return;
 
+    // разрешение на вибро
+    const canVibrate = "vibrate" in navigator;
+
     let filtered=cocktails.filter(r=>r.Коктейль);
 
     let speed=50;
@@ -226,6 +229,11 @@ function randomDrink(){
             <div class="comp">${rand.Состав}</div>
         </div>`;
 
+        // короткая вибрация во время прокрутки
+        if(canVibrate){
+            navigator.vibrate(10);
+        }
+
         time+=speed;
         speed*=slowdown;
 
@@ -234,6 +242,11 @@ function randomDrink(){
         }else{
             const card=document.querySelector(".card");
             if(card) card.classList.add("flash");
+
+            // финальная вибрация победы
+            if(canVibrate){
+                navigator.vibrate([120,40,200]);
+            }
         }
     }
 
