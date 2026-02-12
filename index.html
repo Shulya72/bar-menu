@@ -168,7 +168,25 @@ function randomDrink(){
 
     if(cocktails.length===0) return;
 
-    let filtered=cocktails.filter(r=>r.Коктейль);
+    const strength=document.getElementById("strength").value;
+    const search=document.getElementById("search").value.toLowerCase();
+
+    let filtered=cocktails.filter(row=>{
+
+        if(!row.Коктейль) return false;
+
+        let s=(row.Крепость||"")
+        .toLowerCase()
+        .replace("ё","е");
+
+        if(strength==="noalc" && s) return false;
+        if(strength && strength!=="noalc" && !s.includes(strength)) return false;
+        if(search && !row.Состав.toLowerCase().includes(search)) return false;
+
+        return true;
+    });
+
+    if(filtered.length===0) return;
 
     let rand=filtered[Math.floor(Math.random()*filtered.length)];
 
