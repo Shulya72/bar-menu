@@ -15,7 +15,6 @@ body{
     color:#fff;
 }
 
-/* кнопка карта бара */
 .topBar{
     display:flex;
     justify-content:center;
@@ -31,11 +30,6 @@ body{
     font-size:14px;
     backdrop-filter:blur(6px);
     cursor:pointer;
-    transition:.18s;
-}
-
-.homeBtn:hover{
-    border:1px solid rgba(124,252,0,0.6);
 }
 
 .container{
@@ -74,7 +68,6 @@ select option{
     font-weight:600;
     background:#7CFC00;
     color:#000;
-    cursor:pointer;
 }
 
 .card{
@@ -83,17 +76,16 @@ select option{
     padding:20px;
     margin-bottom:14px;
     border:1px solid rgba(255,255,255,0.08);
-    transition:.2s;
 }
 
-/* вспышка победы */
+/* ДЫШАЩАЯ ВСПЫШКА */
 .card.flash{
-    animation:flash .4s ease;
+    animation:breath 1.4s ease-in-out 2;
 }
 
-@keyframes flash{
+@keyframes breath{
     0%{ box-shadow:0 0 0 rgba(124,252,0,0); }
-    50%{ box-shadow:0 0 25px rgba(124,252,0,0.9); }
+    50%{ box-shadow:0 0 30px rgba(124,252,0,0.9); }
     100%{ box-shadow:0 0 0 rgba(124,252,0,0); }
 }
 
@@ -200,9 +192,6 @@ function randomDrink(){
 
     if(cocktails.length===0) return;
 
-    // разрешение на вибро
-    const canVibrate = "vibrate" in navigator;
-
     let filtered=cocktails.filter(r=>r.Коктейль);
 
     let speed=50;
@@ -229,11 +218,6 @@ function randomDrink(){
             <div class="comp">${rand.Состав}</div>
         </div>`;
 
-        // короткая вибрация во время прокрутки
-        if(canVibrate){
-            navigator.vibrate(10);
-        }
-
         time+=speed;
         speed*=slowdown;
 
@@ -242,11 +226,6 @@ function randomDrink(){
         }else{
             const card=document.querySelector(".card");
             if(card) card.classList.add("flash");
-
-            // финальная вибрация победы
-            if(canVibrate){
-                navigator.vibrate([120,40,200]);
-            }
         }
     }
 
