@@ -42,4 +42,196 @@ body{
 .container{
     max-width:720px;
     margin:auto;
-    pad
+    padding:18px;
+}
+
+.filters{
+    display:flex;
+    gap:10px;
+    margin-bottom:16px;
+}
+
+select,input{
+    background:rgba(255,255,255,0.05);
+    border:1px solid rgba(255,255,255,0.1);
+    color:#fff;
+    padding:12px;
+    border-radius:14px;
+    width:100%;
+}
+
+.randomBtn{
+    width:100%;
+    margin-bottom:18px;
+    padding:14px;
+    border-radius:16px;
+    border:none;
+    font-size:15px;
+    font-weight:600;
+    background:#7CFC00;
+    color:#000;
+}
+
+.card{
+    background:rgba(255,255,255,0.04);
+    border-radius:18px;
+    padding:20px;
+    margin-bottom:14px;
+    border:1px solid rgba(255,255,255,0.08);
+}
+
+.name{
+    font-size:23px;
+    font-weight:600;
+}
+
+.price{
+    margin-top:6px;
+    font-size:18px;
+    color:#7CFC00;
+    text-shadow:
+        0 0 6px rgba(124,252,0,.4),
+        0 0 14px rgba(124,252,0,.2);
+}
+
+.stars{
+    margin-top:10px;
+    font-size:13px;
+    color:#a8a8a8;
+}
+
+.comp{
+    margin-top:14px;
+    font-size:14px;
+    color:#d0d0d0;
+    line-height:1.5;
+}
+</style>
+</head>
+
+<body>
+
+<div class="topBar">
+    <button class="homeBtn" onclick="render()">Карта бара</button>
+</div>
+
+<div class="container">
+
+<div class="filters">
+<select id="strength">
+<option value="">Крепость: все</option>
+<option value="noalc">☆ безалкогольные</option>
+<option value="лег">★ лёгкие</option>
+<option value="сред">★★ средние</option>
+<option value="креп">★★★ крепкие</option>
+</select>
+
+<input id="search" placeholder="Содержит… (водка, апельсин)">
+</div>
+
+<button class="randomBtn" onclick="randomDrink()">Что выпить?</button>
+
+<div id="menu"></div>
+
+</div>
+
+<script>
+
+const SHEET_ID="1CceZ3cIic_k9Z9GnXg_wOzoUGdYonzVkfypmSzf_ln8";
+const url=`https://opensheet.elk.sh/${SHEET_ID}/MENU`;
+
+let cocktails=[];
+
+fetch(url)
+.then(r=>r.json())
+.then(data=>{
+    cocktails=data;
+    render();
+});
+
+function render(){
+
+    if(!cocktails.length) return;
+
+    const strength=document.getElementById("strength").value;
+    const search=document.getElementById("search").value.toLowerCase();
+    const menu=document.getElementById("menu");
+    menu.innerHTML="";
+
+    cocktails.forEach(row=>{
+
+        if(!row.Коктейль) return;
+
+        let s=(row.Крепость||"")
+        .toLowerCase()
+        .replace("ё","е");
+
+        if(strength==="noalc" && s) return;
+        if(strength && strength!=="noalc" && !s.includes(strength)) return;
+        if(search && !row.Состав.toLowerCase().includes(search)) return;
+
+        let stars="☆";
+        if(s.includes("лег")) stars="★";
+        if(s.includes("сред")) stars="★★";
+        if(s.includes("креп")) stars="★★★";
+
+        menu.innerHTML+=`
+        <div class="card">
+            <div class="name">${row.Коктейль}</div>
+            <div class="price">${row.Цена}</div>
+            <div class="stars">Крепость — ${stars}</div>
+            <div class="comp">${row.Состав}</div>
+        </div>`;
+    });
+}
+
+function randomDrink(){
+
+    if(cocktails.length===0) return;
+
+    const strength=document.getElementById("strength").value;
+    const search=document.getElementById("search").value.toLowerCase();
+
+    let filtered=cocktails.filter(row=>{
+
+        if(!row.Коктейль) return false;
+
+        let s=(row.Крепость||"")
+        .toLowerCase()
+        .replace("ё","е");
+
+        if(strength==="noalc" && s) return false;
+        if(strength && strength!=="noalc" && !s.includes(strength)) return false;
+        if(search && !row.Состав.toLowerCase().includes(search)) return false;
+
+        return true;
+    });
+
+    if(filtered.length===0) return;
+
+    let rand=filtered[Math.floor(Math.random()*filtered.length)];
+
+    let s=(rand.Крепость||"").toLowerCase().replace("ё","е");
+
+    let stars="☆";
+    if(s.includes("лег")) stars="★";
+    if(s.includes("сред")) stars="★★";
+    if(s.includes("креп")) stars="★★★";
+
+    const menu=document.getElementById("menu");
+    menu.innerHTML=`
+    <div class="card">
+        <div class="name">${rand.Коктейль}</div>
+        <div class="price">${rand.Цена}</div>
+        <div class="stars">Крепость — ${stars}</div>
+        <div class="comp">${rand.Состав}</div>
+    </div>`;
+}
+
+document.getElementById("strength").onchange=render;
+document.getElementById("search").oninput=render;
+
+</script>
+
+</body>
+</html>
