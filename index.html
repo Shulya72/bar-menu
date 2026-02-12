@@ -207,6 +207,7 @@ function randomDrink(){
 
     const strength=document.getElementById("strength").value;
     const search=document.getElementById("search").value.toLowerCase();
+    const menu=document.getElementById("menu");
 
     let filtered=cocktails.filter(row=>{
 
@@ -225,23 +226,36 @@ function randomDrink(){
 
     if(filtered.length===0) return;
 
-    let rand=filtered[Math.floor(Math.random()*filtered.length)];
+    let duration=1200;      // длительность рулетки
+    let interval=80;        // скорость
+    let elapsed=0;
 
-    let s=(rand.Крепость||"").toLowerCase().replace("ё","е");
+    const spin=setInterval(()=>{
 
-    let stars="☆";
-    if(s.includes("лег")) stars="★";
-    if(s.includes("сред")) stars="★★";
-    if(s.includes("креп")) stars="★★★";
+        let rand=filtered[Math.floor(Math.random()*filtered.length)];
 
-    const menu=document.getElementById("menu");
-    menu.innerHTML=`
-    <div class="card">
-        <div class="name">${rand.Коктейль}</div>
-        <div class="price">${rand.Цена}</div>
-        <div class="stars">Крепость — ${stars}</div>
-        <div class="comp">${rand.Состав}</div>
-    </div>`;
+        let s=(rand.Крепость||"").toLowerCase().replace("ё","е");
+
+        let stars="☆";
+        if(s.includes("лег")) stars="★";
+        if(s.includes("сред")) stars="★★";
+        if(s.includes("креп")) stars="★★★";
+
+        menu.innerHTML=`
+        <div class="card">
+            <div class="name">${rand.Коктейль}</div>
+            <div class="price">${rand.Цена}</div>
+            <div class="stars">Крепость — ${stars}</div>
+            <div class="comp">${rand.Состав}</div>
+        </div>`;
+
+        elapsed+=interval;
+
+        if(elapsed>=duration){
+            clearInterval(spin);
+        }
+
+    }, interval);
 }
 
 document.getElementById("strength").onchange=render;
