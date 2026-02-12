@@ -17,8 +17,9 @@ body{
 
 h1{
     text-align:center;
-    padding:28px 20px 10px;
+    padding:28px 20px 14px;
     font-weight:400;
+    letter-spacing:1px;
     font-size:26px;
 }
 
@@ -28,13 +29,39 @@ h1{
     padding:18px;
 }
 
+/* фильтры */
 .filters{
     display:flex;
     gap:10px;
     margin-bottom:16px;
 }
 
-select,input{
+/* кастомный select */
+select{
+    background:#141414;
+    border:1px solid rgba(255,255,255,0.12);
+    color:#fff;
+    padding:12px 40px 12px 14px;
+    border-radius:14px;
+    width:100%;
+    font-size:14px;
+
+    appearance:none;
+    -webkit-appearance:none;
+    -moz-appearance:none;
+
+    background-image:url("data:image/svg+xml;utf8,<svg fill='%237CFC00' height='20' viewBox='0 0 20 20' width='20' xmlns='http://www.w3.org/2000/svg'><path d='M5 7l5 6 5-6'/></svg>");
+    background-repeat:no-repeat;
+    background-position:right 12px center;
+    background-size:16px;
+}
+
+select option{
+    background:#111;
+    color:#fff;
+}
+
+input{
     background:rgba(255,255,255,0.05);
     border:1px solid rgba(255,255,255,0.1);
     color:#fff;
@@ -43,6 +70,7 @@ select,input{
     width:100%;
 }
 
+/* кнопка случайного коктейля */
 .randomBtn{
     width:100%;
     margin-bottom:18px;
@@ -55,12 +83,18 @@ select,input{
     color:#000;
 }
 
+/* карточка */
 .card{
     background:rgba(255,255,255,0.04);
     border-radius:18px;
     padding:20px;
     margin-bottom:14px;
     border:1px solid rgba(255,255,255,0.08);
+    transition:transform .12s ease;
+}
+
+.card:active{
+    transform:scale(.99);
 }
 
 .name{
@@ -80,119 +114,4 @@ select,input{
 .stars{
     margin-top:10px;
     font-size:13px;
-    color:#a8a8a8;
-}
-
-.comp{
-    margin-top:14px;
-    font-size:14px;
-    color:#d0d0d0;
-    line-height:1.5;
-}
-</style>
-</head>
-
-<body>
-
-<h1>Карта бара</h1>
-
-<div class="container">
-
-<div class="filters">
-<select id="strength">
-<option value="">Крепость: все</option>
-<option value="noalc">☆ безалкогольные</option>
-<option value="лег">★ лёгкие</option>
-<option value="сред">★★ средние</option>
-<option value="креп">★★★ крепкие</option>
-</select>
-
-<input id="search" placeholder="Содержит… (водка, апельсин)">
-</div>
-
-<button class="randomBtn" onclick="randomDrink()">Что выпить?</button>
-
-<div id="menu"></div>
-
-</div>
-
-<script>
-
-const SHEET_ID="1CceZ3cIic_k9Z9GnXg_wOzoUGdYonzVkfypmSzf_ln8";
-const url=`https://opensheet.elk.sh/${SHEET_ID}/MENU`;
-
-let cocktails=[];
-
-fetch(url)
-.then(r=>r.json())
-.then(data=>{
-    cocktails=data;
-    render();
-});
-
-function render(){
-
-    const strength=document.getElementById("strength").value;
-    const search=document.getElementById("search").value.toLowerCase();
-    const menu=document.getElementById("menu");
-    menu.innerHTML="";
-
-    cocktails.forEach(row=>{
-
-        if(!row.Коктейль) return;
-
-        let s=(row.Крепость||"")
-        .toLowerCase()
-        .replace("ё","е");
-
-        if(strength==="noalc" && s) return;
-        if(strength && strength!=="noalc" && !s.includes(strength)) return;
-        if(search && !row.Состав.toLowerCase().includes(search)) return;
-
-        let stars="☆";
-        if(s.includes("лег")) stars="★";
-        if(s.includes("сред")) stars="★★";
-        if(s.includes("креп")) stars="★★★";
-
-        menu.innerHTML+=`
-        <div class="card">
-            <div class="name">${row.Коктейль}</div>
-            <div class="price">${row.Цена}</div>
-            <div class="stars">Крепость — ${stars}</div>
-            <div class="comp">${row.Состав}</div>
-        </div>`;
-    });
-}
-
-function randomDrink(){
-
-    if(cocktails.length===0) return;
-
-    let filtered=cocktails.filter(r=>r.Коктейль);
-
-    let rand=filtered[Math.floor(Math.random()*filtered.length)];
-
-    let s=(rand.Крепость||"").toLowerCase().replace("ё","е");
-
-    let stars="☆";
-    if(s.includes("лег")) stars="★";
-    if(s.includes("сред")) stars="★★";
-    if(s.includes("креп")) stars="★★★";
-
-    const menu=document.getElementById("menu");
-    menu.innerHTML=`
-    <div class="card">
-        <div class="name">${rand.Коктейль}</div>
-        <div class="price">${rand.Цена}</div>
-        <div class="stars">Крепость — ${stars}</div>
-        <div class="comp">${rand.Состав}</div>
-    </div>`;
-}
-
-document.getElementById("strength").onchange=render;
-document.getElementById("search").oninput=render;
-
-</script>
-
-</body>
-</html>
+    color:#a8
