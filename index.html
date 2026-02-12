@@ -11,22 +11,23 @@
 body{
     margin:0;
     font-family:'Inter',sans-serif;
-    background:#0a0a0a;
+    background: radial-gradient(circle at top, #181818 0%, #080808 70%);
     color:#fff;
 }
 
 h1{
     text-align:center;
-    padding:28px 20px 12px;
+    padding:28px 20px 14px;
     font-weight:400;
     letter-spacing:1px;
     font-size:26px;
+    opacity:.9;
 }
 
 .container{
     max-width:720px;
     margin:auto;
-    padding:20px;
+    padding:18px;
 }
 
 .filters{
@@ -36,22 +37,23 @@ h1{
 }
 
 select,input{
-    background:#141414;
-    border:1px solid #2a2a2a;
+    background:rgba(255,255,255,0.05);
+    border:1px solid rgba(255,255,255,0.1);
     color:#fff;
     padding:12px;
-    border-radius:12px;
+    border-radius:14px;
     width:100%;
     font-size:14px;
 }
 
+/* карточки */
 .card{
-    background:#111;
-    border-radius:16px;
-    padding:18px;
+    background:rgba(255,255,255,0.04);
+    border-radius:18px;
+    padding:20px;
     margin-bottom:14px;
-    border:1px solid #1f1f1f;
-    transition:.18s;
+    border:1px solid rgba(255,255,255,0.08);
+    transition:transform .12s ease;
 }
 
 .card:active{
@@ -59,28 +61,32 @@ select,input{
 }
 
 .name{
-    font-size:22px;
+    font-size:23px;
     font-weight:600;
+    letter-spacing:.3px;
 }
 
 .price{
     margin-top:6px;
     font-size:18px;
     color:#00ffa6;
-    text-shadow:0 0 8px rgba(0,255,166,.25);
+    font-weight:500;
+    text-shadow:0 0 6px rgba(0,255,166,.25);
 }
 
 .stars{
     margin-top:10px;
     font-size:13px;
-    color:#9a9a9a;
+    color:#a8a8a8;
+    letter-spacing:.5px;
 }
 
 .comp{
-    margin-top:12px;
+    margin-top:14px;
     font-size:14px;
-    color:#cfcfcf;
-    line-height:1.45;
+    color:#d0d0d0;
+    line-height:1.5;
+    opacity:.9;
 }
 </style>
 </head>
