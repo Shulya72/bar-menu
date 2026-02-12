@@ -10,30 +10,30 @@
 <style>
 body{
     margin:0;
-    font-family: 'Inter', sans-serif;
-    background: radial-gradient(circle at top, #1b1b1b 0%, #0b0b0b 60%);
+    font-family:'Inter',sans-serif;
+    background: radial-gradient(circle at top, #181818 0%, #080808 70%);
     color:#fff;
 }
 
 h1{
     text-align:center;
-    padding:30px 20px 10px;
-    font-weight:300;
+    padding:28px 20px 14px;
+    font-weight:400;
     letter-spacing:1px;
-    font-size:28px;
+    font-size:26px;
     opacity:.9;
 }
 
 .container{
     max-width:720px;
     margin:auto;
-    padding:20px;
+    padding:18px;
 }
 
 .filters{
     display:flex;
-    gap:12px;
-    margin-bottom:25px;
+    gap:10px;
+    margin-bottom:22px;
 }
 
 select,input{
@@ -43,27 +43,24 @@ select,input{
     padding:12px;
     border-radius:14px;
     width:100%;
-    backdrop-filter: blur(10px);
     font-size:14px;
 }
 
 .card{
-    background:linear-gradient(180deg, rgba(255,255,255,0.04), rgba(255,255,255,0.02));
-    border-radius:20px;
-    padding:22px;
-    margin-bottom:16px;
-    backdrop-filter: blur(20px);
+    background:rgba(255,255,255,0.04);
+    border-radius:18px;
+    padding:20px;
+    margin-bottom:14px;
     border:1px solid rgba(255,255,255,0.08);
-    transition:.25s;
+    transition:transform .12s ease;
 }
 
-.card:hover{
-    transform:translateY(-2px);
-    border:1px solid rgba(124,252,0,0.25);
+.card:active{
+    transform:scale(.99);
 }
 
 .name{
-    font-size:24px;
+    font-size:23px;
     font-weight:600;
     letter-spacing:.3px;
 }
@@ -73,30 +70,24 @@ select,input{
     font-size:18px;
     color:#7CFC00;
     font-weight:500;
+    text-shadow:
+        0 0 6px rgba(124,252,0,.4),
+        0 0 14px rgba(124,252,0,.2);
 }
 
 .stars{
     margin-top:10px;
     font-size:13px;
-    color:#aaa;
+    color:#a8a8a8;
     letter-spacing:.5px;
 }
 
 .comp{
     margin-top:14px;
     font-size:14px;
-    color:#cfcfcf;
+    color:#d0d0d0;
     line-height:1.5;
     opacity:.9;
-}
-
-.fade{
-    animation:fade .4s ease;
-}
-
-@keyframes fade{
-    from{opacity:0; transform:translateY(8px);}
-    to{opacity:1; transform:translateY(0);}
 }
 </style>
 </head>
@@ -108,7 +99,6 @@ select,input{
 <div class="container">
 
 <div class="filters">
-
 <select id="strength">
 <option value="">Крепость: все</option>
 <option value="noalc">☆ безалкогольные</option>
@@ -163,7 +153,7 @@ function render(){
         if(s.includes("креп")) stars="★★★";
 
         menu.innerHTML+=`
-        <div class="card fade">
+        <div class="card">
             <div class="name">${row.Коктейль}</div>
             <div class="price">${row.Цена}</div>
             <div class="stars">Крепость — ${stars}</div>
