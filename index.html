@@ -17,11 +17,9 @@ body{
 
 h1{
     text-align:center;
-    padding:28px 20px 14px;
+    padding:28px 20px 10px;
     font-weight:400;
-    letter-spacing:1px;
     font-size:26px;
-    opacity:.9;
 }
 
 .container{
@@ -33,7 +31,7 @@ h1{
 .filters{
     display:flex;
     gap:10px;
-    margin-bottom:22px;
+    margin-bottom:16px;
 }
 
 select,input{
@@ -43,7 +41,18 @@ select,input{
     padding:12px;
     border-radius:14px;
     width:100%;
-    font-size:14px;
+}
+
+.randomBtn{
+    width:100%;
+    margin-bottom:18px;
+    padding:14px;
+    border-radius:16px;
+    border:none;
+    font-size:15px;
+    font-weight:600;
+    background:#7CFC00;
+    color:#000;
 }
 
 .card{
@@ -52,24 +61,17 @@ select,input{
     padding:20px;
     margin-bottom:14px;
     border:1px solid rgba(255,255,255,0.08);
-    transition:transform .12s ease;
-}
-
-.card:active{
-    transform:scale(.99);
 }
 
 .name{
     font-size:23px;
     font-weight:600;
-    letter-spacing:.3px;
 }
 
 .price{
     margin-top:6px;
     font-size:18px;
     color:#7CFC00;
-    font-weight:500;
     text-shadow:
         0 0 6px rgba(124,252,0,.4),
         0 0 14px rgba(124,252,0,.2);
@@ -79,7 +81,6 @@ select,input{
     margin-top:10px;
     font-size:13px;
     color:#a8a8a8;
-    letter-spacing:.5px;
 }
 
 .comp{
@@ -87,7 +88,6 @@ select,input{
     font-size:14px;
     color:#d0d0d0;
     line-height:1.5;
-    opacity:.9;
 }
 </style>
 </head>
@@ -109,6 +109,8 @@ select,input{
 
 <input id="search" placeholder="Содержит… (водка, апельсин)">
 </div>
+
+<button class="randomBtn" onclick="randomDrink()">Что выпить?</button>
 
 <div id="menu"></div>
 
@@ -160,6 +162,31 @@ function render(){
             <div class="comp">${row.Состав}</div>
         </div>`;
     });
+}
+
+function randomDrink(){
+
+    if(cocktails.length===0) return;
+
+    let filtered=cocktails.filter(r=>r.Коктейль);
+
+    let rand=filtered[Math.floor(Math.random()*filtered.length)];
+
+    let s=(rand.Крепость||"").toLowerCase().replace("ё","е");
+
+    let stars="☆";
+    if(s.includes("лег")) stars="★";
+    if(s.includes("сред")) stars="★★";
+    if(s.includes("креп")) stars="★★★";
+
+    const menu=document.getElementById("menu");
+    menu.innerHTML=`
+    <div class="card">
+        <div class="name">${rand.Коктейль}</div>
+        <div class="price">${rand.Цена}</div>
+        <div class="stars">Крепость — ${stars}</div>
+        <div class="comp">${rand.Состав}</div>
+    </div>`;
 }
 
 document.getElementById("strength").onchange=render;
