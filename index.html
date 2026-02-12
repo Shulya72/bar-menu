@@ -15,6 +15,7 @@ body{
 h1{
     text-align:center;
     padding:20px;
+    font-weight:500;
 }
 .container{
     max-width:700px;
@@ -27,10 +28,25 @@ h1{
     padding:18px;
     margin-bottom:12px;
 }
-.name{font-size:22px;font-weight:600;}
-.price{color:#7CFC00;margin-top:4px;}
-.comp{margin-top:10px;color:#bbb;font-size:14px;}
-.stars{margin-top:6px;color:#bbb;font-size:14px;}
+.name{
+    font-size:22px;
+    font-weight:600;
+}
+.price{
+    color:#7CFC00;
+    margin-top:4px;
+    font-size:18px;
+}
+.comp{
+    margin-top:10px;
+    color:#bbb;
+    font-size:14px;
+}
+.stars{
+    margin-top:6px;
+    color:#bbb;
+    font-size:14px;
+}
 
 .filters{
     display:flex;
@@ -55,14 +71,17 @@ select,input{
 <div class="container">
 
 <div class="filters">
+
 <select id="strength">
 <option value="">Крепость: все</option>
+<option value="noalc">☆ безалкогольные</option>
 <option value="лег">★ лёгкие</option>
 <option value="сред">★★ средние</option>
 <option value="креп">★★★ крепкие</option>
 </select>
 
 <input id="search" placeholder="Содержит… (водка, апельсин)">
+
 </div>
 
 <div id="menu"></div>
@@ -84,21 +103,30 @@ fetch(url)
 });
 
 function render(){
+
     const strength=document.getElementById("strength").value;
     const search=document.getElementById("search").value.toLowerCase();
     const menu=document.getElementById("menu");
     menu.innerHTML="";
 
     cocktails.forEach(row=>{
+
         if(!row.Коктейль) return;
 
-        let s=(row.Крепость||"").toLowerCase().replace("ё","е");
+        let s=(row.Крепость||"")
+        .toLowerCase()
+        .replace("ё","е");
 
-        if(strength && !s.includes(strength)) return;
+        // фильтр безалко
+        if(strength==="noalc" && s) return;
 
+        // фильтр крепости
+        if(strength && strength!=="noalc" && !s.includes(strength)) return;
+
+        // поиск ингредиента
         if(search && !row.Состав.toLowerCase().includes(search)) return;
 
-        let stars="";
+        let stars="☆";
         if(s.includes("лег")) stars="★";
         if(s.includes("сред")) stars="★★";
         if(s.includes("креп")) stars="★★★";
