@@ -20,6 +20,7 @@ h1{
     padding:28px 20px 10px;
     font-weight:400;
     font-size:26px;
+    cursor:pointer;
 }
 
 .container{
@@ -94,7 +95,7 @@ select,input{
 
 <body>
 
-<h1>Карта бара</h1>
+<h1 onclick="render()">Карта бара</h1>
 
 <div class="container">
 
@@ -131,6 +132,8 @@ fetch(url)
 });
 
 function render(){
+
+    if(!cocktails.length) return;
 
     const strength=document.getElementById("strength").value;
     const search=document.getElementById("search").value.toLowerCase();
