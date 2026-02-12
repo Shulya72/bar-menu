@@ -72,9 +72,11 @@ fetch(url)
         if(!row.Коктейль) return;
 
         let stars="";
-        if(row.Крепость=="лёгкий") stars="★";
-        if(row.Крепость=="средний") stars="★★";
-        if(row.Крепость=="крепкий") stars="★★★";
+        let strength = (row.Крепость || "").toLowerCase();
+        if(strength.includes("лёг")) stars="★";
+        if(strength.includes("сред")) stars="★★";
+        if(strength.includes("креп")) stars="★★★";
+
 
         container.innerHTML+=`
         <div class="card">
