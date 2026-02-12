@@ -8,14 +8,13 @@
 <style>
 body{
     margin:0;
-    font-family: -apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,Arial;
+    font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,Arial;
     background:#0e0e0e;
     color:#fff;
 }
 h1{
     text-align:center;
-    padding:25px;
-    font-weight:500;
+    padding:20px;
 }
 .container{
     max-width:700px;
@@ -25,29 +24,26 @@ h1{
 .card{
     background:#171717;
     border-radius:16px;
-    padding:20px;
-    margin-bottom:14px;
-    box-shadow:0 0 0 1px #222;
+    padding:18px;
+    margin-bottom:12px;
 }
-.name{
-    font-size:22px;
-    font-weight:600;
+.name{font-size:22px;font-weight:600;}
+.price{color:#7CFC00;margin-top:4px;}
+.comp{margin-top:10px;color:#bbb;font-size:14px;}
+.stars{margin-top:6px;color:#bbb;font-size:14px;}
+
+.filters{
+    display:flex;
+    gap:10px;
+    margin-bottom:20px;
 }
-.price{
-    font-size:18px;
-    color:#7CFC00;
-    margin-top:4px;
-}
-.comp{
-    margin-top:10px;
-    color:#bbb;
-    font-size:14px;
-}
-.stars{
-    margin-top:8px;
-    color:#bbb;
-    font-size:14px;
-    letter-spacing:1px;
+select,input{
+    background:#1a1a1a;
+    border:1px solid #333;
+    color:#fff;
+    padding:10px;
+    border-radius:10px;
+    width:100%;
 }
 </style>
 </head>
@@ -55,34 +51,59 @@ h1{
 <body>
 
 <h1>Карта бара</h1>
-<div class="container" id="menu"></div>
+
+<div class="container">
+
+<div class="filters">
+<select id="strength">
+<option value="">Крепость: все</option>
+<option value="лег">лёгкие</option>
+<option value="сред">средние</option>
+<option value="креп">крепкие</option>
+</select>
+
+<input id="search" placeholder="Содержит… (водка, апельсин)">
+</div>
+
+<div id="menu"></div>
+
+</div>
 
 <script>
 
-const SHEET_ID = "1CceZ3cIic_k9Z9GnXg_wOzoUGdYonzVkfypmSzf_ln8";
-const SHEET_NAME = "MENU";
+const SHEET_ID="1CceZ3cIic_k9Z9GnXg_wOzoUGdYonzVkfypmSzf_ln8";
+const url=`https://opensheet.elk.sh/${SHEET_ID}/MENU`;
 
-const url = `https://opensheet.elk.sh/${SHEET_ID}/${SHEET_NAME}`;
+let cocktails=[];
 
 fetch(url)
-.then(res=>res.json())
+.then(r=>r.json())
 .then(data=>{
-    const container=document.getElementById("menu");
+    cocktails=data;
+    render();
+});
 
-    data.forEach(row=>{
+function render(){
+    const strength=document.getElementById("strength").value;
+    const search=document.getElementById("search").value.toLowerCase();
+    const menu=document.getElementById("menu");
+    menu.innerHTML="";
+
+    cocktails.forEach(row=>{
         if(!row.Коктейль) return;
 
+        let s=(row.Крепость||"").toLowerCase().replace("ё","е");
+
+        if(strength && !s.includes(strength)) return;
+
+        if(search && !row.Состав.toLowerCase().includes(search)) return;
+
         let stars="";
-        let strength = (row.Крепость || "")
-                    .toLowerCase()
-                    .replace("ё","е");
-        if(strength.includes("лег")) stars="★";
-        if(strength.includes("сред")) stars="★★";
-        if(strength.includes("креп")) stars="★★★";
+        if(s.includes("лег")) stars="★";
+        if(s.includes("сред")) stars="★★";
+        if(s.includes("креп")) stars="★★★";
 
-
-
-        container.innerHTML+=`
+        menu.innerHTML+=`
         <div class="card">
             <div class="name">${row.Коктейль}</div>
             <div class="price">${row.Цена}</div>
@@ -90,7 +111,10 @@ fetch(url)
             <div class="comp">${row.Состав}</div>
         </div>`;
     });
-});
+}
+
+document.getElementById("strength").onchange=render;
+document.getElementById("search").oninput=render;
 
 </script>
 
