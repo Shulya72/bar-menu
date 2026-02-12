@@ -51,7 +51,23 @@ body{
     margin-bottom:16px;
 }
 
-select,input{
+/* исправление белого выпадающего списка */
+select{
+    background:#141414;
+    border:1px solid rgba(255,255,255,0.1);
+    color:#fff;
+    padding:12px;
+    border-radius:14px;
+    width:100%;
+}
+
+/* фон выпадающего списка Windows */
+select option{
+    background:#141414;
+    color:#fff;
+}
+
+input{
     background:rgba(255,255,255,0.05);
     border:1px solid rgba(255,255,255,0.1);
     color:#fff;
