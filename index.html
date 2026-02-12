@@ -68,6 +68,7 @@ select option{
     font-weight:600;
     background:#7CFC00;
     color:#000;
+    cursor:pointer;
 }
 
 .card{
@@ -160,6 +161,17 @@ fetch(url)
     render();
 });
 
+function buildCard(row, stars, flash=false){
+    return `
+    <div class="card ${flash ? "flash":""}">
+    ${row.Фото ? `<img src="${row.Фото}" class="photo">` : ""}
+    <div class="name">${row.Коктейль}</div>
+    <div class="price">${row.Цена}</div>
+    <div class="stars">Крепость — ${stars}</div>
+    <div class="comp">${row.Состав}</div>
+    </div>`;
+}
+
 function render(){
 
     const strength=document.getElementById("strength").value;
@@ -183,16 +195,7 @@ function render(){
         if(s.includes("сред")) stars="★★";
         if(s.includes("креп")) stars="★★★";
 
-        menu.innerHTML+=`
-        <div class="card">
-
-        ${row.Фото ? `<img src="${row.Фото}" class="photo">` : ""}
-
-        <div class="name">${row.Коктейль}</div>
-        <div class="price">${row.Цена}</div>
-        <div class="stars">Крепость — ${stars}</div>
-        <div class="comp">${row.Состав}</div>
-        </div>`;
+        menu.innerHTML+=buildCard(row,stars);
     });
 }
 
@@ -200,28 +203,53 @@ function randomDrink(){
 
     if(cocktails.length===0) return;
 
-    let filtered=cocktails.filter(r=>r.Коктейль);
-    let rand=filtered[Math.floor(Math.random()*filtered.length)];
-
-    let s=(rand.Крепость||"").toLowerCase().replace("ё","е");
-
-    let stars="☆";
-    if(s.includes("лег")) stars="★";
-    if(s.includes("сред")) stars="★★";
-    if(s.includes("креп")) stars="★★★";
-
+    const strength=document.getElementById("strength").value;
+    const search=document.getElementById("search").value.toLowerCase();
     const menu=document.getElementById("menu");
 
-    menu.innerHTML=`
-    <div class="card flash">
+    let filtered=cocktails.filter(row=>{
 
-    ${rand.Фото ? `<img src="${rand.Фото}" class="photo">` : ""}
+        if(!row.Коктейль) return false;
 
-    <div class="name">${rand.Коктейль}</div>
-    <div class="price">${rand.Цена}</div>
-    <div class="stars">Крепость — ${stars}</div>
-    <div class="comp">${rand.Состав}</div>
-    </div>`;
+        let s=(row.Крепость||"").toLowerCase().replace("ё","е");
+
+        if(strength==="noalc" && s) return false;
+        if(strength && strength!=="noalc" && !s.includes(strength)) return false;
+        if(search && !row.Состав.toLowerCase().includes(search)) return false;
+
+        return true;
+    });
+
+    if(filtered.length===0) return;
+
+    let speed=60;
+    let slowdown=1.12;
+    let time=0;
+    let duration=2400;
+
+    function spin(){
+
+        let rand=filtered[Math.floor(Math.random()*filtered.length)];
+        let s=(rand.Крепость||"").toLowerCase().replace("ё","е");
+
+        let stars="☆";
+        if(s.includes("лег")) stars="★";
+        if(s.includes("сред")) stars="★★";
+        if(s.includes("креп")) stars="★★★";
+
+        menu.innerHTML=buildCard(rand,stars);
+
+        time+=speed;
+        speed*=slowdown;
+
+        if(time<duration){
+            setTimeout(spin,speed);
+        }else{
+            menu.innerHTML=buildCard(rand,stars,true);
+        }
+    }
+
+    spin();
 }
 
 document.getElementById("strength").onchange=render;
