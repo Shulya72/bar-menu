@@ -72,10 +72,13 @@ fetch(url)
         if(!row.Коктейль) return;
 
         let stars="";
-        let strength = (row.Крепость || "").toLowerCase();
-        if(strength.includes("лёг")) stars="★";
+        let strength = (row.Крепость || "")
+                    .toLowerCase()
+                    .replace("ё","е");
+        if(strength.includes("лег")) stars="★";
         if(strength.includes("сред")) stars="★★";
         if(strength.includes("креп")) stars="★★★";
+
 
 
         container.innerHTML+=`
