@@ -78,9 +78,9 @@ select option{
     border:1px solid rgba(255,255,255,0.08);
 }
 
-/* ДЫШАЩАЯ ВСПЫШКА */
+/* дыхание */
 .card.flash{
-    animation:breath 1.4s ease-in-out 2;
+    animation:breath 1.6s ease-in-out 2;
 }
 
 @keyframes breath{
@@ -167,75 +167,4 @@ function render(){
 
         if(!row.Коктейль) return;
 
-        let s=(row.Крепость||"").toLowerCase().replace("ё","е");
-
-        if(strength==="noalc" && s) return;
-        if(strength && strength!=="noalc" && !s.includes(strength)) return;
-        if(search && !row.Состав.toLowerCase().includes(search)) return;
-
-        let stars="☆";
-        if(s.includes("лег")) stars="★";
-        if(s.includes("сред")) stars="★★";
-        if(s.includes("креп")) stars="★★★";
-
-        menu.innerHTML+=`
-        <div class="card">
-            <div class="name">${row.Коктейль}</div>
-            <div class="price">${row.Цена}</div>
-            <div class="stars">Крепость — ${stars}</div>
-            <div class="comp">${row.Состав}</div>
-        </div>`;
-    });
-}
-
-function randomDrink(){
-
-    if(cocktails.length===0) return;
-
-    let filtered=cocktails.filter(r=>r.Коктейль);
-
-    let speed=50;
-    let slowdown=1.12;
-    let time=0;
-    let duration=2200;
-    const menu=document.getElementById("menu");
-
-    function spin(){
-
-        let rand=filtered[Math.floor(Math.random()*filtered.length)];
-        let s=(rand.Крепость||"").toLowerCase().replace("ё","е");
-
-        let stars="☆";
-        if(s.includes("лег")) stars="★";
-        if(s.includes("сред")) stars="★★";
-        if(s.includes("креп")) stars="★★★";
-
-        menu.innerHTML=`
-        <div class="card">
-            <div class="name">${rand.Коктейль}</div>
-            <div class="price">${rand.Цена}</div>
-            <div class="stars">Крепость — ${stars}</div>
-            <div class="comp">${rand.Состав}</div>
-        </div>`;
-
-        time+=speed;
-        speed*=slowdown;
-
-        if(time<duration){
-            setTimeout(spin,speed);
-        }else{
-            const card=document.querySelector(".card");
-            if(card) card.classList.add("flash");
-        }
-    }
-
-    spin();
-}
-
-document.getElementById("strength").onchange=render;
-document.getElementById("search").oninput=render;
-
-</script>
-
-</body>
-</html>
+        let s=(row.Крепость||"").toLowerCas
