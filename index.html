@@ -5,41 +5,16 @@
 <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
 
 <meta name="theme-color" content="#181818">
-<meta name="apple-mobile-web-app-capable" content="yes">
-<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
-
 <title>Карта бара</title>
 
 <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;600&display=swap" rel="stylesheet">
 
 <style>
-html{
-    background:#181818;
-}
-
 body{
     margin:0;
-    padding-top:env(safe-area-inset-top);
     font-family:'Inter',sans-serif;
-    background: radial-gradient(circle at top, #181818 0%, #080808 70%);
+    background:#0b0b0b;
     color:#fff;
-}
-
-.topBar{
-    display:flex;
-    justify-content:center;
-    margin-top:18px;
-}
-
-.homeBtn{
-    background:rgba(255,255,255,0.06);
-    border:1px solid rgba(255,255,255,0.15);
-    color:#fff;
-    padding:10px 18px;
-    border-radius:14px;
-    font-size:14px;
-    backdrop-filter:blur(6px);
-    cursor:pointer;
 }
 
 .container{
@@ -48,118 +23,28 @@ body{
     padding:18px;
 }
 
-.filters{
-    display:flex;
-    gap:10px;
-    margin-bottom:16px;
-}
-
-select,input{
-    background:#141414;
-    border:1px solid rgba(255,255,255,0.1);
-    color:#fff;
-    padding:12px;
-    border-radius:14px;
-    width:100%;
-}
-
-select option{
-    background:#141414;
-    color:#fff;
-}
-
-.randomBtn{
-    width:100%;
-    margin-bottom:18px;
-    padding:14px;
-    border-radius:16px;
-    border:none;
-    font-size:15px;
-    font-weight:600;
-    background:#7CFC00;
-    color:#000;
-    cursor:pointer;
-}
-
 .card{
-    background:rgba(255,255,255,0.04);
+    background:rgba(255,255,255,0.05);
     border-radius:18px;
     padding:20px;
     margin-bottom:14px;
-    border:1px solid rgba(255,255,255,0.08);
 }
 
 .card.off{
-    opacity:0.35;
+    opacity:0.25;
     filter:grayscale(1);
 }
 
-.photo{
-    width:100%;
-    border-radius:14px;
-    margin-bottom:12px;
-}
-
-.card.flash{
-    animation:breath 1.6s ease-in-out 2;
-}
-
-@keyframes breath{
-    0%{ box-shadow:0 0 0 rgba(124,252,0,0); }
-    50%{ box-shadow:0 0 30px rgba(124,252,0,0.9); }
-    100%{ box-shadow:0 0 0 rgba(124,252,0,0); }
-}
-
-.name{
-    font-size:23px;
-    font-weight:600;
-}
-
-.price{
-    margin-top:6px;
-    font-size:18px;
-    color:#7CFC00;
-}
-
-.stars{
-    margin-top:10px;
-    font-size:13px;
-    color:#aaa;
-}
-
-.comp{
-    margin-top:14px;
-    font-size:14px;
-    color:#ddd;
-    line-height:1.5;
-}
+.name{font-size:22px;font-weight:600}
+.price{color:#7CFC00;margin-top:6px}
+.comp{margin-top:12px;color:#ccc}
 </style>
 </head>
 
 <body>
 
-<div class="topBar">
-<button class="homeBtn" onclick="render()">🍸 Карта бара</button>
-</div>
-
 <div class="container">
-
-<div class="filters">
-<select id="strength">
-<option value="">Крепость: все</option>
-<option value="noalc">☆ безалкогольные</option>
-<option value="лег">★ лёгкие</option>
-<option value="сред">★★ средние</option>
-<option value="креп">★★★ крепкие</option>
-</select>
-
-<input id="search" placeholder="Содержит… (водка, апельсин)">
-</div>
-
-<button class="randomBtn" onclick="randomDrink()">🥃 Что выпить?</button>
-
 <div id="menu"></div>
-
 </div>
 
 <script>
@@ -167,112 +52,32 @@ select option{
 const SHEET_ID="1CceZ3cIic_k9Z9GnXg_wOzoUGdYonzVkfypmSzf_ln8";
 const url="https://opensheet.elk.sh/"+SHEET_ID+"/MENU";
 
-let cocktails=[];
-
 fetch(url)
 .then(r=>r.json())
 .then(data=>{
-    cocktails=data;
-    render();
-});
 
-function buildCard(row, stars, flash=false){
-
-    const off = row.Доступность && row.Доступность.trim().toUpperCase()==="НЕТ";
-
-    return `
-    <div class="card ${flash ? "flash":""} ${off ? "off":""}">
-    ${row.Фото ? `<img src="${row.Фото}" class="photo">` : ""}
-    <div class="name">${row.Коктейль}</div>
-    <div class="price">${row.Цена}</div>
-    <div class="stars">Крепость — ${stars}</div>
-    <div class="comp">${row.Состав}</div>
-    </div>`;
-}
-
-function render(){
-
-    const strength=document.getElementById("strength").value;
-    const search=document.getElementById("search").value.toLowerCase();
     const menu=document.getElementById("menu");
-
     menu.innerHTML="";
 
-    cocktails.forEach(row=>{
+    data.forEach(row=>{
 
         if(!row.Коктейль) return;
 
-        let s=(row.Крепость||"").toLowerCase().replace("ё","е");
+        // универсальная проверка
+        let status=(row.Доступность || "").toString().trim().toLowerCase();
 
-        if(strength==="noalc" && s) return;
-        if(strength && strength!=="noalc" && !s.includes(strength)) return;
-        if(search && !row.Состав.toLowerCase().includes(search)) return;
+        let off = status==="нет";
 
-        let stars="☆";
-        if(s.includes("лег")) stars="★";
-        if(s.includes("сред")) stars="★★";
-        if(s.includes("креп")) stars="★★★";
-
-        menu.innerHTML+=buildCard(row,stars);
-    });
-}
-
-function randomDrink(){
-
-    if(cocktails.length===0) return;
-
-    const strength=document.getElementById("strength").value;
-    const search=document.getElementById("search").value.toLowerCase();
-    const menu=document.getElementById("menu");
-
-    let filtered=cocktails.filter(row=>{
-
-        if(!row.Коктейль) return false;
-
-        let s=(row.Крепость||"").toLowerCase().replace("ё","е");
-
-        if(strength==="noalc" && s) return false;
-        if(strength && strength!=="noalc" && !s.includes(strength)) return false;
-        if(search && !row.Состав.toLowerCase().includes(search)) return false;
-
-        return true;
+        menu.innerHTML+=`
+        <div class="card ${off ? "off":""}">
+            <div class="name">${row.Коктейль}</div>
+            <div class="price">${row.Цена}</div>
+            <div class="comp">${row.Состав}</div>
+        </div>
+        `;
     });
 
-    if(filtered.length===0) return;
-
-    let speed=60;
-    let slowdown=1.12;
-    let time=0;
-    let duration=2400;
-
-    function spin(){
-
-        let rand=filtered[Math.floor(Math.random()*filtered.length)];
-        let s=(rand.Крепость||"").toLowerCase().replace("ё","е");
-
-        let stars="☆";
-        if(s.includes("лег")) stars="★";
-        if(s.includes("сред")) stars="★★";
-        if(s.includes("креп")) stars="★★★";
-
-        menu.innerHTML=buildCard(rand,stars);
-
-        time+=speed;
-        speed*=slowdown;
-
-        if(time<duration){
-            setTimeout(spin,speed);
-        }else{
-            menu.innerHTML=buildCard(rand,stars,true);
-        }
-    }
-
-    spin();
-}
-
-document.getElementById("strength").onchange=render;
-document.getElementById("search").oninput=render;
-
+});
 </script>
 
 </body>
