@@ -15,13 +15,19 @@ body{
 .card{
     border:1px solid #333;
     padding:18px;
-    margin-bottom:14px;
-    border-radius:14px;
+    margin-bottom:18px;
+    border-radius:16px;
 }
 
-h2{margin:0 0 8px 0}
-.recipe{color:#aaa;margin-top:10px}
+img{
+    width:100%;
+    max-width:320px;
+    border-radius:12px;
+    margin-bottom:10px;
+}
+
 .tools{color:#7CFC00;margin-top:8px}
+.recipe{color:#aaa;margin-top:10px}
 </style>
 </head>
 
@@ -35,22 +41,32 @@ h2{margin:0 0 8px 0}
 <script>
 
 const SHEET_ID="1CceZ3cIic_k9Z9GnXg_wOzoUGdYonzVkfypmSzf_ln8";
-const url=`https://docs.google.com/spreadsheets/d/${SHEET_ID}/gviz/tq?tqx=out:json&sheet=БАР_КУХНЯ`;
+
+const techURL=`https://docs.google.com/spreadsheets/d/${SHEET_ID}/gviz/tq?tqx=out:json&sheet=БАР_КУХНЯ`;
+const menuURL=`https://opensheet.elk.sh/${SHEET_ID}/MENU`;
 
 let cocktails=[];
+let photos={};
 let total=0;
 
-fetch(url)
-.then(r=>r.text())
-.then(txt=>{
+Promise.all([
+    fetch(techURL).then(r=>r.text()),
+    fetch(menuURL).then(r=>r.json())
+])
+.then(([techTxt,menuData])=>{
 
-    const json=JSON.parse(txt.substr(47).slice(0,-2));
+    // фото
+    menuData.forEach(r=>{
+        photos[r.Коктейль]=r.Фото;
+    });
+
+    // техкарта
+    const json=JSON.parse(techTxt.substr(47).slice(0,-2));
     const rows=json.table.rows;
 
     let current=null;
 
     rows.forEach(r=>{
-
         const c=r.c;
 
         const id = c[0]?.v;
@@ -68,7 +84,8 @@ fetch(url)
                 cost:parseFloat(cost)||0,
                 recipe:recipe||"",
                 tools:[],
-                ings:[]
+                ings:[],
+                photo:photos[name] || ""
             };
             cocktails.push(current);
         }
@@ -93,6 +110,9 @@ function render(){
 
         list.innerHTML+=`
         <div class="card">
+
+            ${c.photo ? `<img src="${c.photo}">` : ""}
+
             <h2>${c.name}</h2>
 
             ${c.ings.join("<br>")}
