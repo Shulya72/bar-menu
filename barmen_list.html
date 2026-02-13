@@ -1,8 +1,11 @@
 <!DOCTYPE html>
+
 <html lang="ru">
 <head>
 <meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>Бармен</title>
+
 <style>
 body{
     background:#000;
@@ -10,26 +13,38 @@ body{
     font-family:Arial;
     text-align:center;
 }
+
 .card{
+    max-width:420px;
+    margin:40px auto;
+    padding:25px;
     border:1px solid #333;
-    border-radius:14px;
-    margin:30px auto;
-    padding:20px;
-    width:420px;
+    border-radius:18px;
 }
+
 img{
     width:240px;
-    border-radius:12px;
+    border-radius:14px;
+    margin:10px auto;
+    display:block;
 }
-.row{
+
+.price{
+    color:#7CFC00;
+    margin-top:10px;
+    font-weight:bold;
+}
+
+.ing{
     display:flex;
     justify-content:space-between;
-    margin:4px 0;
+    margin:3px 0;
+    font-size:14px;
 }
-.price{ color:#7CFC00; }
-.total{ color:#7CFC00; font-weight:bold; margin-top:10px;}
 </style>
+
 </head>
+
 <body>
 
 <h1>Панель бармена</h1>
@@ -39,86 +54,76 @@ img{
 
 <script>
 
-const ID="1CceZ3cIic_k9Z9GnXg_wOzoUGdYonzVkfypmSzf_ln8";
+const SHEET_ID="1CceZ3cIic_k9Z9GnXg_wOzoUGdYonzVkfypmSzf_ln8";
 
-const techURL=`https://opensheet.elk.sh/${ID}/БАР_КУХНЯ`;
-const menuURL=`https://opensheet.elk.sh/${ID}/MENU`;
+const menuURL=`https://opensheet.elk.sh/${SHEET_ID}/MENU`;
+const priceURL=`https://opensheet.elk.sh/${SHEET_ID}/MENU`;
 
-let tech=[];
-let menu=[];
+let prices={};
+let total=0;
 
-Promise.all([
-fetch(techURL).then(r=>r.json()),
-fetch(menuURL).then(r=>r.json())
-]).then(([t,m])=>{
-    tech=t;
-    menu=m;
-    render();
-});
+async function load(){
 
-function getPrice(name){
-    let row=tech.find(r=>r["Магазин"]==name);
-    if(!row) return 0;
+    const priceData=await fetch(priceURL).then(r=>r.json());
 
-    let raw=row["undefined"];   // ← ВОТ ОНА ЦЕНА ИЗ R
-    if(!raw) return 0;
+    priceData.forEach(r=>{
+        if(r["Ингредиент"])
+            prices[r["Ингредиент"].trim().toLowerCase()]=parseFloat(r["Цена за ед"])||0;
+    });
 
-    raw=raw.replace("₽","").replace(",",".");
-    return parseFloat(raw)||0;
-}
-
-function render(){
+    const data=await fetch(menuURL).then(r=>r.json());
 
     const app=document.getElementById("app");
-    app.innerHTML="";
 
-    menu.forEach(c=>{
+    data.forEach(row=>{
 
-        if(!c.Коктейль) return;
+        if(!row.Коктейль) return;
 
-        let block=document.createElement("div");
-        block.className="card";
+        let html=`<div class="card">`;
+        html+=`<h2>${row.Коктейль}</h2>`;
 
-        let html=`<h2>${c.Коктейль}</h2>`;
+        if(row.Фото)
+            html+=`<img src="${row.Фото}">`;
 
-        if(c.Фото){
-            html+=`<img src="${c.Фото}">`;
+        let cost=0;
+
+        if(row.Состав){
+
+            row.Состав.split(",").forEach(i=>{
+
+                let name=i.trim();
+                let p=prices[name.toLowerCase()]||0;
+
+                cost+=p;
+
+                html+=`
+                <div class="ing">
+                <span>${name}</span>
+                <span>${p.toFixed(2)} ₽</span>
+                </div>`;
+            });
         }
 
-        let total=0;
-
-        tech.forEach(r=>{
-
-            if(r["Технологические карты"]!=c["№"]) return;
-            if(!r["Ингредиент"]) return;
-
-            let name=r["Ингредиент"];
-            let qty=parseFloat(r["Кол-во"])||0;
-
-            let p=getPrice(name);
-            let sum=p*qty;
-            total+=sum;
-
-            html+=`
-            <div class="row">
-            <div>${name} ${qty}</div>
-            <div class="price">${sum.toFixed(2)} ₽</div>
-            </div>`;
-        });
-
-        html+=`<div class="total">Стоимость коктейля: ${total.toFixed(2)} ₽</div>`;
+        html+=`<div class="price">Стоимость коктейля: ${cost.toFixed(2)} ₽</div>`;
 
         html+=`
-        <div style="margin-top:10px">
-        Сделано: <input type="number" value="0" style="width:60px">
-        </div>`;
+        Сделано:
+        <input type="number" value="0" min="0" style="width:60px"
+        onchange="update(this, ${cost})">
+        `;
 
-        block.innerHTML=html;
-        app.appendChild(block);
-
+        html+=`</div>`;
+        app.innerHTML+=html;
     });
 }
 
+function update(el,cost){
+    total+=cost*parseInt(el.value||0);
+    document.getElementById("sum").innerText="Сумма: "+total.toFixed(2)+" ₽";
+}
+
+load();
 </script>
+
 </body>
 </html>
