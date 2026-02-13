@@ -89,6 +89,11 @@ select option{
     border:1px solid rgba(255,255,255,0.08);
 }
 
+.card.off{
+    opacity:0.35;
+    filter:grayscale(1);
+}
+
 .photo{
     width:100%;
     border-radius:14px;
@@ -172,8 +177,11 @@ fetch(url)
 });
 
 function buildCard(row, stars, flash=false){
+
+    const off = row.Доступность && row.Доступность.trim().toUpperCase()==="НЕТ";
+
     return `
-    <div class="card ${flash ? "flash":""}">
+    <div class="card ${flash ? "flash":""} ${off ? "off":""}">
     ${row.Фото ? `<img src="${row.Фото}" class="photo">` : ""}
     <div class="name">${row.Коктейль}</div>
     <div class="price">${row.Цена}</div>
