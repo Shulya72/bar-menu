@@ -12,30 +12,64 @@ body{
     padding:20px;
 }
 
+#list{
+    max-width:700px;
+    margin:auto;
+}
+
 .card{
     border:1px solid #333;
-    padding:18px;
-    margin-bottom:18px;
+    padding:20px;
+    margin-bottom:22px;
     border-radius:16px;
+    text-align:center;
 }
 
-img{
+.name{
+    font-size:26px;
+    font-weight:700;
+    margin-bottom:12px;
+}
+
+.photo{
     width:100%;
     max-width:320px;
-    border-radius:12px;
-    margin-bottom:10px;
+    border-radius:14px;
+    margin:0 auto 14px auto;
+    display:block;
 }
 
-.tools{color:#7CFC00;margin-top:8px}
-.recipe{color:#aaa;margin-top:10px}
+.ingredients{
+    text-align:left;
+    margin-top:10px;
+}
+
+.tools{
+    color:#7CFC00;
+    margin-top:10px;
+}
+
+.recipe{
+    color:#aaa;
+    margin-top:12px;
+}
+
+input{
+    width:60px;
+    padding:6px;
+    margin-top:10px;
+    text-align:center;
+}
 </style>
 </head>
 
 <body>
 
-<h1>Панель бармена</h1>
-<div>Себестоимость вечера: <span id="sum">0</span> ₽</div>
-<br>
+<h1 style="text-align:center">Панель бармена</h1>
+<div style="text-align:center;margin-bottom:25px">
+Себестоимость вечера: <span id="sum">0</span> ₽
+</div>
+
 <div id="list"></div>
 
 <script>
@@ -55,12 +89,10 @@ Promise.all([
 ])
 .then(([techTxt,menuData])=>{
 
-    // фото
     menuData.forEach(r=>{
         photos[r.Коктейль]=r.Фото;
     });
 
-    // техкарта
     const json=JSON.parse(techTxt.substr(47).slice(0,-2));
     const rows=json.table.rows;
 
@@ -111,23 +143,22 @@ function render(){
         list.innerHTML+=`
         <div class="card">
 
-            ${c.photo ? `<img src="${c.photo}">` : ""}
+            <div class="name">${c.name}</div>
 
-            <h2>${c.name}</h2>
+            ${c.photo ? `<img src="${c.photo}" class="photo">` : ""}
 
-            ${c.ings.join("<br>")}
-
-            <div class="tools">
-                ${c.tools.join(" • ")}
+            <div class="ingredients">
+                ${c.ings.join("<br>")}
             </div>
 
-            <div class="recipe">
-                ${c.recipe}
-            </div>
+            <div class="tools">${c.tools.join(" • ")}</div>
+            <div class="recipe">${c.recipe}</div>
 
             <br>
             Сделано:
+            <br>
             <input type="number" value="0" min="0" onchange="calc()">
+
         </div>`;
     });
 }
