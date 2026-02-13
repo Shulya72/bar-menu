@@ -1,79 +1,136 @@
 <!DOCTYPE html>
+
 <html lang="ru">
 <head>
 <meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
 <title>Бармен</title>
+
+<meta name="theme-color" content="#000">
 
 <style>
 body{
+    margin:0;
     background:#000;
     color:#fff;
-    font-family:Arial;
-    padding:20px;
+    font-family:system-ui,Arial;
 }
 
+/* верхняя панель */
+.top{
+    position:sticky;
+    top:0;
+    background:#000;
+    z-index:5;
+    padding:14px;
+    text-align:center;
+    border-bottom:1px solid #222;
+}
+
+.title{
+    font-size:22px;
+    font-weight:700;
+}
+
+.sum{
+    color:#7CFC00;
+    font-size:18px;
+    margin-top:4px;
+}
+
+/* список */
 #list{
+    padding:12px;
     max-width:700px;
     margin:auto;
 }
 
+/* карточка */
 .card{
-    border:1px solid #333;
-    padding:20px;
-    margin-bottom:22px;
-    border-radius:16px;
-    text-align:center;
+    background:#050505;
+    border:1px solid #222;
+    border-radius:18px;
+    padding:16px;
+    margin-bottom:16px;
 }
 
+/* название */
 .name{
-    font-size:26px;
+    text-align:center;
+    font-size:22px;
     font-weight:700;
+    margin-bottom:10px;
+}
+
+/* фото */
+.photo{
+    width:100%;
+    border-radius:14px;
     margin-bottom:12px;
 }
 
-.photo{
-    width:100%;
-    max-width:320px;
-    border-radius:14px;
-    margin:0 auto 14px auto;
-    display:block;
+/* ингредиенты */
+.ing{
+    font-size:15px;
+    margin:3px 0;
 }
 
-.ingredients{
-    text-align:left;
-    margin-top:10px;
-}
-
+/* посуда */
 .tools{
     color:#7CFC00;
     margin-top:10px;
+    font-size:14px;
 }
 
+/* рецепт */
 .recipe{
     color:#aaa;
-    margin-top:12px;
+    font-size:14px;
+    margin-top:10px;
 }
 
-input{
+/* блок управления */
+.controls{
+    display:flex;
+    justify-content:center;
+    align-items:center;
+    gap:10px;
+    margin-top:14px;
+}
+
+.btn{
+    width:44px;
+    height:44px;
+    border-radius:12px;
+    border:none;
+    font-size:24px;
+    background:#111;
+    color:#fff;
+}
+
+.count{
     width:60px;
-    padding:6px;
-    margin-top:10px;
     text-align:center;
+    font-size:18px;
+    background:#000;
+    border:1px solid #333;
+    border-radius:10px;
+    padding:8px;
 }
 </style>
+
 </head>
 
 <body>
 
-<h1 style="text-align:center">Панель бармена</h1>
-<div style="text-align:center;margin-bottom:25px">
-Себестоимость вечера: <span id="sum">0</span> ₽
+<div class="top">
+<div class="title">Панель бармена</div>
+<div class="sum">Сумма: <span id="sum">0</span> ₽</div>
 </div>
 
 <div id="list"></div>
 
 <script>
-
 const SHEET_ID="1CceZ3cIic_k9Z9GnXg_wOzoUGdYonzVkfypmSzf_ln8";
 
 const techURL=`https://docs.google.com/spreadsheets/d/${SHEET_ID}/gviz/tq?tqx=out:json&sheet=БАР_КУХНЯ`;
@@ -101,14 +158,14 @@ Promise.all([
     rows.forEach(r=>{
         const c=r.c;
 
-        const id = c[0]?.v;
-        const name = c[1]?.v;
-        const cost = c[3]?.v;
-        const ing = c[5]?.v;
-        const qty = c[6]?.v;
-        const unit = c[7]?.v;
-        const tool = c[9]?.v;
-        const recipe = c[10]?.v;
+        const id=c[0]?.v;
+        const name=c[1]?.v;
+        const cost=c[3]?.v;
+        const ing=c[5]?.v;
+        const qty=c[6]?.v;
+        const unit=c[7]?.v;
+        const tool=c[9]?.v;
+        const recipe=c[10]?.v;
 
         if(id){
             current={
@@ -117,7 +174,7 @@ Promise.all([
                 recipe:recipe||"",
                 tools:[],
                 ings:[],
-                photo:photos[name] || ""
+                photo:photos[name]||""
             };
             cocktails.push(current);
         }
@@ -147,30 +204,42 @@ function render(){
 
             ${c.photo ? `<img src="${c.photo}" class="photo">` : ""}
 
-            <div class="ingredients">
-                ${c.ings.join("<br>")}
-            </div>
+            ${c.ings.map(x=>`<div class="ing">${x}</div>`).join("")}
 
             <div class="tools">${c.tools.join(" • ")}</div>
             <div class="recipe">${c.recipe}</div>
 
-            <br>
-            Сделано:
-            <br>
-            <input type="number" value="0" min="0" onchange="calc()">
+            <div class="controls">
+                <button class="btn" onclick="minus(${i})">−</button>
+                <input id="c${i}" class="count" value="0" onchange="calc()">
+                <button class="btn" onclick="plus(${i})">+</button>
+            </div>
 
         </div>`;
     });
 }
 
+function plus(i){
+    const el=document.getElementById("c"+i);
+    el.value=parseInt(el.value||0)+1;
+    calc();
+}
+
+function minus(i){
+    const el=document.getElementById("c"+i);
+    el.value=Math.max(0,(parseInt(el.value)||0)-1);
+    calc();
+}
+
 function calc(){
     total=0;
-    document.querySelectorAll("input").forEach((inp,i)=>{
-        total += (parseInt(inp.value)||0)*cocktails[i].cost;
+    cocktails.forEach((c,i)=>{
+        const v=parseInt(document.getElementById("c"+i).value)||0;
+        total+=v*c.cost;
     });
     document.getElementById("sum").innerText=total;
 }
-
 </script>
+
 </body>
 </html>
