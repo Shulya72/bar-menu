@@ -18,17 +18,16 @@ body{
     width:420px;
 }
 img{
-    width:260px;
+    width:240px;
     border-radius:12px;
 }
-.price{
-    color:#7CFC00;
+.row{
+    display:flex;
+    justify-content:space-between;
+    margin:4px 0;
 }
-.total{
-    color:#7CFC00;
-    font-weight:bold;
-    margin-top:10px;
-}
+.price{ color:#7CFC00; }
+.total{ color:#7CFC00; font-weight:bold; margin-top:10px;}
 </style>
 </head>
 <body>
@@ -40,10 +39,10 @@ img{
 
 <script>
 
-const SHEET="1CceZ3cIic_k9Z9GnXg_wOzoUGdYonzVkfypmSzf_ln8";
+const ID="1CceZ3cIic_k9Z9GnXg_wOzoUGdYonzVkfypmSzf_ln8";
 
-const techURL="https://opensheet.elk.sh/"+SHEET+"/БАР_КУХНЯ";
-const menuURL="https://opensheet.elk.sh/"+SHEET+"/MENU";
+const techURL=`https://opensheet.elk.sh/${ID}/БАР_КУХНЯ`;
+const menuURL=`https://opensheet.elk.sh/${ID}/MENU`;
 
 let tech=[];
 let menu=[];
@@ -54,22 +53,24 @@ fetch(menuURL).then(r=>r.json())
 ]).then(([t,m])=>{
     tech=t;
     menu=m;
-    build();
+    render();
 });
 
 function getPrice(name){
-    let row=tech.find(r=>r["Магазин"]==name || r["Ингредиент"]==name);
+    let row=tech.find(r=>r["Магазин"]==name);
     if(!row) return 0;
 
-    let price=row["Цена за ед."] || row["undefined"] || 0;
+    let raw=row["undefined"];   // ← ВОТ ОНА ЦЕНА ИЗ R
+    if(!raw) return 0;
 
-    price=String(price).replace("₽","").replace(",",".");
-    return parseFloat(price)||0;
+    raw=raw.replace("₽","").replace(",",".");
+    return parseFloat(raw)||0;
 }
 
-function build(){
+function render(){
 
     const app=document.getElementById("app");
+    app.innerHTML="";
 
     menu.forEach(c=>{
 
@@ -84,7 +85,7 @@ function build(){
             html+=`<img src="${c.Фото}">`;
         }
 
-        let cost=0;
+        let total=0;
 
         tech.forEach(r=>{
 
@@ -96,17 +97,16 @@ function build(){
 
             let p=getPrice(name);
             let sum=p*qty;
-
-            cost+=sum;
+            total+=sum;
 
             html+=`
-            <div>
-            ${name} ${qty} — 
-            <span class="price">${sum.toFixed(2)} ₽</span>
+            <div class="row">
+            <div>${name} ${qty}</div>
+            <div class="price">${sum.toFixed(2)} ₽</div>
             </div>`;
         });
 
-        html+=`<div class="total">Стоимость коктейля: ${cost.toFixed(2)} ₽</div>`;
+        html+=`<div class="total">Стоимость коктейля: ${total.toFixed(2)} ₽</div>`;
 
         html+=`
         <div style="margin-top:10px">
@@ -117,7 +117,6 @@ function build(){
         app.appendChild(block);
 
     });
-
 }
 
 </script>
