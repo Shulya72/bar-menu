@@ -5,121 +5,82 @@
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>Бармен</title>
-
 <style>
-body{
-    background:#000;
-    color:#fff;
-    font-family:Arial;
-    text-align:center;
-}
-
-.card{
-    max-width:420px;
-    margin:40px auto;
-    padding:25px;
-    border:1px solid #333;
-    border-radius:18px;
-}
-
-img{
-    width:240px;
-    border-radius:14px;
-    margin:10px auto;
-    display:block;
-}
-
-.price{
-    color:#7CFC00;
-    margin-top:10px;
-    font-weight:bold;
-}
-
-.ing{
-    display:flex;
-    justify-content:space-between;
-    margin:3px 0;
-    font-size:14px;
-}
+body{background:#000;color:#fff;font-family:Arial;text-align:center}
+.card{max-width:420px;margin:40px auto;padding:25px;border:1px solid #333;border-radius:18px}
+img{width:240px;border-radius:14px;margin:10px auto;display:block}
+.ing{display:flex;justify-content:space-between;margin:3px 0;font-size:14px}
+.green{color:#7CFC00;font-weight:bold}
 </style>
-
 </head>
 
 <body>
 
 <h1>Панель бармена</h1>
 <h2 id="sum">Сумма: 0 ₽</h2>
-
 <div id="app"></div>
 
 <script>
+const SHEET="1CceZ3cIic_k9Z9GnXg_wOzoUGdYonzVkfypmSzf_ln8";
+const MENU_URL=`https://opensheet.elk.sh/${SHEET}/MENU`;
+const BAR_URL=`https://opensheet.elk.sh/${SHEET}/БАР_КУХНЯ`;
 
-const SHEET_ID="1CceZ3cIic_k9Z9GnXg_wOzoUGdYonzVkfypmSzf_ln8";
-
-const menuURL=`https://opensheet.elk.sh/${SHEET_ID}/MENU`;
-const priceURL=`https://opensheet.elk.sh/${SHEET_ID}/MENU`;
-
-let prices={};
+let priceMap={};
 let total=0;
 
 async function load(){
+  // цены
+  const bar=await fetch(BAR_URL).then(r=>r.json());
+  bar.forEach(r=>{
+    const name=(r["Ингредиент"]||"").trim().toLowerCase();
+    const price=parseFloat(r["Цена за ед."]);
+    if(name && !isNaN(price)) priceMap[name]=price;
+  });
 
-    const priceData=await fetch(priceURL).then(r=>r.json());
+  // меню
+  const menu=await fetch(MENU_URL).then(r=>r.json());
+  const app=document.getElementById("app");
 
-    priceData.forEach(r=>{
-        if(r["Ингредиент"])
-            prices[r["Ингредиент"].trim().toLowerCase()]=parseFloat(r["Цена за ед"])||0;
-    });
+  menu.forEach(row=>{
+    if(!row.Коктейль) return;
 
-    const data=await fetch(menuURL).then(r=>r.json());
+    let html=`<div class="card">`;
+    html+=`<h2>${row.Коктейль}</h2>`;
 
-    const app=document.getElementById("app");
+    if(row.Фото) html+=`<img src="${row.Фото}">`;
 
-    data.forEach(row=>{
+    let cost=0;
 
-        if(!row.Коктейль) return;
-
-        let html=`<div class="card">`;
-        html+=`<h2>${row.Коктейль}</h2>`;
-
-        if(row.Фото)
-            html+=`<img src="${row.Фото}">`;
-
-        let cost=0;
-
-        if(row.Состав){
-
-            row.Состав.split(",").forEach(i=>{
-
-                let name=i.trim();
-                let p=prices[name.toLowerCase()]||0;
-
-                cost+=p;
-
-                html+=`
-                <div class="ing">
-                <span>${name}</span>
-                <span>${p.toFixed(2)} ₽</span>
-                </div>`;
-            });
-        }
-
-        html+=`<div class="price">Стоимость коктейля: ${cost.toFixed(2)} ₽</div>`;
+    if(row.Состав){
+      row.Состав.split(",").forEach(i=>{
+        let key=i.trim().toLowerCase();
+        let price=priceMap[key]||0;
+        cost+=price;
 
         html+=`
-        Сделано:
-        <input type="number" value="0" min="0" style="width:60px"
-        onchange="update(this, ${cost})">
-        `;
+        <div class="ing">
+          <span>${i.trim()}</span>
+          <span>${price.toFixed(2)} ₽</span>
+        </div>`;
+      });
+    }
 
-        html+=`</div>`;
-        app.innerHTML+=html;
-    });
+    html+=`<div class="green">Стоимость коктейля: ${cost.toFixed(2)} ₽</div>`;
+
+    html+=`
+    Сделано:
+    <input type="number" value="0" min="0" style="width:60px"
+      onchange="update(this,${cost})">`;
+
+    html+=`</div>`;
+    app.innerHTML+=html;
+  });
 }
 
 function update(el,cost){
-    total+=cost*parseInt(el.value||0);
-    document.getElementById("sum").innerText="Сумма: "+total.toFixed(2)+" ₽";
+  const n=parseInt(el.value||0,10);
+  if(!isNaN(n)) total+=cost*n;
+  document.getElementById("sum").innerText="Сумма: "+total.toFixed(2)+" ₽";
 }
 
 load();
