@@ -2,132 +2,67 @@
 <html lang="ru">
 <head>
 <meta charset="UTF-8">
-<meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>Бармен</title>
-
-<link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;600&display=swap" rel="stylesheet">
-
 <style>
-body{
-    margin:0;
-    font-family:'Inter',sans-serif;
-    background:#0b0b0b;
-    color:#fff;
-}
-
-.container{
-    max-width:900px;
-    margin:auto;
-    padding:20px;
-}
-
-h1{
-    text-align:center;
-    margin-bottom:8px;
-}
-
-.total{
-    text-align:center;
-    color:#7CFC00;
-    margin-bottom:30px;
-    font-size:18px;
-}
-
-.card{
-    background:#151515;
-    border-radius:18px;
-    padding:18px;
-    margin-bottom:16px;
-    border:1px solid #222;
-}
-
-.name{
-    font-size:22px;
-    font-weight:600;
-}
-
-.cost{
-    color:#7CFC00;
-    margin-top:6px;
-}
-
-.ing{
-    margin-top:12px;
-    font-size:14px;
-    color:#ccc;
-}
-
-.recipe{
-    margin-top:12px;
-    font-size:13px;
-    color:#888;
-}
-
-.counter{
-    margin-top:12px;
-}
-
-input{
-    width:80px;
-    padding:8px;
-    border-radius:10px;
-    border:1px solid #333;
-    background:#111;
-    color:#fff;
-}
+body{background:#000;color:#fff;font-family:Arial;padding:20px}
+.card{border:1px solid #333;padding:15px;margin-bottom:10px;border-radius:12px}
+input{width:60px}
 </style>
 </head>
-
 <body>
 
-<div class="container">
 <h1>Панель бармена</h1>
-<div class="total">Себестоимость вечера: <span id="sum">0</span> ₽</div>
-
+<div>Сумма: <span id="sum">0</span> ₽</div>
 <div id="list"></div>
-</div>
 
 <script>
 
 const SHEET_ID="1CceZ3cIic_k9Z9GnXg_wOzoUGdYonzVkfypmSzf_ln8";
-const url="https://opensheet.elk.sh/"+SHEET_ID+"/БАР_КУХНЯ";
+const url=`https://docs.google.com/spreadsheets/d/${SHEET_ID}/gviz/tq?tqx=out:json&sheet=БАР_КУХНЯ`;
 
 let cocktails=[];
 let total=0;
 
 fetch(url)
-.then(r=>r.json())
-.then(data=>{
-    parse(data);
-    render();
-});
+.then(r=>r.text())
+.then(txt=>{
 
-function parse(rows){
+    const json=JSON.parse(txt.substr(47).slice(0,-2));
+    const rows=json.table.rows;
 
     let current=null;
 
-    rows.forEach(row=>{
+    rows.forEach(r=>{
 
-        if(row["ID кокт"]){
+        const c=r.c;
+
+        const id = c[0]?.v;
+        const name = c[1]?.v;
+        const cost = c[3]?.v;
+        const ing = c[5]?.v;
+        const qty = c[6]?.v;
+        const unit = c[7]?.v;
+        const recipe = c[10]?.v;
+
+        if(id){
             current={
-                name:row["Название"],
-                cost:parseFloat(row["Себестоимость"])||0,
-                recipe:row["Рецепт"]||"",
+                name:name,
+                cost:parseFloat(cost)||0,
+                recipe:recipe||"",
                 ings:[]
             };
             cocktails.push(current);
         }
 
-        if(row["Ингредиент"]){
-            current?.ings.push(
-                row["Ингредиент"]+" "+row["Кол-во"]+" "+row["Ед. изм."]
-            );
+        if(ing){
+            current?.ings.push(`${ing} ${qty} ${unit}`);
         }
     });
-}
+
+    render();
+});
 
 function render(){
-
     const list=document.getElementById("list");
     list.innerHTML="";
 
@@ -135,29 +70,20 @@ function render(){
 
         list.innerHTML+=`
         <div class="card">
-            <div class="name">${c.name}</div>
-            <div class="cost">Себестоимость: ${c.cost} ₽</div>
-
-            <div class="ing">${c.ings.join("<br>")}</div>
-            <div class="recipe">${c.recipe}</div>
-
-            <div class="counter">
-                Сделано:
-                <input type="number" min="0" value="0"
-                onchange="add(${i},this.value)">
-            </div>
+            <b>${c.name}</b><br>
+            ${c.ings.join("<br>")}
+            <br><br>
+            Сделано:
+            <input type="number" value="0" min="0" onchange="calc()">
         </div>`;
     });
 }
 
-function add(i,val){
-
+function calc(){
     total=0;
-
-    document.querySelectorAll("input").forEach((inp,index)=>{
-        total+= (parseInt(inp.value)||0)*cocktails[index].cost;
+    document.querySelectorAll("input").forEach((inp,i)=>{
+        total += (parseInt(inp.value)||0)*cocktails[i].cost;
     });
-
     document.getElementById("sum").innerText=total;
 }
 
