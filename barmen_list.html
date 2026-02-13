@@ -1,90 +1,176 @@
 <!DOCTYPE html>
-
 <html lang="ru">
 <head>
 <meta charset="UTF-8">
-<meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>Бармен</title>
+
 <style>
-body{background:#000;color:#fff;font-family:Arial;text-align:center}
-.card{max-width:420px;margin:40px auto;padding:25px;border:1px solid #333;border-radius:18px}
-img{width:240px;border-radius:14px;margin:10px auto;display:block}
-.ing{display:flex;justify-content:space-between;margin:3px 0;font-size:14px}
-.green{color:#7CFC00;font-weight:bold}
+body{
+    background:#000;
+    color:#fff;
+    font-family:Arial;
+    padding:20px;
+}
+
+#list{
+    max-width:700px;
+    margin:auto;
+}
+
+.card{
+    border:1px solid #333;
+    padding:20px;
+    margin-bottom:22px;
+    border-radius:16px;
+    text-align:center;
+}
+
+.name{
+    font-size:26px;
+    font-weight:700;
+    margin-bottom:12px;
+}
+
+.photo{
+    width:100%;
+    max-width:320px;
+    border-radius:14px;
+    margin:0 auto 14px auto;
+    display:block;
+}
+
+.ingredients{
+    text-align:left;
+    margin-top:10px;
+}
+
+.tools{
+    color:#7CFC00;
+    margin-top:10px;
+}
+
+.recipe{
+    color:#aaa;
+    margin-top:12px;
+}
+
+input{
+    width:60px;
+    padding:6px;
+    margin-top:10px;
+    text-align:center;
+}
 </style>
 </head>
 
 <body>
 
-<h1>Панель бармена</h1>
-<h2 id="sum">Сумма: 0 ₽</h2>
-<div id="app"></div>
+<h1 style="text-align:center">Панель бармена</h1>
+<div style="text-align:center;margin-bottom:25px">
+Себестоимость вечера: <span id="sum">0</span> ₽
+</div>
+
+<div id="list"></div>
 
 <script>
-const SHEET="1CceZ3cIic_k9Z9GnXg_wOzoUGdYonzVkfypmSzf_ln8";
-const MENU_URL=`https://opensheet.elk.sh/${SHEET}/MENU`;
-const BAR_URL=`https://opensheet.elk.sh/${SHEET}/БАР_КУХНЯ`;
 
-let priceMap={};
+const SHEET_ID="1CceZ3cIic_k9Z9GnXg_wOzoUGdYonzVkfypmSzf_ln8";
+
+const techURL=`https://docs.google.com/spreadsheets/d/${SHEET_ID}/gviz/tq?tqx=out:json&sheet=БАР_КУХНЯ`;
+const menuURL=`https://opensheet.elk.sh/${SHEET_ID}/MENU`;
+
+let cocktails=[];
+let photos={};
 let total=0;
 
-async function load(){
-  // цены
-  const bar=await fetch(BAR_URL).then(r=>r.json());
-  bar.forEach(r=>{
-    const name=(r["Ингредиент"]||"").trim().toLowerCase();
-    const price=parseFloat(r["Цена за ед."]);
-    if(name && !isNaN(price)) priceMap[name]=price;
-  });
+Promise.all([
+    fetch(techURL).then(r=>r.text()),
+    fetch(menuURL).then(r=>r.json())
+])
+.then(([techTxt,menuData])=>{
 
-  // меню
-  const menu=await fetch(MENU_URL).then(r=>r.json());
-  const app=document.getElementById("app");
+    menuData.forEach(r=>{
+        photos[r.Коктейль]=r.Фото;
+    });
 
-  menu.forEach(row=>{
-    if(!row.Коктейль) return;
+    const json=JSON.parse(techTxt.substr(47).slice(0,-2));
+    const rows=json.table.rows;
 
-    let html=`<div class="card">`;
-    html+=`<h2>${row.Коктейль}</h2>`;
+    let current=null;
 
-    if(row.Фото) html+=`<img src="${row.Фото}">`;
+    rows.forEach(r=>{
+        const c=r.c;
 
-    let cost=0;
+        const id = c[0]?.v;
+        const name = c[1]?.v;
+        const cost = c[3]?.v;
+        const ing = c[5]?.v;
+        const qty = c[6]?.v;
+        const unit = c[7]?.v;
+        const tool = c[9]?.v;
+        const recipe = c[10]?.v;
 
-    if(row.Состав){
-      row.Состав.split(",").forEach(i=>{
-        let key=i.trim().toLowerCase();
-        let price=priceMap[key]||0;
-        cost+=price;
+        if(id){
+            current={
+                name:name,
+                cost:parseFloat(cost)||0,
+                recipe:recipe||"",
+                tools:[],
+                ings:[],
+                photo:photos[name] || ""
+            };
+            cocktails.push(current);
+        }
 
-        html+=`
-        <div class="ing">
-          <span>${i.trim()}</span>
-          <span>${price.toFixed(2)} ₽</span>
+        if(ing){
+            current?.ings.push(`${ing} ${qty} ${unit}`);
+        }
+
+        if(tool){
+            current?.tools.push(tool);
+        }
+    });
+
+    render();
+});
+
+function render(){
+    const list=document.getElementById("list");
+    list.innerHTML="";
+
+    cocktails.forEach((c,i)=>{
+
+        list.innerHTML+=`
+        <div class="card">
+
+            <div class="name">${c.name}</div>
+
+            ${c.photo ? `<img src="${c.photo}" class="photo">` : ""}
+
+            <div class="ingredients">
+                ${c.ings.join("<br>")}
+            </div>
+
+            <div class="tools">${c.tools.join(" • ")}</div>
+            <div class="recipe">${c.recipe}</div>
+
+            <br>
+            Сделано:
+            <br>
+            <input type="number" value="0" min="0" onchange="calc()">
+
         </div>`;
-      });
-    }
-
-    html+=`<div class="green">Стоимость коктейля: ${cost.toFixed(2)} ₽</div>`;
-
-    html+=`
-    Сделано:
-    <input type="number" value="0" min="0" style="width:60px"
-      onchange="update(this,${cost})">`;
-
-    html+=`</div>`;
-    app.innerHTML+=html;
-  });
+    });
 }
 
-function update(el,cost){
-  const n=parseInt(el.value||0,10);
-  if(!isNaN(n)) total+=cost*n;
-  document.getElementById("sum").innerText="Сумма: "+total.toFixed(2)+" ₽";
+function calc(){
+    total=0;
+    document.querySelectorAll("input").forEach((inp,i)=>{
+        total += (parseInt(inp.value)||0)*cocktails[i].cost;
+    });
+    document.getElementById("sum").innerText=total;
 }
 
-load();
 </script>
-
 </body>
 </html>
