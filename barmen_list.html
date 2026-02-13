@@ -2,74 +2,74 @@
 <html lang="ru">
 <head>
 <meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>Бармен</title>
 
 <style>
 body{
+    margin:0;
     background:#000;
     color:#fff;
     font-family:Arial;
+}
+h1{
+    text-align:center;
+    margin-top:30px;
+}
+.total{
+    text-align:center;
+    color:#7CFC00;
+    margin-bottom:20px;
+}
+.wrap{
+    max-width:900px;
+    margin:auto;
     padding:20px;
 }
-
-#list{
-    max-width:700px;
-    margin:auto;
-}
-
 .card{
     border:1px solid #333;
-    padding:20px;
-    margin-bottom:22px;
     border-radius:16px;
-    text-align:center;
+    padding:20px;
+    margin-bottom:30px;
 }
-
-.name{
-    font-size:26px;
-    font-weight:700;
+.title{
+    text-align:center;
+    font-size:24px;
     margin-bottom:10px;
 }
-
 .photo{
-    width:100%;
-    max-width:320px;
-    border-radius:14px;
-    margin:0 auto 14px auto;
     display:block;
+    margin:auto;
+    max-width:340px;
+    border-radius:12px;
 }
-
-.ingredients{
-    text-align:left;
-    margin-top:10px;
-}
-
-.line{
+.ing{
     display:flex;
     justify-content:space-between;
-    margin-bottom:4px;
+    margin:4px 0;
 }
-
-.total{
-    margin-top:12px;
-    font-weight:bold;
-    color:#7CFC00;
-}
-
-.tools{
+.cost{
+    text-align:center;
     color:#7CFC00;
     margin-top:10px;
 }
-
-.recipe{
-    color:#aaa;
-    margin-top:12px;
+.tools{
+    text-align:center;
+    color:#7CFC00;
+    margin-top:10px;
 }
-
+.recipe{
+    text-align:center;
+    margin-top:10px;
+    color:#ccc;
+}
+.input{
+    text-align:center;
+    margin-top:10px;
+}
 input{
     width:60px;
     padding:6px;
-    margin-top:10px;
     text-align:center;
 }
 </style>
@@ -77,144 +77,132 @@ input{
 
 <body>
 
-<h1 style="text-align:center">Панель бармена</h1>
-<div style="text-align:center;margin-bottom:25px">
-Себестоимость вечера: <span id="sum">0</span> ₽
-</div>
+<h1>Панель бармена</h1>
+<div class="total">Сумма: <span id="sum">0</span> ₽</div>
 
-<div id="list"></div>
+<div class="wrap" id="app"></div>
 
 <script>
 
-const SHEET_ID="1CceZ3cIic_k9Z9GnXg_wOzoUGdYonzVkfypmSzf_ln8";
+const SHEET="1CceZ3cIic_k9Z9GnXg_wOzoUGdYonzVkfypmSzf_ln8";
 
-const techURL=`https://docs.google.com/spreadsheets/d/${SHEET_ID}/gviz/tq?tqx=out:json&sheet=БАР_КУХНЯ`;
-const menuURL=`https://opensheet.elk.sh/${SHEET_ID}/MENU`;
-const storeURL=`https://docs.google.com/spreadsheets/d/${SHEET_ID}/gviz/tq?tqx=out:json&sheet=Магазин`;
+const techURL=`https://opensheet.elk.sh/${SHEET}/БАР_КУХНЯ`;
+const shopURL=`https://opensheet.elk.sh/${SHEET}/МАГАЗИН`;
+const menuURL=`https://opensheet.elk.sh/${SHEET}/MENU`;
 
-let cocktails=[];
-let prices={};
-let photos={};
-let total=0;
+let tech=[];
+let shop=[];
+let menu=[];
 
 Promise.all([
-    fetch(techURL).then(r=>r.text()),
-    fetch(menuURL).then(r=>r.json()),
-    fetch(storeURL).then(r=>r.text())
-])
-.then(([techTxt,menuData,storeTxt])=>{
-
-    // фото
-    menuData.forEach(r=>{
-        photos[r.Коктейль]=r.Фото;
-    });
-
-    // цены ингредиентов
-    const storeJson=JSON.parse(storeTxt.substr(47).slice(0,-2));
-    storeJson.table.rows.forEach(r=>{
-        const name=r.c[0]?.v;
-        const price=r.c[5]?.v;
-        if(name) prices[name]=parseFloat(price)||0;
-    });
-
-    // техкарты
-    const json=JSON.parse(techTxt.substr(47).slice(0,-2));
-    const rows=json.table.rows;
-
-    let current=null;
-
-    rows.forEach(r=>{
-        const c=r.c;
-
-        const id = c[0]?.v;
-        const name = c[1]?.v;
-        const cost = parseFloat(c[3]?.v)||0;
-        const ing = c[5]?.v;
-        const qty = parseFloat(c[6]?.v)||0;
-        const unit = c[7]?.v;
-        const tool = c[9]?.v;
-        const recipe = c[10]?.v;
-
-        if(id){
-            current={
-                name:name,
-                cost:cost,
-                recipe:recipe||"",
-                tools:[],
-                ings:[],
-                photo:photos[name] || ""
-            };
-            cocktails.push(current);
-        }
-
-        if(ing){
-            const unitPrice = prices[ing] || 0;
-            const sum = unitPrice * qty;
-
-            current?.ings.push({
-                text:`${ing} ${qty} ${unit}`,
-                price:sum
-            });
-        }
-
-        if(tool){
-            current?.tools.push(tool);
-        }
-    });
-
-    render();
+fetch(techURL).then(r=>r.json()),
+fetch(shopURL).then(r=>r.json()),
+fetch(menuURL).then(r=>r.json())
+]).then(([t,s,m])=>{
+    tech=t;
+    shop=s;
+    menu=m;
+    build();
 });
 
-function render(){
-    const list=document.getElementById("list");
-    list.innerHTML="";
+function priceOf(name){
+    let row=shop.find(x=>x["Ингредиент"]===name);
+    if(!row) return 0;
+    return parseFloat(row["Цена ед."]||0);
+}
 
-    cocktails.forEach((c,i)=>{
+function photoOf(name){
+    let row=menu.find(x=>x["Коктейль"]===name);
+    return row ? row["Фото"] : "";
+}
 
-        let ingHTML="";
-        let cocktailSum=0;
+function build(){
 
-        c.ings.forEach(x=>{
-            cocktailSum+=x.price;
-            ingHTML+=`
-            <div class="line">
-                <div>${x.text}</div>
-                <div>${x.price.toFixed(2)} ₽</div>
+    const app=document.getElementById("app");
+
+    let current="";
+    let block=[];
+    let tools=[];
+    let recipe="";
+    let total=0;
+
+    tech.forEach(row=>{
+
+        if(row["Название"]){
+            if(current) renderCard();
+            current=row["Название"];
+            block=[];
+            tools=[];
+            recipe=row["Рецепт"]||"";
+        }
+
+        if(row["Ингредиент"]){
+            block.push(row);
+        }
+
+        if(row["Посуда"]){
+            tools.push(row["Посуда"]);
+        }
+    });
+
+    renderCard();
+
+    function renderCard(){
+
+        let html="";
+        let sum=0;
+
+        block.forEach(i=>{
+            let price=priceOf(i["Ингредиент"])*(parseFloat(i["Кол-во"])||0);
+            sum+=price;
+
+            html+=`
+            <div class="ing">
+            <div>${i["Ингредиент"]} ${i["Кол-во"]} ${i["Ед. изм"]}</div>
+            <div>${price.toFixed(2)} ₽</div>
             </div>`;
         });
 
-        list.innerHTML+=`
+        total+=sum;
+
+        app.innerHTML+=`
         <div class="card">
 
-            <div class="name">${c.name}</div>
+        <div class="title">${current}</div>
 
-            ${c.photo ? `<img src="${c.photo}" class="photo">` : ""}
+        ${photoOf(current) ? `<img src="${photoOf(current)}" class="photo">` : ""}
 
-            <div class="ingredients">
-                ${ingHTML}
-            </div>
+        ${html}
 
-            <div class="total">
-                Стоимость коктейля: ${cocktailSum.toFixed(2)} ₽
-            </div>
+        <div class="cost">Стоимость коктейля: ${sum.toFixed(2)} ₽</div>
 
-            <div class="tools">${c.tools.join(" • ")}</div>
-            <div class="recipe">${c.recipe}</div>
+        <div class="tools">${[...new Set(tools)].join(" • ")}</div>
 
-            <br>
-            Сделано:
-            <br>
-            <input type="number" value="0" min="0" onchange="calc()">
+        <div class="recipe">${recipe}</div>
+
+        <div class="input">
+        Сделано:
+        <input type="number" value="0" onchange="updateTotal()">
+        </div>
 
         </div>`;
-    });
+    }
+
+    document.getElementById("sum").innerText=total.toFixed(2);
 }
 
-function calc(){
-    total=0;
-    document.querySelectorAll("input").forEach((inp,i)=>{
-        total += (parseInt(inp.value)||0)*cocktails[i].cost;
+function updateTotal(){
+
+    let inputs=document.querySelectorAll("input");
+    let cards=document.querySelectorAll(".card");
+    let total=0;
+
+    inputs.forEach((inp,i)=>{
+        let count=parseFloat(inp.value)||0;
+        let cost=parseFloat(cards[i].querySelector(".cost").innerText.replace(/[^\d.]/g,""));
+        total+=count*cost;
     });
+
     document.getElementById("sum").innerText=total.toFixed(2);
 }
 
