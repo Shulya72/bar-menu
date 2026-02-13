@@ -151,9 +151,12 @@ fetch(url)
 
 function buildCard(row, stars, flash=false){
 
-    // ловим любые варианты "НЕТ"
-    let status=(row.Доступность||"").toString().trim().toLowerCase();
-    const off = status==="нет";
+    // безопасная проверка доступности
+    let off=false;
+    if(row["Доступность"]){
+        let val=row["Доступность"].toString().trim().toLowerCase();
+        if(val==="нет") off=true;
+    }
 
     return `
     <div class="card ${flash ? "flash":""} ${off ? "off":""}">
