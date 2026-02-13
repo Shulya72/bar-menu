@@ -3,16 +3,33 @@
 <head>
 <meta charset="UTF-8">
 <title>Бармен</title>
+
 <style>
-body{background:#000;color:#fff;font-family:Arial;padding:20px}
-.card{border:1px solid #333;padding:15px;margin-bottom:10px;border-radius:12px}
-input{width:60px}
+body{
+    background:#000;
+    color:#fff;
+    font-family:Arial;
+    padding:20px;
+}
+
+.card{
+    border:1px solid #333;
+    padding:18px;
+    margin-bottom:14px;
+    border-radius:14px;
+}
+
+h2{margin:0 0 8px 0}
+.recipe{color:#aaa;margin-top:10px}
+.tools{color:#7CFC00;margin-top:8px}
 </style>
 </head>
+
 <body>
 
 <h1>Панель бармена</h1>
-<div>Сумма: <span id="sum">0</span> ₽</div>
+<div>Себестоимость вечера: <span id="sum">0</span> ₽</div>
+<br>
 <div id="list"></div>
 
 <script>
@@ -42,6 +59,7 @@ fetch(url)
         const ing = c[5]?.v;
         const qty = c[6]?.v;
         const unit = c[7]?.v;
+        const tool = c[9]?.v;
         const recipe = c[10]?.v;
 
         if(id){
@@ -49,6 +67,7 @@ fetch(url)
                 name:name,
                 cost:parseFloat(cost)||0,
                 recipe:recipe||"",
+                tools:[],
                 ings:[]
             };
             cocktails.push(current);
@@ -56,6 +75,10 @@ fetch(url)
 
         if(ing){
             current?.ings.push(`${ing} ${qty} ${unit}`);
+        }
+
+        if(tool){
+            current?.tools.push(tool);
         }
     });
 
@@ -70,9 +93,19 @@ function render(){
 
         list.innerHTML+=`
         <div class="card">
-            <b>${c.name}</b><br>
+            <h2>${c.name}</h2>
+
             ${c.ings.join("<br>")}
-            <br><br>
+
+            <div class="tools">
+                ${c.tools.join(" • ")}
+            </div>
+
+            <div class="recipe">
+                ${c.recipe}
+            </div>
+
+            <br>
             Сделано:
             <input type="number" value="0" min="0" onchange="calc()">
         </div>`;
