@@ -80,7 +80,6 @@ select,input{
     transition:0.3s;
 }
 
-/* затемнение */
 .card.off{
     opacity:0.28;
     filter:grayscale(1);
@@ -151,7 +150,6 @@ fetch(url)
 
 function buildCard(row, stars, flash=false){
 
-    // безопасная проверка доступности
     let off=false;
     if(row["Доступность"]){
         let val=row["Доступность"].toString().trim().toLowerCase();
@@ -197,21 +195,53 @@ function render(){
 
 function randomDrink(){
 
-    if(cocktails.length===0) return;
-
+    const strength=document.getElementById("strength").value;
+    const search=document.getElementById("search").value.toLowerCase();
     const menu=document.getElementById("menu");
 
-    let filtered=cocktails.filter(row=>row.Коктейль);
+    let filtered=cocktails.filter(row=>{
 
-    let rand=filtered[Math.floor(Math.random()*filtered.length)];
-    let s=(rand.Крепость||"").toLowerCase().replace("ё","е");
+        if(!row.Коктейль) return false;
 
-    let stars="☆";
-    if(s.includes("лег")) stars="★";
-    if(s.includes("сред")) stars="★★";
-    if(s.includes("креп")) stars="★★★";
+        let s=(row.Крепость||"").toLowerCase().replace("ё","е");
 
-    menu.innerHTML=buildCard(rand,stars,true);
+        if(strength==="noalc" && s) return false;
+        if(strength && strength!=="noalc" && !s.includes(strength)) return false;
+        if(search && !row.Состав.toLowerCase().includes(search)) return false;
+
+        return true;
+    });
+
+    if(filtered.length===0) return;
+
+    let speed=60;
+    let slowdown=1.12;
+    let time=0;
+    let duration=2400;
+
+    function spin(){
+
+        let rand=filtered[Math.floor(Math.random()*filtered.length)];
+        let s=(rand.Крепость||"").toLowerCase().replace("ё","е");
+
+        let stars="☆";
+        if(s.includes("лег")) stars="★";
+        if(s.includes("сред")) stars="★★";
+        if(s.includes("креп")) stars="★★★";
+
+        menu.innerHTML=buildCard(rand,stars);
+
+        time+=speed;
+        speed*=slowdown;
+
+        if(time<duration){
+            setTimeout(spin,speed);
+        }else{
+            menu.innerHTML=buildCard(rand,stars,true);
+        }
+    }
+
+    spin();
 }
 
 document.getElementById("strength").onchange=render;
