@@ -23,22 +23,22 @@ body{
 
 h1{
     text-align:center;
-    margin-bottom:10px;
+    margin-bottom:8px;
 }
 
 .total{
     text-align:center;
-    font-size:18px;
-    margin-bottom:25px;
     color:#7CFC00;
+    margin-bottom:30px;
+    font-size:18px;
 }
 
 .card{
     background:#151515;
-    border-radius:16px;
+    border-radius:18px;
     padding:18px;
-    margin-bottom:18px;
-    border:1px solid #2a2a2a;
+    margin-bottom:16px;
+    border:1px solid #222;
 }
 
 .name{
@@ -52,29 +52,27 @@ h1{
 }
 
 .ing{
-    margin-top:14px;
+    margin-top:12px;
     font-size:14px;
-    line-height:1.6;
     color:#ccc;
 }
 
-.btns{
-    display:flex;
-    gap:10px;
-    margin-top:14px;
+.recipe{
+    margin-top:12px;
+    font-size:13px;
+    color:#888;
 }
 
-button{
-    background:#7CFC00;
-    border:none;
-    padding:10px 14px;
+.counter{
+    margin-top:12px;
+}
+
+input{
+    width:80px;
+    padding:8px;
     border-radius:10px;
-    font-weight:600;
-    cursor:pointer;
-}
-
-.minus{
-    background:#444;
+    border:1px solid #333;
+    background:#111;
     color:#fff;
 }
 </style>
@@ -83,53 +81,48 @@ button{
 <body>
 
 <div class="container">
-
 <h1>Панель бармена</h1>
 <div class="total">Себестоимость вечера: <span id="sum">0</span> ₽</div>
 
 <div id="list"></div>
-
 </div>
 
 <script>
 
 const SHEET_ID="1CceZ3cIic_k9Z9GnXg_wOzoUGdYonzVkfypmSzf_ln8";
-const url=`https://opensheet.elk.sh/${SHEET_ID}/БАР_КУХНЯ`;
+const url="https://opensheet.elk.sh/"+SHEET_ID+"/БАР_КУХНЯ";
 
-let data=[];
 let cocktails=[];
 let total=0;
 
 fetch(url)
 .then(r=>r.json())
-.then(rows=>{
-    data=rows;
-    parse();
+.then(data=>{
+    parse(data);
     render();
 });
 
-function parse(){
+function parse(rows){
 
     let current=null;
 
-    data.forEach(r=>{
+    rows.forEach(row=>{
 
-        if(r.ID_кокт){
+        if(row["ID кокт"]){
             current={
-                name:r.Название,
-                cost:parseFloat(r.Себестоимость)||0,
-                ings:[],
-                count:0
+                name:row["Название"],
+                cost:parseFloat(row["Себестоимость"])||0,
+                recipe:row["Рецепт"]||"",
+                ings:[]
             };
             cocktails.push(current);
         }
 
-        if(current && r.Ингредиент){
-            current.ings.push(
-                `${r.Ингредиент} — ${r["Кол-во"]} ${r["Ед.изм"]}`
+        if(row["Ингредиент"]){
+            current?.ings.push(
+                row["Ингредиент"]+" "+row["Кол-во"]+" "+row["Ед. изм."]
             );
         }
-
     });
 }
 
@@ -138,46 +131,36 @@ function render(){
     const list=document.getElementById("list");
     list.innerHTML="";
 
-    cocktails.forEach(c=>{
+    cocktails.forEach((c,i)=>{
 
-        let html=`
+        list.innerHTML+=`
         <div class="card">
             <div class="name">${c.name}</div>
             <div class="cost">Себестоимость: ${c.cost} ₽</div>
 
             <div class="ing">${c.ings.join("<br>")}</div>
+            <div class="recipe">${c.recipe}</div>
 
-            <div class="btns">
-                <button onclick="add('${c.name}')">+1</button>
-                <button class="minus" onclick="remove('${c.name}')">-1</button>
-                <div>Сделано: ${c.count}</div>
+            <div class="counter">
+                Сделано:
+                <input type="number" min="0" value="0"
+                onchange="add(${i},this.value)">
             </div>
-        </div>
-        `;
+        </div>`;
+    });
+}
 
-        list.innerHTML+=html;
+function add(i,val){
+
+    total=0;
+
+    document.querySelectorAll("input").forEach((inp,index)=>{
+        total+= (parseInt(inp.value)||0)*cocktails[index].cost;
     });
 
-    document.getElementById("sum").innerText=total.toFixed(0);
-}
-
-function add(name){
-    let c=cocktails.find(x=>x.name===name);
-    c.count++;
-    total+=c.cost;
-    render();
-}
-
-function remove(name){
-    let c=cocktails.find(x=>x.name===name);
-    if(c.count>0){
-        c.count--;
-        total-=c.cost;
-    }
-    render();
+    document.getElementById("sum").innerText=total;
 }
 
 </script>
-
 </body>
 </html>
