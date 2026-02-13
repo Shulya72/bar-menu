@@ -28,7 +28,7 @@ body{
 .name{
     font-size:26px;
     font-weight:700;
-    margin-bottom:12px;
+    margin-bottom:10px;
 }
 
 .photo{
@@ -42,6 +42,18 @@ body{
 .ingredients{
     text-align:left;
     margin-top:10px;
+}
+
+.line{
+    display:flex;
+    justify-content:space-between;
+    margin-bottom:4px;
+}
+
+.total{
+    margin-top:12px;
+    font-weight:bold;
+    color:#7CFC00;
 }
 
 .tools{
@@ -78,21 +90,34 @@ const SHEET_ID="1CceZ3cIic_k9Z9GnXg_wOzoUGdYonzVkfypmSzf_ln8";
 
 const techURL=`https://docs.google.com/spreadsheets/d/${SHEET_ID}/gviz/tq?tqx=out:json&sheet=БАР_КУХНЯ`;
 const menuURL=`https://opensheet.elk.sh/${SHEET_ID}/MENU`;
+const storeURL=`https://docs.google.com/spreadsheets/d/${SHEET_ID}/gviz/tq?tqx=out:json&sheet=Магазин`;
 
 let cocktails=[];
+let prices={};
 let photos={};
 let total=0;
 
 Promise.all([
     fetch(techURL).then(r=>r.text()),
-    fetch(menuURL).then(r=>r.json())
+    fetch(menuURL).then(r=>r.json()),
+    fetch(storeURL).then(r=>r.text())
 ])
-.then(([techTxt,menuData])=>{
+.then(([techTxt,menuData,storeTxt])=>{
 
+    // фото
     menuData.forEach(r=>{
         photos[r.Коктейль]=r.Фото;
     });
 
+    // цены ингредиентов
+    const storeJson=JSON.parse(storeTxt.substr(47).slice(0,-2));
+    storeJson.table.rows.forEach(r=>{
+        const name=r.c[0]?.v;
+        const price=r.c[5]?.v;
+        if(name) prices[name]=parseFloat(price)||0;
+    });
+
+    // техкарты
     const json=JSON.parse(techTxt.substr(47).slice(0,-2));
     const rows=json.table.rows;
 
@@ -103,9 +128,9 @@ Promise.all([
 
         const id = c[0]?.v;
         const name = c[1]?.v;
-        const cost = c[3]?.v;
+        const cost = parseFloat(c[3]?.v)||0;
         const ing = c[5]?.v;
-        const qty = c[6]?.v;
+        const qty = parseFloat(c[6]?.v)||0;
         const unit = c[7]?.v;
         const tool = c[9]?.v;
         const recipe = c[10]?.v;
@@ -113,7 +138,7 @@ Promise.all([
         if(id){
             current={
                 name:name,
-                cost:parseFloat(cost)||0,
+                cost:cost,
                 recipe:recipe||"",
                 tools:[],
                 ings:[],
@@ -123,7 +148,13 @@ Promise.all([
         }
 
         if(ing){
-            current?.ings.push(`${ing} ${qty} ${unit}`);
+            const unitPrice = prices[ing] || 0;
+            const sum = unitPrice * qty;
+
+            current?.ings.push({
+                text:`${ing} ${qty} ${unit}`,
+                price:sum
+            });
         }
 
         if(tool){
@@ -140,6 +171,18 @@ function render(){
 
     cocktails.forEach((c,i)=>{
 
+        let ingHTML="";
+        let cocktailSum=0;
+
+        c.ings.forEach(x=>{
+            cocktailSum+=x.price;
+            ingHTML+=`
+            <div class="line">
+                <div>${x.text}</div>
+                <div>${x.price.toFixed(2)} ₽</div>
+            </div>`;
+        });
+
         list.innerHTML+=`
         <div class="card">
 
@@ -148,7 +191,11 @@ function render(){
             ${c.photo ? `<img src="${c.photo}" class="photo">` : ""}
 
             <div class="ingredients">
-                ${c.ings.join("<br>")}
+                ${ingHTML}
+            </div>
+
+            <div class="total">
+                Стоимость коктейля: ${cocktailSum.toFixed(2)} ₽
             </div>
 
             <div class="tools">${c.tools.join(" • ")}</div>
@@ -168,7 +215,7 @@ function calc(){
     document.querySelectorAll("input").forEach((inp,i)=>{
         total += (parseInt(inp.value)||0)*cocktails[i].cost;
     });
-    document.getElementById("sum").innerText=total;
+    document.getElementById("sum").innerText=total.toFixed(2);
 }
 
 </script>
