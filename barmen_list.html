@@ -1,5 +1,4 @@
 <!DOCTYPE html>
-
 <html lang="ru">
 <head>
 <meta charset="UTF-8">
@@ -10,146 +9,172 @@
 
 <style>
 body{
-margin:0;
-font-family:Inter;
-background:#0b0b0b;
-color:#fff;
+    margin:0;
+    font-family:'Inter',sans-serif;
+    background:#0b0b0b;
+    color:#fff;
 }
 
 .container{
-max-width:800px;
-margin:auto;
-padding:20px;
+    max-width:900px;
+    margin:auto;
+    padding:20px;
 }
 
-.card{
-background:#151515;
-border-radius:18px;
-padding:18px;
-margin-bottom:14px;
-}
-
-.name{
-font-size:20px;
-font-weight:600;
-}
-
-.cost{
-color:#7CFC00;
-margin-top:4px;
-}
-
-.row{
-display:flex;
-gap:10px;
-margin-top:12px;
-}
-
-input{
-width:80px;
-padding:10px;
-border-radius:10px;
-border:none;
-background:#222;
-color:#fff;
-font-size:16px;
-}
-
-button{
-padding:10px 16px;
-border-radius:12px;
-border:none;
-background:#7CFC00;
-font-weight:600;
+h1{
+    text-align:center;
+    margin-bottom:10px;
 }
 
 .total{
-margin-top:20px;
-font-size:20px;
+    text-align:center;
+    font-size:18px;
+    margin-bottom:25px;
+    color:#7CFC00;
+}
+
+.card{
+    background:#151515;
+    border-radius:16px;
+    padding:18px;
+    margin-bottom:18px;
+    border:1px solid #2a2a2a;
+}
+
+.name{
+    font-size:22px;
+    font-weight:600;
+}
+
+.cost{
+    color:#7CFC00;
+    margin-top:6px;
+}
+
+.ing{
+    margin-top:14px;
+    font-size:14px;
+    line-height:1.6;
+    color:#ccc;
+}
+
+.btns{
+    display:flex;
+    gap:10px;
+    margin-top:14px;
+}
+
+button{
+    background:#7CFC00;
+    border:none;
+    padding:10px 14px;
+    border-radius:10px;
+    font-weight:600;
+    cursor:pointer;
+}
+
+.minus{
+    background:#444;
+    color:#fff;
 }
 </style>
-
 </head>
 
 <body>
 
 <div class="container">
 
-<h2>Панель бармена</h2>
+<h1>Панель бармена</h1>
+<div class="total">Себестоимость вечера: <span id="sum">0</span> ₽</div>
 
 <div id="list"></div>
-
-<div class="total">
-Себестоимость вечера: <span id="sum">0</span> ₽
-</div>
 
 </div>
 
 <script>
 
 const SHEET_ID="1CceZ3cIic_k9Z9GnXg_wOzoUGdYonzVkfypmSzf_ln8";
+const url=`https://opensheet.elk.sh/${SHEET_ID}/БАР_КУХНЯ`;
 
-const BAR_URL="https://opensheet.elk.sh/"+SHEET_ID+"/Бар_кухня";
-const JOURNAL_URL="https://opensheet.elk.sh/"+SHEET_ID+"/ЖУРНАЛ";
-
+let data=[];
 let cocktails=[];
+let total=0;
 
-fetch(BAR_URL)
+fetch(url)
 .then(r=>r.json())
-.then(data=>{
-cocktails=data;
-render();
+.then(rows=>{
+    data=rows;
+    parse();
+    render();
 });
+
+function parse(){
+
+    let current=null;
+
+    data.forEach(r=>{
+
+        if(r.ID_кокт){
+            current={
+                name:r.Название,
+                cost:parseFloat(r.Себестоимость)||0,
+                ings:[],
+                count:0
+            };
+            cocktails.push(current);
+        }
+
+        if(current && r.Ингредиент){
+            current.ings.push(
+                `${r.Ингредиент} — ${r["Кол-во"]} ${r["Ед.изм"]}`
+            );
+        }
+
+    });
+}
 
 function render(){
 
-const list=document.getElementById("list");
-list.innerHTML="";
+    const list=document.getElementById("list");
+    list.innerHTML="";
 
-cocktails.forEach(row=>{
+    cocktails.forEach(c=>{
 
-if(!row.ID) return;
+        let html=`
+        <div class="card">
+            <div class="name">${c.name}</div>
+            <div class="cost">Себестоимость: ${c.cost} ₽</div>
 
-list.innerHTML+=`
-<div class="card">
-<div class="name">${row.Коктейль}</div>
-<div class="cost">Себестоимость: ${row["Себестоимость 1шт"]} ₽</div>
+            <div class="ing">${c.ings.join("<br>")}</div>
 
-<div class="row">
-<input id="q${row.ID}" type="number" value="1" min="1">
-<button onclick="write('${row.ID}','${row.Коктейль}')">Списать</button>
-</div>
+            <div class="btns">
+                <button onclick="add('${c.name}')">+1</button>
+                <button class="minus" onclick="remove('${c.name}')">-1</button>
+                <div>Сделано: ${c.count}</div>
+            </div>
+        </div>
+        `;
 
-</div>
-`;
-});
+        list.innerHTML+=html;
+    });
+
+    document.getElementById("sum").innerText=total.toFixed(0);
 }
 
-function write(id,name){
-
-let qty=document.getElementById("q"+id).value;
-
-let now=new Date().toLocaleDateString("ru-RU");
-
-let row=[now,id,name,qty];
-
-console.log("записать в журнал:",row);
-
-// пока просто считаем сумму
-addSum(id,qty);
-
+function add(name){
+    let c=cocktails.find(x=>x.name===name);
+    c.count++;
+    total+=c.cost;
+    render();
 }
 
-function addSum(id,qty){
-
-let cocktail=cocktails.find(c=>c.ID==id);
-let cost=parseFloat(cocktail["Себестоимость 1шт"]||0);
-
-let total=parseFloat(document.getElementById("sum").innerText||0);
-
-total+=cost*qty;
-
-document.getElementById("sum").innerText=total.toFixed(2);
+function remove(name){
+    let c=cocktails.find(x=>x.name===name);
+    if(c.count>0){
+        c.count--;
+        total-=c.cost;
+    }
+    render();
 }
 
 </script>
