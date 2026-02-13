@@ -6,72 +6,18 @@
 <title>Бармен</title>
 
 <style>
-body{
-    margin:0;
-    background:#000;
-    color:#fff;
-    font-family:Arial;
-}
-h1{
-    text-align:center;
-    margin-top:30px;
-}
-.total{
-    text-align:center;
-    color:#7CFC00;
-    margin-bottom:20px;
-}
-.wrap{
-    max-width:900px;
-    margin:auto;
-    padding:20px;
-}
-.card{
-    border:1px solid #333;
-    border-radius:16px;
-    padding:20px;
-    margin-bottom:30px;
-}
-.title{
-    text-align:center;
-    font-size:24px;
-    margin-bottom:10px;
-}
-.photo{
-    display:block;
-    margin:auto;
-    max-width:340px;
-    border-radius:12px;
-}
-.ing{
-    display:flex;
-    justify-content:space-between;
-    margin:4px 0;
-}
-.cost{
-    text-align:center;
-    color:#7CFC00;
-    margin-top:10px;
-}
-.tools{
-    text-align:center;
-    color:#7CFC00;
-    margin-top:10px;
-}
-.recipe{
-    text-align:center;
-    margin-top:10px;
-    color:#ccc;
-}
-.input{
-    text-align:center;
-    margin-top:10px;
-}
-input{
-    width:60px;
-    padding:6px;
-    text-align:center;
-}
+body{margin:0;background:#000;color:#fff;font-family:Arial}
+h1{text-align:center;margin-top:30px}
+.total{text-align:center;color:#7CFC00;margin-bottom:20px}
+.wrap{max-width:900px;margin:auto;padding:20px}
+.card{border:1px solid #333;border-radius:16px;padding:20px;margin-bottom:30px}
+.title{text-align:center;font-size:26px;margin-bottom:10px}
+.photo{display:block;margin:10px auto;max-width:340px;border-radius:12px}
+.ing{display:flex;justify-content:space-between;margin:4px 0}
+.cost{text-align:center;color:#7CFC00;margin-top:10px}
+.tools{text-align:center;color:#7CFC00;margin-top:10px}
+.recipe{text-align:center;margin-top:10px;color:#ccc}
+input{width:60px;padding:6px;text-align:center}
 </style>
 </head>
 
@@ -90,9 +36,7 @@ const techURL=`https://opensheet.elk.sh/${SHEET}/БАР_КУХНЯ`;
 const shopURL=`https://opensheet.elk.sh/${SHEET}/МАГАЗИН`;
 const menuURL=`https://opensheet.elk.sh/${SHEET}/MENU`;
 
-let tech=[];
-let shop=[];
-let menu=[];
+let tech=[],shop=[],menu=[];
 
 Promise.all([
 fetch(techURL).then(r=>r.json()),
@@ -126,28 +70,28 @@ function build(){
     let recipe="";
     let total=0;
 
-    tech.forEach(row=>{
+    tech.forEach(r=>{
 
-        if(row["Название"]){
-            if(current) renderCard();
-            current=row["Название"];
+        if(r["Название"]){
+            if(current) draw();
+            current=r["Название"];
             block=[];
             tools=[];
-            recipe=row["Рецепт"]||"";
+            recipe=r["Рецепт"]||"";
         }
 
-        if(row["Ингредиент"]){
-            block.push(row);
+        if(r["Ингредиент"]){
+            block.push(r);
         }
 
-        if(row["Посуда"]){
-            tools.push(row["Посуда"]);
+        if(r["Посуда"]){
+            tools.push(r["Посуда"]);
         }
     });
 
-    renderCard();
+    draw();
 
-    function renderCard(){
+    function draw(){
 
         let html="";
         let sum=0;
@@ -170,7 +114,7 @@ function build(){
 
         <div class="title">${current}</div>
 
-        ${photoOf(current) ? `<img src="${photoOf(current)}" class="photo">` : ""}
+        ${photoOf(current)?`<img src="${photoOf(current)}" class="photo">`:""}
 
         ${html}
 
@@ -180,7 +124,7 @@ function build(){
 
         <div class="recipe">${recipe}</div>
 
-        <div class="input">
+        <div style="text-align:center;margin-top:10px">
         Сделано:
         <input type="number" value="0" onchange="updateTotal()">
         </div>
