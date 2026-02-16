@@ -2,8 +2,8 @@
 <html lang="ru">
 <head>
 <meta charset="UTF-8">
-<meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>Бармен</title>
+<meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
+<title>Бармен PRO</title>
 
 <style>
 body{
@@ -11,46 +11,60 @@ background:#000;
 color:#fff;
 font-family:Arial;
 margin:0;
+overflow-x:hidden;
 }
 
 header{
 position:sticky;
 top:0;
 background:#000;
-padding:14px;
+padding:12px;
 text-align:center;
 border-bottom:1px solid #222;
 z-index:999;
+}
+
+h1{
+margin:4px;
+font-size:20px;
 }
 
 #sum{
 color:#00ff66;
 font-size:22px;
 font-weight:bold;
+margin:4px;
 }
 
-#close{
+#closeBtn{
 background:#00ff66;
+color:#000;
 border:none;
 padding:12px 20px;
 border-radius:12px;
 font-weight:bold;
-margin-top:8px;
+font-size:16px;
+margin-top:6px;
 }
 
 #list{
 max-width:700px;
 margin:auto;
-padding:12px;
+padding:10px;
 }
 
 .card{
 border:1px solid #333;
 border-radius:18px;
 padding:14px;
-margin-bottom:16px;
+margin-bottom:14px;
 text-align:center;
 background:#050505;
+transition:0.3s;
+}
+
+.card.off{
+opacity:0.35;
 }
 
 .name{
@@ -86,16 +100,17 @@ color:#fff;
 <body>
 
 <header>
-<div>Панель бармена</div>
+<h1>Панель бармена PRO</h1>
 <div id="sum">0 ₽</div>
-<button id="close">Закрыть смену</button>
+<button id="closeBtn">Закрыть смену</button>
 </header>
 
 <div id="list"></div>
 
 <script>
 
-const SHEET="1CceZ3cIic_k9Z9GnXg_wOzoUGdYonzVkfypmSzf_ln8";
+const SHEET_ID="1CceZ3cIic_k9Z9GnXg_wOzoUGdYonzVkfypmSzf_ln8";
+const GAS_URL="https://script.google.com/macros/s/AKfycbz69f3BJpr-lFCk_-YzE1bq_CRcXniZEvt2rD4InM_qx15XYwN6IjzI2lbTPIaI3brk/exec";
 
 let cocktails=[];
 let counts={};
@@ -103,31 +118,40 @@ let total=0;
 
 async function load(){
 
-const tech=await fetch(`https://opensheet.elk.sh/${SHEET}/БАР_КУХНЯ`).then(r=>r.json());
-const menu=await fetch(`https://opensheet.elk.sh/${SHEET}/MENU`).then(r=>r.json());
+const tech=await fetch(`https://docs.google.com/spreadsheets/d/${SHEET_ID}/gviz/tq?tqx=out:json&sheet=БАР_КУХНЯ`)
+.then(r=>r.text());
+
+const menu=await fetch(`https://opensheet.elk.sh/${SHEET_ID}/MENU`).then(r=>r.json());
+
+const json=JSON.parse(tech.substr(47).slice(0,-2));
+const rows=json.table.rows;
 
 let current=null;
 
-tech.forEach(r=>{
+rows.forEach(r=>{
+const c=r.c;
 
-const name=r["Название"];
-const ing=r["Ингредиент"];
-const qty=r["Кол-во"];
+const id=c[0]?.v;
+const name=c[1]?.v;
+const cost=c[3]?.v;
+const ing=c[5]?.v;
+const qty=c[6]?.v;
+const unit=c[7]?.v;
 
-if(name){
+if(id){
 current={
 name:name,
+cost:parseFloat(cost)||0,
 ings:[],
-photo:(menu.find(m=>m["Коктейль"]==name)||{})["Фото"]||"",
-cost:parseFloat((menu.find(m=>m["Коктейль"]==name)||{})["Цена"])||0
+photo:(menu.find(m=>m.Коктейль==name)||{}).Фото||"",
+available:true
 };
 cocktails.push(current);
 }
 
 if(current && ing){
-current.ings.push(`${ing} ${qty||""}`);
+current.ings.push(`${ing} ${qty||""} ${unit||""}`);
 }
-
 });
 
 render();
@@ -140,7 +164,7 @@ list.innerHTML="";
 cocktails.forEach((c,i)=>{
 
 list.innerHTML+=`
-<div class="card">
+<div class="card" id="card${i}">
 <div class="name">${c.name}</div>
 ${c.photo?`<img src="${c.photo}" class="photo">`:""}
 ${c.ings.join("<br>")}
@@ -166,6 +190,32 @@ total+=counts[k]*cocktails[k].cost;
 
 document.getElementById("sum").innerText=Math.round(total)+" ₽";
 }
+
+document.getElementById("closeBtn").onclick=async()=>{
+if(!confirm("Закрыть смену?")) return;
+
+let data=[];
+
+for(let i in counts){
+if(counts[i]>0){
+data.push({
+name:cocktails[i].name,
+count:counts[i],
+cost:cocktails[i].cost*counts[i]
+});
+}
+}
+
+await fetch(GAS_URL,{
+method:"POST",
+body:JSON.stringify(data)
+});
+
+counts={};
+total=0;
+document.getElementById("sum").innerText="0 ₽";
+render();
+};
 
 load();
 
