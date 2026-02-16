@@ -6,24 +6,102 @@
 <title>Бармен PRO</title>
 
 <style>
-html,body{margin:0;padding:0;background:#000;color:#fff;font-family:Arial;overflow-x:hidden;}
-.top{position:fixed;top:0;left:0;width:100%;background:#000;z-index:999;padding:14px;border-bottom:1px solid #222;}
-.title{text-align:center;font-size:24px;font-weight:700;}
-.sum{text-align:center;color:#7CFC00;font-size:22px;margin-top:4px;}
-.search{width:100%;padding:12px;border-radius:12px;border:1px solid #333;background:#111;color:#fff;margin-top:10px;}
-.closeBtn{width:100%;padding:14px;border-radius:14px;background:#7CFC00;border:none;font-size:16px;font-weight:700;margin-top:10px;}
-.wrap{max-width:720px;margin:auto;padding:14px;padding-top:210px;}
-.card{border:1px solid #333;border-radius:18px;padding:18px;margin-bottom:22px;text-align:center;background:#070707;}
+html,body{
+margin:0;
+padding:0;
+background:#000;
+color:#fff;
+font-family:Arial;
+overflow-x:hidden;
+touch-action:manipulation;
+}
+
+.top{
+position:fixed;
+top:0;
+left:0;
+width:100%;
+background:#000;
+z-index:999;
+padding:14px;
+box-sizing:border-box;
+border-bottom:1px solid #222;
+}
+
+.title{ text-align:center;font-size:24px;font-weight:700;}
+.sum{ text-align:center;color:#7CFC00;font-size:22px;margin-top:4px;}
+
+.search{
+width:100%;
+padding:12px;
+border-radius:12px;
+border:1px solid #333;
+background:#111;
+color:#fff;
+margin-top:10px;
+}
+
+.closeBtn{
+width:100%;
+padding:14px;
+border-radius:14px;
+background:#7CFC00;
+border:none;
+font-size:16px;
+font-weight:700;
+margin-top:10px;
+}
+
+.wrap{
+max-width:720px;
+margin:auto;
+padding:14px;
+padding-top:210px;
+}
+
+.card{
+border:1px solid #333;
+border-radius:18px;
+padding:18px;
+margin-bottom:22px;
+text-align:center;
+background:#070707;
+}
+
 .card.dim{opacity:.45;}
 .name{font-size:22px;font-weight:700;margin-bottom:10px;}
-.photo{width:100%;max-width:260px;margin:0 auto 14px auto;display:block;border-radius:14px;}
+
+.photo{
+width:100%;
+max-width:260px;
+margin:0 auto 14px auto;
+display:block;
+border-radius:14px;
+pointer-events:none;
+}
+
 .ing{text-align:left;margin-top:10px;}
 .miss{color:#ff4d4d;text-decoration:line-through;}
 .tools{color:#7CFC00;margin-top:10px;}
 .recipe{color:#aaa;margin-top:10px;font-size:14px;}
-.controls{display:flex;justify-content:center;align-items:center;gap:10px;margin-top:12px;}
-.btn{width:42px;height:42px;font-size:20px;border-radius:10px;border:1px solid #444;background:#111;color:#fff;}
-.count{width:60px;text-align:center;font-size:18px;background:#000;border:1px solid #444;border-radius:10px;color:#fff;height:36px;}
+
+.controls{
+display:flex;
+justify-content:center;
+align-items:center;
+gap:10px;
+margin-top:12px;
+}
+
+.btn{
+width:42px;height:42px;font-size:20px;border-radius:10px;
+border:1px solid #444;background:#111;color:#fff;
+}
+
+.count{
+width:60px;text-align:center;font-size:18px;background:#000;
+border:1px solid #444;border-radius:10px;color:#fff;height:36px;
+}
 </style>
 </head>
 
@@ -52,8 +130,22 @@ let cocktails=[];
 let total=0;
 let sending=false;
 
+/* нормализация текста */
 function norm(t){
-return String(t).replace(/\u00A0/g," ").replace(/\s+/g," ").trim().toLowerCase();
+return String(t)
+.replace(/\u00A0/g,"")
+.replace(/\s+/g,"")
+.trim()
+.toLowerCase();
+}
+
+/* нормализация числа */
+function normNum(v){
+return Number(
+String(v)
+.replace(/\s/g,"")   // убрать пробелы
+.replace(",",".")    // запятая → точка
+) || 0;
 }
 
 Promise.all([
@@ -73,12 +165,12 @@ const name=row["ID ингредиента"];
 const qty=row["Остаток"];
 
 if(name){
-stockMap[norm(name)] = Number(String(qty).replace(",", ".")) || 0;
-console.log("СКЛАД:",norm(name),stockMap[norm(name)]);
+stockMap[norm(name)] = normNum(qty);
+console.log("СКЛАД:",norm(name),"=",stockMap[norm(name)]);
 }
 });
 
-/* ===== ТЕХКАРТЫ ===== */
+/* ===== ТЕХКАРТА ===== */
 const json=JSON.parse(techTxt.substr(47).slice(0,-2));
 const rows=json.table.rows;
 
@@ -131,6 +223,7 @@ if(tool) current.tools.push(tool);
 render();
 });
 
+/* UI */
 function render(){
 const search=document.querySelector(".search").value.toLowerCase();
 const list=document.getElementById("list");
@@ -195,6 +288,5 @@ btn.disabled=false;
 });
 }
 </script>
-
 </body>
 </html>
