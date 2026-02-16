@@ -278,6 +278,7 @@ render();
 document.getElementById("closeBtn").onclick=closeShift;
 
 function closeShift(){
+
 if(sending) return;
 sending=true;
 
@@ -297,16 +298,27 @@ fetch(SCRIPT_URL,{
 method:"POST",
 body:JSON.stringify(data)
 })
+.then(r=>r.text())
 .then(()=>{
+
+// 🔥 СБРОС ВСЕГО
 cocktails.forEach(c=>c.count=0);
+total=0;
 render();
+
 alert("Смена закрыта");
+
+})
+.catch(err=>{
+alert("Ошибка отправки");
+console.log(err);
 })
 .finally(()=>{
 sending=false;
 btn.innerText="Закрыть смену";
 btn.disabled=false;
 });
+
 }
 </script>
 
