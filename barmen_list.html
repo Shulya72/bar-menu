@@ -2,33 +2,68 @@
 <html lang="ru">
 <head>
 <meta charset="UTF-8">
-<meta name="viewport" content="width=device-width,initial-scale=1.0">
+<meta name="viewport" content="width=device-width,initial-scale=1.0,maximum-scale=1,user-scalable=no">
 <title>Бармен PRO</title>
 
 <style>
+*{touch-action:manipulation;}
+
 body{
 background:#000;
 color:#fff;
 font-family:Arial;
 margin:0;
+padding:0;
+}
+
+.top{
+position:sticky;
+top:0;
+background:#000;
 padding:14px;
+z-index:999;
+border-bottom:1px solid #222;
 }
 
 h1{
+margin:0;
 text-align:center;
-margin-top:10px;
 }
 
 #sumBox{
 text-align:center;
 color:#7CFC00;
 font-size:22px;
-margin-bottom:20px;
+margin-top:6px;
+}
+
+.search{
+width:100%;
+padding:12px;
+margin-top:10px;
+background:#111;
+border:1px solid #333;
+border-radius:12px;
+color:#fff;
+font-size:16px;
+}
+
+#closeBtn{
+width:100%;
+margin-top:10px;
+padding:16px;
+font-size:18px;
+border-radius:14px;
+border:none;
+background:#7CFC00;
+color:#000;
+font-weight:700;
 }
 
 .wrap{
 max-width:720px;
 margin:auto;
+padding:14px;
 }
 
 .card{
@@ -37,12 +72,11 @@ border-radius:18px;
 padding:16px;
 margin-bottom:18px;
 text-align:center;
-transition:.3s;
+transition:.2s;
 }
 
-.card.off{
-opacity:.35;
-filter:grayscale(1);
+.card.dim{
+opacity:.6;
 }
 
 .name{
@@ -67,7 +101,7 @@ font-size:15px;
 
 .miss{
 text-decoration:line-through;
-color:#ff6b6b;
+color:#ff4d4d;
 }
 
 .tools{
@@ -87,49 +121,36 @@ margin-top:12px;
 }
 
 .counter button{
-width:42px;
-height:42px;
-font-size:20px;
-border-radius:10px;
+width:46px;
+height:46px;
+font-size:22px;
+border-radius:12px;
 border:none;
 background:#111;
 color:#fff;
 }
 
 .counter span{
-margin:0 10px;
+margin:0 14px;
 font-size:18px;
-}
-
-#closeBtn{
-position:fixed;
-bottom:20px;
-left:50%;
-transform:translateX(-50%);
-background:#7CFC00;
-color:#000;
-border:none;
-padding:18px;
-font-size:18px;
-border-radius:18px;
-width:90%;
-max-width:500px;
-font-weight:700;
 }
 </style>
 </head>
 
 <body>
 
+<div class="top">
 <h1>Панель бармена PRO</h1>
 <div id="sumBox">Сумма: 0 ₽</div>
 
-<div class="wrap" id="list"></div>
+<input class="search" id="search" placeholder="Поиск коктейля...">
 
 <button id="closeBtn">Закрыть смену</button>
+</div>
+
+<div class="wrap" id="list"></div>
 
 <script>
-
 const SHEET_ID="1CceZ3cIic_k9Z9GnXg_wOzoUGdYonzVkfypmSzf_ln8";
 const SCRIPT_URL="https://script.google.com/macros/s/AKfycbw1Z5vyo_hwW5my_dFw8t49CnLVz7KZnzuPMiydht-d4SgJCVrpVKafsVqgfYGCAQ95/exec";
 
@@ -202,10 +223,14 @@ function render(){
 const list=document.getElementById("list");
 list.innerHTML="";
 
+let q=document.getElementById("search").value?.toLowerCase()||"";
+
 cocktails.forEach((c,i)=>{
 
+if(q && !c.name.toLowerCase().includes(q)) return;
+
 list.innerHTML+=`
-<div class="card ${c.miss?'off':''}">
+<div class="card ${c.miss?'dim':''}">
 <div class="name">${c.name}</div>
 
 ${c.photo?`<img src="${c.photo}" class="photo">`:""}
@@ -219,7 +244,7 @@ ${c.ings.map(x=>`<div class="${x.miss?'miss':''}">${x.text}</div>`).join("")}
 
 <div class="counter">
 <button onclick="minus(${i})">−</button>
-<span id="c${i}">0</span>
+<span id="c${i}">${c.count}</span>
 <button onclick="plus(${i})">+</button>
 </div>
 </div>
@@ -230,27 +255,26 @@ ${c.ings.map(x=>`<div class="${x.miss?'miss':''}">${x.text}</div>`).join("")}
 function plus(i){
 if(cocktails[i].miss) return;
 cocktails[i].count++;
-document.getElementById("c"+i).innerText=cocktails[i].count;
+render();
 calc();
 }
 
 function minus(i){
 cocktails[i].count=Math.max(0,cocktails[i].count-1);
-document.getElementById("c"+i).innerText=cocktails[i].count;
+render();
 calc();
 }
 
 function calc(){
 total=0;
 cocktails.forEach(c=>total+=c.cost*c.count);
-
 total=Math.round(total);
-
 document.getElementById("sumBox").innerText="Сумма: "+total+" ₽";
 }
 
-document.getElementById("closeBtn").onclick=async()=>{
+document.getElementById("search").oninput=render;
 
+document.getElementById("closeBtn").onclick=async()=>{
 if(sending) return;
 sending=true;
 
@@ -283,6 +307,7 @@ render();
 calc();
 
 btn.innerText="Смена закрыта ✔";
+
 setTimeout(()=>{
 btn.innerText="Закрыть смену";
 btn.disabled=false;
