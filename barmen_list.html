@@ -157,22 +157,17 @@ const stockRows=stockJson.table.rows;
 for(let i=1;i<stockRows.length;i++){
 
 const row=stockRows[i].c;
+if(!row) continue;
 
-let rawName = row[0]?.v ?? row[0]?.f;
-let rawQty  = row[1]?.v ?? row[1]?.f ?? 0;
+let rawName=row[0]?.v ?? row[0]?.f ?? "";
+let rawQty=row[1]?.v ?? row[1]?.f ?? 0;
 
-let cleanName = norm(rawName);
-let cleanQty  = Number(String(rawQty).replace(",",".").replace(/\s/g,""))||0;
-
-console.log("СКЛАД СТРОКА:", {
-rawName,
-rawQty,
-cleanName,
-cleanQty
-});
+let cleanName=norm(rawName);
+let cleanQty=Number(String(rawQty).replace(",",".").replace(/\s/g,""))||0;
 
 if(cleanName){
-stockMap[cleanName] = cleanQty;
+stockMap[cleanName]=cleanQty;
+console.log("СКЛАД:", cleanName, cleanQty);
 }
 }
 
@@ -213,7 +208,7 @@ if(ing){
 const need=Number(qtyRaw)||0;
 const stockLeft = Number(stockMap[norm(ing)]||0);
 
-console.log("ПРОВЕРКА:", ing, "=>", stockLeft);
+console.log("ПРОВЕРКА:", norm(ing), "=>", stockLeft);
 
 current.ings.push({
 text:`${ing} ${need} ${unit} (ост: ${stockLeft})`,
@@ -229,7 +224,6 @@ if(tool) current.tools.push(tool);
 render();
 });
 
-/* UI */
 function render(){
 const search=document.querySelector(".search").value.toLowerCase();
 const list=document.getElementById("list");
@@ -266,7 +260,6 @@ document.getElementById("sum").innerText=Math.round(total);
 function plus(i){cocktails[i].count++;render();}
 function minus(i){if(cocktails[i].count>0) cocktails[i].count--;render();}
 
-/* закрытие смены */
 document.getElementById("closeBtn").onclick=closeShift;
 
 function closeShift(){
