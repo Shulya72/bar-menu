@@ -16,7 +16,6 @@ overflow-x:hidden;
 touch-action:manipulation;
 }
 
-/* ШАПКА */
 .top{
 position:fixed;
 top:0;
@@ -63,7 +62,6 @@ font-weight:700;
 margin-top:10px;
 }
 
-/* ОТСТУП */
 .wrap{
 max-width:720px;
 margin:auto;
@@ -156,7 +154,6 @@ height:36px;
 <div class="top">
 <div class="title">Панель бармена PRO</div>
 <div class="sum">Сумма: <span id="sum">0</span> ₽</div>
-
 <input class="search" placeholder="Поиск..." oninput="render()">
 <button class="closeBtn" id="closeBtn">Закрыть смену</button>
 </div>
@@ -185,8 +182,8 @@ fetch(stockURL).then(r=>r.text())
 
 let photos={};
 menu.forEach(r=>photos[r.Коктейль]=r.Фото);
-let stockMap={};
 
+let stockMap={};
 const stockJson=JSON.parse(stockTxt.substr(47).slice(0,-2));
 const stockRows=stockJson.table.rows;
 
@@ -194,9 +191,7 @@ for(let i=1;i<stockRows.length;i++){
 const row=stockRows[i].c;
 const name=row[0]?.v;
 const qty=row[1]?.v;
-if(name){
-stockMap[name]=Number(qty)||0;
-}
+if(name) stockMap[name]=Number(qty)||0;
 }
 
 const json=JSON.parse(techTxt.substr(47).slice(0,-2));
@@ -211,7 +206,7 @@ const id=c[0]?.v;
 const name=c[1]?.v;
 const cost=c[3]?.v;
 const ing=c[5]?.v;
-const qty=c[6]?.v;
+const qtyRaw=c[6]?.v;
 const unit=c[7]?.v;
 const avail=c[8]?.v;
 const tool=c[9]?.v;
@@ -232,23 +227,18 @@ cocktails.push(current);
 }
 
 if(ing){
-let stockLeft = Number(stockMap[ing]||0);
-qty = Number(qty)||0;
+const needQty=Number(qtyRaw)||0;
+const stockLeft=Number(stockMap[ing]||0);
 
 current.ings.push({
-text:`${ing} ${qty} ${unit} (ост: ${stockLeft})`,
-ok:avail==1 && stockLeft>=qty,
-stock:stockLeft,
-need:qty
+text:`${ing} ${needQty} ${unit} (ост: ${stockLeft})`,
+ok:avail==1 && stockLeft>=needQty
 });
 
-if(stockLeft<qty) current.miss=true;
-
-if(avail==0) current.miss=true;
+if(stockLeft<needQty || avail==0) current.miss=true;
 }
 
 if(tool) current.tools.push(tool);
-
 });
 
 render();
@@ -271,10 +261,7 @@ list.innerHTML+=`
 ${c.photo?`<img src="${c.photo}" class="photo">`:""}
 
 <div class="ing">
-${c.ings.map(x=>{
-return `<div class="${x.ok?'':'miss'}">${x.text}</div>`;
-}).join("")}
-
+${c.ings.map(x=>`<div class="${x.ok?'':'miss'}">${x.text}</div>`).join("")}
 </div>
 
 <div class="tools">${c.tools.join(" • ")}</div>
@@ -324,10 +311,8 @@ fetch(SCRIPT_URL,{
 method:"POST",
 body:JSON.stringify(data)
 })
-.then(r=>r.text())
 .then(()=>{
 
-// 🔥 СБРОС ВСЕГО
 cocktails.forEach(c=>c.count=0);
 total=0;
 render();
@@ -335,16 +320,11 @@ render();
 alert("Смена закрыта");
 
 })
-.catch(err=>{
-alert("Ошибка отправки");
-console.log(err);
-})
 .finally(()=>{
 sending=false;
 btn.innerText="Закрыть смену";
 btn.disabled=false;
 });
-
 }
 </script>
 
