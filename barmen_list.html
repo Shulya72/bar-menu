@@ -3,7 +3,6 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-
 <title>Бармен PRO</title>
 
 <style>
@@ -14,9 +13,10 @@ background:#000;
 color:#fff;
 font-family:Arial;
 overflow-x:hidden;
+touch-action:manipulation;
 }
 
-/* ФИКСИРОВАННАЯ ШАПКА */
+/* ШАПКА */
 .top{
 position:fixed;
 top:0;
@@ -63,7 +63,7 @@ font-weight:700;
 margin-top:10px;
 }
 
-/* ОТСТУП ПОД ШАПКУ */
+/* ОТСТУП */
 .wrap{
 max-width:720px;
 margin:auto;
@@ -81,7 +81,7 @@ background:#070707;
 }
 
 .card.dim{
-opacity:.55;
+opacity:.45;
 }
 
 .name{
@@ -154,12 +154,11 @@ height:36px;
 <body>
 
 <div class="top">
-<div class="title">Панель бармена</div>
+<div class="title">Панель бармена PRO</div>
 <div class="sum">Сумма: <span id="sum">0</span> ₽</div>
 
-<input class="search" placeholder="Поиск коктейля..." oninput="render()">
-
-<button class="closeBtn" onclick="closeShift()">Закрыть смену</button>
+<input class="search" placeholder="Поиск..." oninput="render()">
+<button class="closeBtn" id="closeBtn">Закрыть смену</button>
 </div>
 
 <div class="wrap">
@@ -276,10 +275,15 @@ if(cocktails[i].count>0) cocktails[i].count--;
 render();
 }
 
-function closeShift(){
+document.getElementById("closeBtn").onclick=closeShift;
 
+function closeShift(){
 if(sending) return;
 sending=true;
+
+const btn=document.getElementById("closeBtn");
+btn.innerText="Отправка...";
+btn.disabled=true;
 
 const data=cocktails
 .filter(c=>c.count>0)
@@ -295,9 +299,13 @@ body:JSON.stringify(data)
 })
 .then(()=>{
 cocktails.forEach(c=>c.count=0);
-sending=false;
 render();
 alert("Смена закрыта");
+})
+.finally(()=>{
+sending=false;
+btn.innerText="Закрыть смену";
+btn.disabled=false;
 });
 }
 </script>
