@@ -165,14 +165,14 @@ let stockMap={};
 const stockJson=JSON.parse(stockTxt.substr(47).slice(0,-2));
 const stockRows=stockJson.table.rows;
 
-for(let i=1;i<stockRows.length;i++){
-const row=stockRows[i].c;
-const name=row[0]?.v || row[0]?.f;
-let qty=row[1]?.v || row[1]?.f || 0;
+let name = row[0]?.v || row[0]?.f;
+let qty = row[1]?.v || row[1]?.f || 0;
 
-qty=Number(qty.toString().replace(",","."))||0;
+qty = Number(qty.toString().replace(",", ".")) || 0;
 
-if(name) stockMap[name]=qty;
+if(name){
+name = String(name).trim().toLowerCase();   // 🔥 фикс
+stockMap[name] = qty;
 }
 
 const json=JSON.parse(techTxt.substr(47).slice(0,-2));
@@ -209,7 +209,9 @@ cocktails.push(current);
 
 if(ing){
 const need=Number(qtyRaw)||0;
-const stockLeft=Number(stockMap[ing]||0);
+const stockLeft = Number(
+  stockMap[String(ing).trim().toLowerCase()] || 0
+);
 
 current.ings.push({
 text:`${ing} ${need} ${unit} (ост: ${stockLeft})`,
