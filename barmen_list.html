@@ -78,15 +78,9 @@ text-align:center;
 background:#070707;
 }
 
-.card.dim{
-opacity:.45;
-}
+.card.dim{opacity:.45;}
 
-.name{
-font-size:22px;
-font-weight:700;
-margin-bottom:10px;
-}
+.name{font-size:22px;font-weight:700;margin-bottom:10px;}
 
 .photo{
 width:100%;
@@ -97,26 +91,10 @@ border-radius:14px;
 pointer-events:none;
 }
 
-.ing{
-text-align:left;
-margin-top:10px;
-}
-
-.miss{
-color:#ff4d4d;
-text-decoration:line-through;
-}
-
-.tools{
-color:#7CFC00;
-margin-top:10px;
-}
-
-.recipe{
-color:#aaa;
-margin-top:10px;
-font-size:14px;
-}
+.ing{text-align:left;margin-top:10px;}
+.miss{color:#ff4d4d;text-decoration:line-through;}
+.tools{color:#7CFC00;margin-top:10px;}
+.recipe{color:#aaa;margin-top:10px;font-size:14px;}
 
 .controls{
 display:flex;
@@ -189,9 +167,12 @@ const stockRows=stockJson.table.rows;
 
 for(let i=1;i<stockRows.length;i++){
 const row=stockRows[i].c;
-const name=row[0]?.v;
-const qty=row[1]?.v;
-if(name) stockMap[name]=Number(qty)||0;
+const name=row[0]?.v || row[0]?.f;
+let qty=row[1]?.v || row[1]?.f || 0;
+
+qty=Number(qty.toString().replace(",","."))||0;
+
+if(name) stockMap[name]=qty;
 }
 
 const json=JSON.parse(techTxt.substr(47).slice(0,-2));
@@ -227,15 +208,15 @@ cocktails.push(current);
 }
 
 if(ing){
-const needQty=Number(qtyRaw)||0;
+const need=Number(qtyRaw)||0;
 const stockLeft=Number(stockMap[ing]||0);
 
 current.ings.push({
-text:`${ing} ${needQty} ${unit} (ост: ${stockLeft})`,
-ok:avail==1 && stockLeft>=needQty
+text:`${ing} ${need} ${unit} (ост: ${stockLeft})`,
+ok:avail==1 && stockLeft>=need
 });
 
-if(stockLeft<needQty || avail==0) current.miss=true;
+if(stockLeft<need || avail==0) current.miss=true;
 }
 
 if(tool) current.tools.push(tool);
@@ -278,20 +259,12 @@ ${c.ings.map(x=>`<div class="${x.ok?'':'miss'}">${x.text}</div>`).join("")}
 document.getElementById("sum").innerText=Math.round(total);
 }
 
-function plus(i){
-cocktails[i].count++;
-render();
-}
-
-function minus(i){
-if(cocktails[i].count>0) cocktails[i].count--;
-render();
-}
+function plus(i){cocktails[i].count++;render();}
+function minus(i){if(cocktails[i].count>0) cocktails[i].count--;render();}
 
 document.getElementById("closeBtn").onclick=closeShift;
 
 function closeShift(){
-
 if(sending) return;
 sending=true;
 
@@ -301,22 +274,14 @@ btn.disabled=true;
 
 const data=cocktails
 .filter(c=>c.count>0)
-.map(c=>({
-name:c.name,
-count:c.count,
-cost:c.cost*c.count
-}));
+.map(c=>({name:c.name,count:c.count,cost:c.cost*c.count}));
 
-fetch(SCRIPT_URL,{
-method:"POST",
-body:JSON.stringify(data)
-})
+fetch(SCRIPT_URL,{method:"POST",body:JSON.stringify(data)})
 .then(()=>{
 
 cocktails.forEach(c=>c.count=0);
 total=0;
 render();
-
 alert("Смена закрыта");
 
 })
@@ -327,6 +292,5 @@ btn.disabled=false;
 });
 }
 </script>
-
 </body>
 </html>
