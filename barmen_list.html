@@ -1,4 +1,5 @@
 <!DOCTYPE html>
+
 <html lang="ru">
 <head>
 <meta charset="UTF-8">
@@ -28,32 +29,57 @@ box-sizing:border-box;
 border-bottom:1px solid #222;
 }
 
-.title{text-align:center;font-size:24px;font-weight:700;}
-.sum{text-align:center;color:#7CFC00;font-size:22px;margin-top:4px;}
+.title{ text-align:center;font-size:24px;font-weight:700;}
+.sum{ text-align:center;color:#7CFC00;font-size:22px;margin-top:4px;}
 
 .search{
-width:100%;padding:12px;border-radius:12px;border:1px solid #333;
-background:#111;color:#fff;margin-top:10px;
+width:100%;
+padding:12px;
+border-radius:12px;
+border:1px solid #333;
+background:#111;
+color:#fff;
+margin-top:10px;
 }
 
 .closeBtn{
-width:100%;padding:14px;border-radius:14px;background:#7CFC00;
-border:none;font-size:16px;font-weight:700;margin-top:10px;
+width:100%;
+padding:14px;
+border-radius:14px;
+background:#7CFC00;
+border:none;
+font-size:16px;
+font-weight:700;
+margin-top:10px;
 }
 
-.wrap{max-width:720px;margin:auto;padding:14px;padding-top:210px;}
+.wrap{
+max-width:720px;
+margin:auto;
+padding:14px;
+padding-top:210px;
+}
 
 .card{
-border:1px solid #333;border-radius:18px;padding:18px;margin-bottom:22px;
-text-align:center;background:#070707;
+border:1px solid #333;
+border-radius:18px;
+padding:18px;
+margin-bottom:22px;
+text-align:center;
+background:#070707;
 }
 
 .card.dim{opacity:.45;}
+
 .name{font-size:22px;font-weight:700;margin-bottom:10px;}
 
 .photo{
-width:100%;max-width:260px;margin:0 auto 14px auto;
-display:block;border-radius:14px;pointer-events:none;
+width:100%;
+max-width:260px;
+margin:0 auto 14px auto;
+display:block;
+border-radius:14px;
+pointer-events:none;
 }
 
 .ing{text-align:left;margin-top:10px;}
@@ -62,8 +88,11 @@ display:block;border-radius:14px;pointer-events:none;
 .recipe{color:#aaa;margin-top:10px;font-size:14px;}
 
 .controls{
-display:flex;justify-content:center;align-items:center;
-gap:10px;margin-top:12px;
+display:flex;
+justify-content:center;
+align-items:center;
+gap:10px;
+margin-top:12px;
 }
 
 .btn{
@@ -76,6 +105,7 @@ width:60px;text-align:center;font-size:18px;background:#000;
 border:1px solid #444;border-radius:10px;color:#fff;height:36px;
 }
 </style>
+
 </head>
 
 <body>
@@ -103,6 +133,15 @@ let cocktails=[];
 let total=0;
 let sending=false;
 
+/* НОРМАЛИЗАЦИЯ НАЗВАНИЙ */
+function norm(t){
+return String(t)
+.replace(/\u00A0/g," ")
+.replace(/\s+/g," ")
+.trim()
+.toLowerCase();
+}
+
 Promise.all([
 fetch(techURL).then(r=>r.text()),
 fetch(menuURL).then(r=>r.json()),
@@ -112,25 +151,23 @@ fetch(stockURL).then(r=>r.text())
 let photos={};
 menu.forEach(r=>photos[r.Коктейль]=r.Фото);
 
+/* ===== СКЛАД ===== */
 let stockMap={};
 const stockJson=JSON.parse(stockTxt.substr(47).slice(0,-2));
 const stockRows=stockJson.table.rows;
 
-/* 🔥 ВОТ ТУТ БЫЛ КРАШ — ВЕРНУЛ ЦИКЛ */
 for(let i=1;i<stockRows.length;i++){
 const row=stockRows[i].c;
 let name=row[0]?.v || row[0]?.f;
 let qty=row[1]?.v || row[1]?.f || 0;
-
-qty=Number(qty.toString().replace(",", "."))||0;
+qty = Number(String(qty).replace(",", "."))||0;
 
 if(name){
-name=String(name).trim().toLowerCase();
-stockMap[name]=qty;
+stockMap[norm(name)] = qty;
 }
 }
-/* 🔥 КОНЕЦ ФИКСА */
 
+/* ===== ТЕХКАРТЫ ===== */
 const json=JSON.parse(techTxt.substr(47).slice(0,-2));
 const rows=json.table.rows;
 
@@ -165,7 +202,7 @@ cocktails.push(current);
 
 if(ing){
 const need=Number(qtyRaw)||0;
-const stockLeft=Number(stockMap[String(ing).trim().toLowerCase()]||0);
+const stockLeft = Number(stockMap[norm(ing)]||0);
 
 current.ings.push({
 text:`${ing} ${need} ${unit} (ост: ${stockLeft})`,
@@ -181,6 +218,7 @@ if(tool) current.tools.push(tool);
 render();
 });
 
+/* ===== UI ===== */
 function render(){
 const search=document.querySelector(".search").value.toLowerCase();
 const list=document.getElementById("list");
@@ -189,7 +227,6 @@ total=0;
 
 cocktails.forEach((c,i)=>{
 if(search && !c.name.toLowerCase().includes(search)) return;
-
 total+=c.count*c.cost;
 
 list.innerHTML+=`
@@ -218,6 +255,7 @@ document.getElementById("sum").innerText=Math.round(total);
 function plus(i){cocktails[i].count++;render();}
 function minus(i){if(cocktails[i].count>0) cocktails[i].count--;render();}
 
+/* ===== ЗАКРЫТИЕ СМЕНЫ ===== */
 document.getElementById("closeBtn").onclick=closeShift;
 
 function closeShift(){
@@ -234,9 +272,11 @@ const data=cocktails
 
 fetch(SCRIPT_URL,{method:"POST",body:JSON.stringify(data)})
 .then(()=>{
+
 cocktails.forEach(c=>c.count=0);
 total=0;
 render();
+
 alert("Смена закрыта");
 })
 .finally(()=>{
@@ -246,5 +286,6 @@ btn.disabled=false;
 });
 }
 </script>
+
 </body>
 </html>
