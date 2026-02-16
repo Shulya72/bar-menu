@@ -2,151 +2,151 @@
 <html lang="ru">
 <head>
 <meta charset="UTF-8">
-<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<meta name="viewport" content="width=device-width,initial-scale=1.0">
 <title>Бармен PRO</title>
 
 <style>
 body{
-    background:#000;
-    color:#fff;
-    font-family:Arial;
-    margin:0;
-    padding:10px;
-}
-
-.wrapper{
-    max-width:420px;
-    margin:auto;
+background:#000;
+color:#fff;
+font-family:Arial;
+margin:0;
+padding:14px;
 }
 
 h1{
-    text-align:center;
-    font-size:22px;
+text-align:center;
+margin-top:10px;
 }
 
 #sumBox{
-    text-align:center;
-    font-size:20px;
-    color:#7CFC00;
-    margin-bottom:15px;
+text-align:center;
+color:#7CFC00;
+font-size:22px;
+margin-bottom:20px;
+}
+
+.wrap{
+max-width:720px;
+margin:auto;
 }
 
 .card{
-    background:#0b0b0b;
-    border:1px solid #222;
-    border-radius:18px;
-    padding:14px;
-    margin-bottom:16px;
-    transition:.3s;
+border:1px solid #333;
+border-radius:18px;
+padding:16px;
+margin-bottom:18px;
+text-align:center;
+transition:.3s;
 }
 
-.card.disabled{
-    opacity:.35;
+.card.off{
+opacity:.35;
+filter:grayscale(1);
 }
 
 .name{
-    text-align:center;
-    font-size:19px;
-    font-weight:bold;
-    margin-bottom:8px;
+font-size:22px;
+font-weight:700;
+margin-bottom:8px;
 }
 
 .photo{
-    width:100%;
-    max-width:240px;
-    display:block;
-    margin:0 auto 10px auto;
-    border-radius:12px;
+width:100%;
+max-width:260px;
+border-radius:14px;
+margin:10px auto;
+display:block;
 }
 
 .ing{
-    display:flex;
-    justify-content:space-between;
-    font-size:14px;
+text-align:left;
+margin-top:10px;
+font-size:15px;
 }
 
 .miss{
-    text-decoration:line-through;
-    color:#f55;
+text-decoration:line-through;
+color:#ff6b6b;
 }
 
 .tools{
-    color:#7CFC00;
-    text-align:center;
-    font-size:13px;
-    margin-top:6px;
+color:#7CFC00;
+margin-top:8px;
+font-size:14px;
 }
 
 .recipe{
-    color:#aaa;
-    text-align:center;
-    font-size:13px;
+color:#aaa;
+font-size:14px;
+margin-top:10px;
 }
 
-input{
-    width:70px;
-    padding:8px;
-    font-size:18px;
-    text-align:center;
-    background:#111;
-    border:1px solid #333;
-    color:#fff;
-    border-radius:8px;
+.counter{
+margin-top:12px;
 }
 
-.countBox{
-    text-align:center;
-    margin-top:10px;
+.counter button{
+width:42px;
+height:42px;
+font-size:20px;
+border-radius:10px;
+border:none;
+background:#111;
+color:#fff;
 }
 
-button{
-    width:100%;
-    padding:16px;
-    font-size:18px;
-    background:#7CFC00;
-    border:none;
-    border-radius:12px;
-    margin-top:12px;
+.counter span{
+margin:0 10px;
+font-size:18px;
+}
+
+#closeBtn{
+position:fixed;
+bottom:20px;
+left:50%;
+transform:translateX(-50%);
+background:#7CFC00;
+color:#000;
+border:none;
+padding:18px;
+font-size:18px;
+border-radius:18px;
+width:90%;
+max-width:500px;
+font-weight:700;
 }
 </style>
 </head>
 
 <body>
 
-<div class="wrapper">
-
 <h1>Панель бармена PRO</h1>
 <div id="sumBox">Сумма: 0 ₽</div>
-<div id="list"></div>
 
-<button id="closeBtn" onclick="sendShift()">Закрыть смену</button>
+<div class="wrap" id="list"></div>
 
-</div>
+<button id="closeBtn">Закрыть смену</button>
 
 <script>
-const SCRIPT_URL="https://script.google.com/macros/s/AKfycbw1Z5vyo_hwW5my_dFw8t49CnLVz7KZnzuPMiydht-d4SgJCVrpVKafsVqgfYGCAQ95/exec";
+
 const SHEET_ID="1CceZ3cIic_k9Z9GnXg_wOzoUGdYonzVkfypmSzf_ln8";
+const SCRIPT_URL="https://script.google.com/macros/s/AKfycbw1Z5vyo_hwW5my_dFw8t49CnLVz7KZnzuPMiydht-d4SgJCVrpVKafsVqgfYGCAQ95/exec";
 
 const techURL=`https://docs.google.com/spreadsheets/d/${SHEET_ID}/gviz/tq?tqx=out:json&sheet=БАР_КУХНЯ`;
 const menuURL=`https://opensheet.elk.sh/${SHEET_ID}/MENU`;
 
 let cocktails=[];
+let photos={};
 let total=0;
 let sending=false;
 
 Promise.all([
 fetch(techURL).then(r=>r.text()),
 fetch(menuURL).then(r=>r.json())
-])
-.then(([techTxt,menu])=>{
+]).then(([techTxt,menu])=>{
 
-let photos={};
-let available={};
-
-menu.forEach(r=>{
-photos[r.Коктейль]=r.Фото;
-available[r.Коктейль]=r.Доступность;
-});
+menu.forEach(r=>photos[r.Коктейль]=r.Фото);
 
 const json=JSON.parse(techTxt.substr(47).slice(0,-2));
 const rows=json.table.rows;
@@ -162,38 +162,40 @@ const cost=c[3]?.v;
 const ing=c[5]?.v;
 const qty=c[6]?.v;
 const unit=c[7]?.v;
+const avail=c[8]?.v;
 const tool=c[9]?.v;
 const recipe=c[10]?.v;
-const ingOk=c[8]?.v;
 
 if(id){
 current={
 name,
 cost:parseFloat(cost)||0,
-ings:[],
-tools:[],
 recipe:recipe||"",
+tools:[],
+ings:[],
+miss:false,
 photo:photos[name]||"",
-count:0,
-disabled:available[name]!=="ДА"
+count:0
 };
 cocktails.push(current);
 }
 
 if(ing){
+let missing = avail==0;
+if(missing) current.miss=true;
+
 current?.ings.push({
 text:`${ing} ${qty} ${unit}`,
-ok:ingOk==1
+miss:missing
 });
 }
 
-if(tool){
-current?.tools.push(tool);
-}
+if(tool) current?.tools.push(tool);
 
 });
 
 render();
+calc();
 });
 
 function render(){
@@ -203,43 +205,51 @@ list.innerHTML="";
 cocktails.forEach((c,i)=>{
 
 list.innerHTML+=`
-<div class="card ${c.disabled?'disabled':''}">
-
+<div class="card ${c.miss?'off':''}">
 <div class="name">${c.name}</div>
+
 ${c.photo?`<img src="${c.photo}" class="photo">`:""}
 
-${c.ings.map(x=>`
-<div class="ing ${!x.ok?'miss':''}">
-<span>${x.text}</span>
-</div>`).join("")}
+<div class="ing">
+${c.ings.map(x=>`<div class="${x.miss?'miss':''}">${x.text}</div>`).join("")}
+</div>
 
 <div class="tools">${c.tools.join(" • ")}</div>
 <div class="recipe">${c.recipe}</div>
 
-<div class="countBox">
-<input type="number" value="0" min="0"
-${c.disabled?'disabled':''}
-onchange="setCount(${i},this.value)">
+<div class="counter">
+<button onclick="minus(${i})">−</button>
+<span id="c${i}">0</span>
+<button onclick="plus(${i})">+</button>
 </div>
-
-</div>`;
+</div>
+`;
 });
 }
 
-function setCount(i,val){
-cocktails[i].count=parseInt(val)||0;
+function plus(i){
+if(cocktails[i].miss) return;
+cocktails[i].count++;
+document.getElementById("c"+i).innerText=cocktails[i].count;
+calc();
+}
+
+function minus(i){
+cocktails[i].count=Math.max(0,cocktails[i].count-1);
+document.getElementById("c"+i).innerText=cocktails[i].count;
 calc();
 }
 
 function calc(){
 total=0;
-cocktails.forEach(c=>{
-total+=c.cost*c.count;
-});
+cocktails.forEach(c=>total+=c.cost*c.count);
+
+total=Math.round(total);
+
 document.getElementById("sumBox").innerText="Сумма: "+total+" ₽";
 }
 
-function sendShift(){
+document.getElementById("closeBtn").onclick=async()=>{
 
 if(sending) return;
 sending=true;
@@ -248,7 +258,7 @@ const btn=document.getElementById("closeBtn");
 btn.innerText="Отправка...";
 btn.disabled=true;
 
-const data=cocktails
+let data=cocktails
 .filter(c=>c.count>0)
 .map(c=>({
 name:c.name,
@@ -256,24 +266,29 @@ count:c.count,
 cost:c.cost*c.count
 }));
 
-fetch(SCRIPT_URL,{
+if(data.length===0){
+sending=false;
+btn.innerText="Закрыть смену";
+btn.disabled=false;
+return;
+}
+
+await fetch(SCRIPT_URL,{
 method:"POST",
 body:JSON.stringify(data)
-})
-.then(()=>{
+});
 
 cocktails.forEach(c=>c.count=0);
-document.querySelectorAll("input").forEach(i=>i.value=0);
-
+render();
 calc();
 
+btn.innerText="Смена закрыта ✔";
+setTimeout(()=>{
 btn.innerText="Закрыть смену";
 btn.disabled=false;
 sending=false;
-
-alert("Смена сохранена");
-});
-}
+},2000);
+};
 </script>
 </body>
 </html>
