@@ -131,7 +131,7 @@ let cocktails=[];
 let total=0;
 let sending=false;
 
-/* НОРМАЛИЗАЦИЯ */
+/* нормализация */
 function norm(t){
 return String(t)
 .replace(/\u00A0/g," ")
@@ -149,25 +149,30 @@ fetch(stockURL).then(r=>r.text())
 let photos={};
 menu.forEach(r=>photos[r.Коктейль]=r.Фото);
 
-/* ===== СКЛАД (ИСПРАВЛЕННЫЙ БЛОК) ===== */
+/* ===== СКЛАД ===== */
 let stockMap={};
 const stockJson=JSON.parse(stockTxt.substr(47).slice(0,-2));
 const stockRows=stockJson.table.rows;
 
 for(let i=1;i<stockRows.length;i++){
+
 const row=stockRows[i].c;
 
-let name=row[0]?.v ?? row[0]?.f;
-let qty=row[1]?.v;
+let rawName = row[0]?.v ?? row[0]?.f;
+let rawQty  = row[1]?.v ?? row[1]?.f ?? 0;
 
-if(qty===null || qty===undefined){
-qty=row[1]?.f;
-}
+let cleanName = norm(rawName);
+let cleanQty  = Number(String(rawQty).replace(",",".").replace(/\s/g,""))||0;
 
-qty = Number(String(qty).replace(",", ".").replace(/\s/g,"")) || 0;
+console.log("СКЛАД СТРОКА:", {
+rawName,
+rawQty,
+cleanName,
+cleanQty
+});
 
-if(name){
-stockMap[norm(name)] = qty;
+if(cleanName){
+stockMap[cleanName] = cleanQty;
 }
 }
 
@@ -208,6 +213,8 @@ if(ing){
 const need=Number(qtyRaw)||0;
 const stockLeft = Number(stockMap[norm(ing)]||0);
 
+console.log("ПРОВЕРКА:", ing, "=>", stockLeft);
+
 current.ings.push({
 text:`${ing} ${need} ${unit} (ост: ${stockLeft})`,
 ok:avail==1 && stockLeft>=need
@@ -222,7 +229,7 @@ if(tool) current.tools.push(tool);
 render();
 });
 
-/* ===== UI ===== */
+/* UI */
 function render(){
 const search=document.querySelector(".search").value.toLowerCase();
 const list=document.getElementById("list");
@@ -259,7 +266,7 @@ document.getElementById("sum").innerText=Math.round(total);
 function plus(i){cocktails[i].count++;render();}
 function minus(i){if(cocktails[i].count>0) cocktails[i].count--;render();}
 
-/* ===== СМЕНА ===== */
+/* закрытие смены */
 document.getElementById("closeBtn").onclick=closeShift;
 
 function closeShift(){
