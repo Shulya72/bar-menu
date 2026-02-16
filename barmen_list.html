@@ -1,11 +1,9 @@
-<!-- TEST UPDATE 999 -->
 <!DOCTYPE html>
 <html lang="ru">
 <head>
 <meta charset="UTF-8">
-<meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
-
-<title>Бармен</title>
+<meta name="viewport" content="width=device-width, initial-scale=1, user-scalable=no">
+<title>Бармен PRO</title>
 
 <style>
 body{
@@ -20,35 +18,31 @@ header{
 position:sticky;
 top:0;
 background:#000;
-padding:12px;
-border-bottom:1px solid #222;
+padding:14px;
 z-index:999;
+border-bottom:1px solid #222;
 text-align:center;
 }
 
-h1{margin:4px;font-size:22px;}
-
 #sum{
 color:#00ff66;
-font-size:20px;
+font-size:22px;
 font-weight:bold;
 }
 
-#closeBtn{
-margin-top:8px;
+#close{
 background:#00ff66;
-color:#000;
 border:none;
-padding:12px 20px;
+padding:12px 18px;
 border-radius:12px;
 font-weight:bold;
-font-size:16px;
+margin-top:8px;
 }
 
 #list{
-padding:12px;
 max-width:700px;
 margin:auto;
+padding:12px;
 }
 
 .card{
@@ -65,151 +59,96 @@ opacity:.35;
 }
 
 .name{
-font-size:20px;
+font-size:22px;
 font-weight:bold;
-margin-bottom:6px;
+margin-bottom:8px;
 }
 
 .photo{
 width:100%;
 max-width:260px;
-border-radius:14px;
-margin:8px auto;
+border-radius:12px;
+margin:0 auto 10px;
 display:block;
 }
 
 .ing{
-text-align:left;
-margin-top:4px;
+display:flex;
+justify-content:space-between;
 }
 
-.ing.miss{
-color:#ff3b3b;
+.miss{
+color:red;
 text-decoration:line-through;
 }
 
-.tools{
-color:#00ff66;
+.count{
+font-size:22px;
 margin-top:8px;
 }
 
-.recipe{
-color:#aaa;
-margin-top:8px;
-font-size:14px;
-}
-
-.controls{margin-top:10px;}
-
-button.qty{
-width:36px;
-height:36px;
-font-size:20px;
-border:none;
+button{
+font-size:22px;
+padding:6px 14px;
 border-radius:10px;
+border:none;
 background:#111;
 color:#fff;
 }
 
-.count{
-width:60px;
-text-align:center;
-font-size:18px;
-margin:0 6px;
-background:#000;
-border:1px solid #333;
-color:#fff;
-border-radius:8px;
-}
 </style>
 </head>
 
 <body>
 
 <header>
-<h1>Панель бармена</h1>
-Сумма: <span id="sum">0</span> ₽
-<br>
-<button id="closeBtn">Закрыть смену</button>
+<div>Панель бармена PRO</div>
+<div id="sum">0 ₽</div>
+<button id="close">Закрыть смену</button>
 </header>
 
 <div id="list"></div>
 
 <script>
-const SHEET_ID="1CceZ3cIic_k9Z9GnXg_wOzoUGdYonzVkfypmSzf_ln8";
-const SCRIPT_URL="https://script.google.com/macros/s/AKfycbz69f3BJpr-lFCk_-YzE1bq_CRcXniZEvt2rD4InM_qx15XYwN6IjzI2lbTPIaI3brk/exec";
-
-const techURL=`https://docs.google.com/spreadsheets/d/${SHEET_ID}/gviz/tq?tqx=out:json&sheet=БАР_КУХНЯ`;
-const menuURL=`https://opensheet.elk.sh/${SHEET_ID}/MENU`;
-const stockURL=`https://opensheet.elk.sh/${SHEET_ID}/Открытый_склад`;
+const SHEET="1CceZ3cIic_k9Z9GnXg_wOzoUGdYonzVkfypmSzf_ln8";
+const SCRIPT="https://script.google.com/macros/s/AKfycbz69f3BJpr-lFCk_-YzE1bq_CRcXniZEvt2rD4InM_qx15XYwN6IjzI2lbTPIaI3brk/exec";
 
 let cocktails=[];
 let stock={};
 let total=0;
 
-Promise.all([
-fetch(techURL).then(r=>r.text()),
-fetch(menuURL).then(r=>r.json()),
-fetch(stockURL).then(r=>r.json())
-]).then(([techTxt,menu,stockData])=>{
+async function load(){
 
-stockData.forEach(r=>{
-stock[r["ID ингридиента"]]=Number(r["Остаток"]);
+const tech=await fetch(`https://opensheet.elk.sh/${SHEET}/БАР_КУХНЯ`).then(r=>r.json());
+const menu=await fetch(`https://opensheet.elk.sh/${SHEET}/MENU`).then(r=>r.json());
+const skl=await fetch(`https://opensheet.elk.sh/${SHEET}/Открытый_склад`).then(r=>r.json());
+
+skl.forEach(r=>{
+stock[r["ID ингридиента"]]=parseFloat(r["Остаток"])||0;
 });
 
-const photos={};
-menu.forEach(r=>photos[r.Коктейль]=r.Фото);
-
-const json=JSON.parse(techTxt.substr(47).slice(0,-2));
-const rows=json.table.rows;
-
-let current=null;
-
-rows.forEach(r=>{
-const c=r.c;
-
-const id=c[0]?.v;
-const name=c[1]?.v;
-const cost=c[3]?.v;
-const ing=c[5]?.v;
-const qty=c[6]?.v;
-const unit=c[7]?.v;
-const tool=c[9]?.v;
-const recipe=c[10]?.v;
-
-if(id){
-current={
-name:name,
-cost:Number(cost)||0,
-recipe:recipe||"",
-tools:[],
+menu.forEach(m=>{
+let obj={
+name:m.Коктейль,
+photo:m.Фото,
 ings:[],
-photo:photos[name]||"",
-count:0,
-can:true
+cost:parseFloat(m.Цена)||0
 };
-cocktails.push(current);
+
+tech.forEach(t=>{
+if(t["Коктейль"]==m.Коктейль){
+obj.ings.push({
+name:t["Ингредиент"],
+qty:parseFloat(t["Кол-во"])||0
+});
 }
+});
 
-if(ing){
-let miss=false;
-
-if(stock[ing]!==undefined){
-if(stock[ing]<qty){
-miss=true;
-current.can=false;
-}
-}
-
-current.ings.push({text:`${ing} ${qty} ${unit}`,miss});
-}
-
-if(tool) current.tools.push(tool);
-
+cocktails.push(obj);
 });
 
 render();
-});
+}
 
 function render(){
 const list=document.getElementById("list");
@@ -217,77 +156,80 @@ list.innerHTML="";
 
 cocktails.forEach((c,i)=>{
 
-list.innerHTML+=`
-<div class="card ${c.can?'':'disabled'}">
+let can=true;
+let html="";
 
-<div class="name">${c.name}</div>
+c.ings.forEach(x=>{
+let ok=(stock[x.name]||0)>=x.qty;
+if(!ok) can=false;
 
-${c.photo?`<img src="${c.photo}" class="photo">`:""}
-
-<div>
-${c.ings.map(x=>`<div class="ing ${x.miss?'miss':''}">${x.text}</div>`).join("")}
-</div>
-
-<div class="tools">${c.tools.join(" • ")}</div>
-<div class="recipe">${c.recipe}</div>
-
-<div class="controls">
-<button class="qty" onclick="minus(${i})">-</button>
-<input class="count" id="c${i}" value="${c.count}" readonly>
-<button class="qty" onclick="plus(${i})">+</button>
-</div>
-
+html+=`<div class="ing ${ok?"":"miss"}">
+<span>${x.name}</span>
+<span>${x.qty}</span>
 </div>`;
 });
 
-calc();
+list.innerHTML+=`
+<div class="card ${can?"":"disabled"}">
+<div class="name">${c.name}</div>
+<img src="${c.photo}" class="photo">
+${html}
+<div class="count">
+<button onclick="add(${i},-1)">-</button>
+<span id="c${i}">0</span>
+<button onclick="add(${i},1)">+</button>
+</div>
+</div>
+`;
+});
 }
 
-function plus(i){
-if(!cocktails[i].can) return;
-cocktails[i].count++;
-document.getElementById("c"+i).value=cocktails[i].count;
-calc();
-}
+let counts={};
 
-function minus(i){
-if(cocktails[i].count>0) cocktails[i].count--;
-document.getElementById("c"+i).value=cocktails[i].count;
-calc();
-}
+function add(i,n){
+counts[i]=(counts[i]||0)+n;
+if(counts[i]<0) counts[i]=0;
+document.getElementById("c"+i).innerText=counts[i];
 
-function calc(){
 total=0;
-cocktails.forEach(c=>{
-total+=c.count*c.cost;
+for(let k in counts){
+total+=counts[k]*cocktails[k].cost;
+}
+
+document.getElementById("sum").innerText=Math.round(total)+" ₽";
+}
+
+document.getElementById("close").onclick=async ()=>{
+if(total==0) return;
+
+document.getElementById("close").disabled=true;
+
+let send=[];
+for(let i in counts){
+if(counts[i]>0){
+send.push({
+name:cocktails[i].name,
+count:counts[i],
+cost:cocktails[i].cost
 });
-document.getElementById("sum").innerText=Math.round(total);
+}
 }
 
-document.getElementById("closeBtn").onclick=()=>{
-const data=cocktails
-.filter(c=>c.count>0)
-.map(c=>({
-name:c.name,
-count:c.count,
-cost:c.cost
-}));
-
-if(data.length===0){
-alert("Нет коктейлей");
-return;
-}
-
-fetch(SCRIPT_URL,{
+await fetch(SCRIPT,{
 method:"POST",
-body:JSON.stringify(data)
-})
-.then(()=>{
-cocktails.forEach(c=>c.count=0);
-render();
-alert("Смена закрыта");
+body:JSON.stringify(send)
 });
+
+counts={};
+total=0;
+document.getElementById("sum").innerText="0 ₽";
+render();
+
+document.getElementById("close").disabled=false;
 };
+
+load();
 </script>
+
 </body>
 </html>
