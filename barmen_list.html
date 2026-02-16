@@ -174,7 +174,7 @@ const stockURL=`https://docs.google.com/spreadsheets/d/${SHEET_ID}/gviz/tq?tqx=o
 let cocktails=[];
 let total=0;
 let sending=false;
-let stockMapById={}; // ключ = ID ингредиента
+let stockMap={};
 
 Promise.all([
 fetch(techURL).then(r=>r.text()),
@@ -185,17 +185,17 @@ fetch(stockURL).then(r=>r.text())
 let photos={};
 menu.forEach(r=>photos[r.Коктейль]=r.Фото);
 
-// читаем склад → строим карту остатков по ID ингредиента
+// склад
 const stockJson=JSON.parse(stockTxt.substr(47).slice(0,-2));
 const stockRows=stockJson.table.rows;
 
 for(let i=1;i<stockRows.length;i++){
 const row=stockRows[i].c;
-const ingId=row[0]?.v;     // ВАЖНО: в открытом складе колонка A — это ID ингредиента
-const qty=row[1]?.v;       // колонка B — остаток
+const name=row[0]?.v;
+const qty=row[1]?.v;
 
-if(ingId!==undefined && ingId!==null){
-stockMapById[String(ingId)]=Number(qty)||0;
+if(name){
+stockMap[name]=Number(qty)||0;
 }
 }
 
@@ -210,11 +210,8 @@ const c=r.c;
 const id=c[0]?.v;
 const name=c[1]?.v;
 const cost=c[3]?.v;
-
-// ВАЖНО: ID ингредиента в техкарте (та же колонка, по которой считается себестоимость)
-const ingId=c[4]?.v;  // ← проверь: это колонка E в техкарте (ID ингредиента)
 const ing=c[5]?.v;
-const qty=c[6]?.v;
+let qty=c[6]?.v;
 const unit=c[7]?.v;
 const tool=c[9]?.v;
 const recipe=c[10]?.v;
@@ -233,8 +230,9 @@ count:0
 cocktails.push(current);
 }
 
-if(ing && ingId!=null){
-let stockLeft=stockMapById[String(ingId)] ?? 0;
+if(ing){
+qty=Number(qty)||0;
+let stockLeft=Number(stockMap[ing]||0);
 
 current.ings.push({
 text:`${ing} ${qty} ${unit} (ост: ${stockLeft})`,
@@ -252,96 +250,3 @@ if(tool) current.tools.push(tool);
 
 render();
 });
-
-function render(){
-const search=document.querySelector(".search").value.toLowerCase();
-const list=document.getElementById("list");
-list.innerHTML="";
-total=0;
-
-cocktails.forEach((c,i)=>{
-if(search && !c.name.toLowerCase().includes(search)) return;
-
-total+=c.count*c.cost;
-
-list.innerHTML+=`
-<div class="card ${c.miss?'dim':''}">
-<div class="name">${c.name}</div>
-${c.photo?`<img src="${c.photo}" class="photo">`:""}
-
-<div class="ing">
-${c.ings.map(x=>`<div class="${x.ok?'':'miss'}">${x.text}</div>`).join("")}
-</div>
-
-<div class="tools">${c.tools.join(" • ")}</div>
-<div class="recipe">${c.recipe}</div>
-
-<div class="controls">
-<button class="btn" onclick="minus(${i})">−</button>
-<input class="count" value="${c.count}" readonly>
-<button class="btn" onclick="plus(${i})">+</button>
-</div>
-</div>`;
-});
-
-document.getElementById("sum").innerText=Math.round(total);
-}
-
-function plus(i){
-cocktails[i].count++;
-render();
-}
-
-function minus(i){
-if(cocktails[i].count>0) cocktails[i].count--;
-render();
-}
-
-document.getElementById("closeBtn").onclick=closeShift;
-
-function closeShift(){
-
-if(sending) return;
-sending=true;
-
-const btn=document.getElementById("closeBtn");
-btn.innerText="Отправка...";
-btn.disabled=true;
-
-const data=cocktails
-.filter(c=>c.count>0)
-.map(c=>({
-name:c.name,
-count:c.count,
-cost:c.cost*c.count
-}));
-
-fetch(SCRIPT_URL,{
-method:"POST",
-body:JSON.stringify(data)
-})
-.then(r=>r.text())
-.then(()=>{
-
-cocktails.forEach(c=>c.count=0);
-total=0;
-render();
-
-alert("Смена закрыта");
-
-})
-.catch(err=>{
-alert("Ошибка отправки");
-console.log(err);
-})
-.finally(()=>{
-sending=false;
-btn.innerText="Закрыть смену";
-btn.disabled=false;
-});
-
-}
-</script>
-
-</body>
-</html>
