@@ -174,7 +174,7 @@ const stockURL=`https://docs.google.com/spreadsheets/d/${SHEET_ID}/gviz/tq?tqx=o
 let cocktails=[];
 let total=0;
 let sending=false;
-let stockMap={};
+let stockMapById={}; // ключ = ID ингредиента
 
 Promise.all([
 fetch(techURL).then(r=>r.text()),
@@ -185,15 +185,18 @@ fetch(stockURL).then(r=>r.text())
 let photos={};
 menu.forEach(r=>photos[r.Коктейль]=r.Фото);
 
-// читаем склад
+// читаем склад → строим карту остатков по ID ингредиента
 const stockJson=JSON.parse(stockTxt.substr(47).slice(0,-2));
 const stockRows=stockJson.table.rows;
 
 for(let i=1;i<stockRows.length;i++){
 const row=stockRows[i].c;
-const name=row[0]?.v;
-const qty=row[1]?.v;
-if(name) stockMap[name]=Number(qty)||0;
+const ingId=row[0]?.v;     // ВАЖНО: в открытом складе колонка A — это ID ингредиента
+const qty=row[1]?.v;       // колонка B — остаток
+
+if(ingId!==undefined && ingId!==null){
+stockMapById[String(ingId)]=Number(qty)||0;
+}
 }
 
 const json=JSON.parse(techTxt.substr(47).slice(0,-2));
@@ -207,10 +210,12 @@ const c=r.c;
 const id=c[0]?.v;
 const name=c[1]?.v;
 const cost=c[3]?.v;
+
+// ВАЖНО: ID ингредиента в техкарте (та же колонка, по которой считается себестоимость)
+const ingId=c[4]?.v;  // ← проверь: это колонка E в техкарте (ID ингредиента)
 const ing=c[5]?.v;
 const qty=c[6]?.v;
 const unit=c[7]?.v;
-const avail=c[8]?.v;
 const tool=c[9]?.v;
 const recipe=c[10]?.v;
 
@@ -228,12 +233,12 @@ count:0
 cocktails.push(current);
 }
 
-if(ing){
-let stockLeft=stockMap[ing] ?? 0;
+if(ing && ingId!=null){
+let stockLeft=stockMapById[String(ingId)] ?? 0;
 
 current.ings.push({
 text:`${ing} ${qty} ${unit} (ост: ${stockLeft})`,
-ok:avail==1 && stockLeft>=qty,
+ok:stockLeft>=qty,
 stock:stockLeft,
 need:qty
 });
