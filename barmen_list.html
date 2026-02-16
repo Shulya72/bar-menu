@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>Бармен PRO</title>
+<title>Бармен</title>
 
 <style>
 body{
@@ -11,7 +11,6 @@ background:#000;
 color:#fff;
 font-family:Arial;
 margin:0;
-overflow-x:hidden;
 }
 
 header{
@@ -20,8 +19,8 @@ top:0;
 background:#000;
 padding:14px;
 text-align:center;
-z-index:999;
 border-bottom:1px solid #222;
+z-index:999;
 }
 
 #sum{
@@ -54,10 +53,6 @@ text-align:center;
 background:#050505;
 }
 
-.disabled{
-opacity:.35;
-}
-
 .name{
 font-size:22px;
 font-weight:bold;
@@ -70,16 +65,6 @@ max-width:260px;
 border-radius:12px;
 margin:0 auto 10px;
 display:block;
-}
-
-.ing{
-display:flex;
-justify-content:space-between;
-}
-
-.miss{
-color:red;
-text-decoration:line-through;
 }
 
 .count{
@@ -101,7 +86,7 @@ color:#fff;
 <body>
 
 <header>
-<div>Панель бармена PRO</div>
+<div>Панель бармена</div>
 <div id="sum">0 ₽</div>
 <button id="close">Закрыть смену</button>
 </header>
@@ -111,10 +96,8 @@ color:#fff;
 <script>
 
 const SHEET="1CceZ3cIic_k9Z9GnXg_wOzoUGdYonzVkfypmSzf_ln8";
-const SCRIPT="https://script.google.com/macros/s/AKfycbz69f3BJpr-lFCk_-YzE1bq_CRcXniZEvt2rD4InM_qx15XYwN6IjzI2lbTPIaI3brk/exec";
 
 let cocktails=[];
-let stock={};
 let counts={};
 let total=0;
 
@@ -122,30 +105,29 @@ async function load(){
 
 const tech=await fetch(`https://opensheet.elk.sh/${SHEET}/БАР_КУХНЯ`).then(r=>r.json());
 const menu=await fetch(`https://opensheet.elk.sh/${SHEET}/MENU`).then(r=>r.json());
-const skl=await fetch(`https://opensheet.elk.sh/${SHEET}/Открытый_склад`).then(r=>r.json());
 
-skl.forEach(r=>{
-stock[r["ID ингридиента"]] = parseFloat(r["Остаток"]) || 0;
-});
+let current=null;
 
-menu.forEach(m=>{
-let obj={
-name:m["Коктейль"],
-photo:m["Фото"],
-cost:parseFloat(m["Цена"])||0,
-ings:[]
+tech.forEach(r=>{
+
+const name=r["Название"];
+const ing=r["Ингредиент"];
+const qty=r["Кол-во"];
+
+if(name){
+current={
+name:name,
+ings:[],
+photo:(menu.find(m=>m["Коктейль"]==name)||{})["Фото"]||"",
+cost:parseFloat((menu.find(m=>m["Коктейль"]==name)||{})["Цена"])||0
 };
-
-tech.forEach(t=>{
-if(t["Коктейль"]==m["Коктейль"]){
-obj.ings.push({
-name:t["Ингредиент"],
-qty:parseFloat(t["Кол-во"])||0
-});
+cocktails.push(current);
 }
-});
 
-cocktails.push(obj);
+if(current && ing){
+current.ings.push(`${ing} ${qty||""}`);
+}
+
 });
 
 render();
@@ -157,25 +139,11 @@ list.innerHTML="";
 
 cocktails.forEach((c,i)=>{
 
-let can=true;
-let html="";
-
-c.ings.forEach(x=>{
-let ok=(stock[x.name]||0)>=x.qty;
-if(!ok) can=false;
-
-html+=`
-<div class="ing ${ok?"":"miss"}">
-<span>${x.name}</span>
-<span>${x.qty}</span>
-</div>`;
-});
-
 list.innerHTML+=`
-<div class="card ${can?"":"disabled"}">
+<div class="card">
 <div class="name">${c.name}</div>
-<img src="${c.photo}" class="photo">
-${html}
+${c.photo?`<img src="${c.photo}" class="photo">`:""}
+${c.ings.join("<br>")}
 <div class="count">
 <button onclick="add(${i},-1)">-</button>
 <span id="c${i}">0</span>
@@ -198,36 +166,6 @@ total+=counts[k]*cocktails[k].cost;
 
 document.getElementById("sum").innerText=Math.round(total)+" ₽";
 }
-
-document.getElementById("close").onclick=async ()=>{
-if(total==0) return;
-
-let btn=document.getElementById("close");
-btn.disabled=true;
-
-let send=[];
-for(let i in counts){
-if(counts[i]>0){
-send.push({
-name:cocktails[i].name,
-count:counts[i],
-cost:cocktails[i].cost
-});
-}
-}
-
-await fetch(SCRIPT,{
-method:"POST",
-body:JSON.stringify(send)
-});
-
-counts={};
-total=0;
-document.getElementById("sum").innerText="0 ₽";
-render();
-
-btn.disabled=false;
-};
 
 load();
 
