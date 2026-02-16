@@ -16,7 +16,6 @@ overflow-x:hidden;
 touch-action:manipulation;
 }
 
-/* ШАПКА */
 .top{
 position:fixed;
 top:0;
@@ -63,7 +62,6 @@ font-weight:700;
 margin-top:10px;
 }
 
-/* ОТСТУП */
 .wrap{
 max-width:720px;
 margin:auto;
@@ -171,18 +169,32 @@ const SCRIPT_URL="https://script.google.com/macros/s/AKfycbz69f3BJpr-lFCk_-YzE1b
 
 const techURL=`https://docs.google.com/spreadsheets/d/${SHEET_ID}/gviz/tq?tqx=out:json&sheet=БАР_КУХНЯ`;
 const menuURL=`https://opensheet.elk.sh/${SHEET_ID}/MENU`;
+const stockURL=`https://docs.google.com/spreadsheets/d/${SHEET_ID}/gviz/tq?tqx=out:json&sheet=Открытый_склад`;
 
 let cocktails=[];
 let total=0;
 let sending=false;
+let stockMap={};
 
 Promise.all([
 fetch(techURL).then(r=>r.text()),
-fetch(menuURL).then(r=>r.json())
-]).then(([techTxt,menu])=>{
+fetch(menuURL).then(r=>r.json()),
+fetch(stockURL).then(r=>r.text())
+]).then(([techTxt,menu,stockTxt])=>{
 
 let photos={};
 menu.forEach(r=>photos[r.Коктейль]=r.Фото);
+
+// читаем склад
+const stockJson=JSON.parse(stockTxt.substr(47).slice(0,-2));
+const stockRows=stockJson.table.rows;
+
+for(let i=1;i<stockRows.length;i++){
+const row=stockRows[i].c;
+const name=row[0]?.v;
+const qty=row[1]?.v;
+if(name) stockMap[name]=Number(qty)||0;
+}
 
 const json=JSON.parse(techTxt.substr(47).slice(0,-2));
 const rows=json.table.rows;
@@ -217,11 +229,16 @@ cocktails.push(current);
 }
 
 if(ing){
+let stockLeft=stockMap[ing] ?? 0;
+
 current.ings.push({
-text:`${ing} ${qty} ${unit}`,
-ok:avail==1
+text:`${ing} ${qty} ${unit} (ост: ${stockLeft})`,
+ok:avail==1 && stockLeft>=qty,
+stock:stockLeft,
+need:qty
 });
-if(avail==0) current.miss=true;
+
+if(stockLeft<qty) current.miss=true;
 }
 
 if(tool) current.tools.push(tool);
@@ -301,7 +318,6 @@ body:JSON.stringify(data)
 .then(r=>r.text())
 .then(()=>{
 
-// 🔥 СБРОС ВСЕГО
 cocktails.forEach(c=>c.count=0);
 total=0;
 render();
