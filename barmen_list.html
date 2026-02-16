@@ -11,20 +11,24 @@ body{
     color:#fff;
     font-family:Arial;
     margin:0;
-    padding:12px;
+    padding:10px;
+}
+
+.wrapper{
+    max-width:420px;
+    margin:auto;
 }
 
 h1{
     text-align:center;
     font-size:22px;
-    margin:10px 0;
 }
 
 #sumBox{
     text-align:center;
     font-size:20px;
-    margin-bottom:15px;
     color:#7CFC00;
+    margin-bottom:15px;
 }
 
 .card{
@@ -33,18 +37,23 @@ h1{
     border-radius:18px;
     padding:14px;
     margin-bottom:16px;
+    transition:.3s;
+}
+
+.card.disabled{
+    opacity:.35;
 }
 
 .name{
-    font-size:20px;
     text-align:center;
-    font-weight:700;
+    font-size:19px;
+    font-weight:bold;
     margin-bottom:8px;
 }
 
 .photo{
     width:100%;
-    max-width:260px;
+    max-width:240px;
     display:block;
     margin:0 auto 10px auto;
     border-radius:12px;
@@ -53,27 +62,25 @@ h1{
 .ing{
     display:flex;
     justify-content:space-between;
-    font-size:15px;
-    margin:2px 0;
+    font-size:14px;
+}
+
+.miss{
+    text-decoration:line-through;
+    color:#f55;
 }
 
 .tools{
     color:#7CFC00;
     text-align:center;
-    font-size:14px;
-    margin-top:8px;
+    font-size:13px;
+    margin-top:6px;
 }
 
 .recipe{
     color:#aaa;
+    text-align:center;
     font-size:13px;
-    text-align:center;
-    margin-top:8px;
-}
-
-.countBox{
-    text-align:center;
-    margin-top:10px;
 }
 
 input{
@@ -87,25 +94,34 @@ input{
     border-radius:8px;
 }
 
+.countBox{
+    text-align:center;
+    margin-top:10px;
+}
+
 button{
     width:100%;
+    padding:16px;
+    font-size:18px;
     background:#7CFC00;
     border:none;
-    padding:14px;
-    font-size:18px;
     border-radius:12px;
-    margin-top:14px;
+    margin-top:12px;
 }
 </style>
 </head>
 
 <body>
 
+<div class="wrapper">
+
 <h1>Панель бармена PRO</h1>
 <div id="sumBox">Сумма: 0 ₽</div>
 <div id="list"></div>
 
-<button onclick="sendShift()">Закрыть смену</button>
+<button id="closeBtn" onclick="sendShift()">Закрыть смену</button>
+
+</div>
 
 <script>
 const SCRIPT_URL="https://script.google.com/macros/s/AKfycbw1Z5vyo_hwW5my_dFw8t49CnLVz7KZnzuPMiydht-d4SgJCVrpVKafsVqgfYGCAQ95/exec";
@@ -116,6 +132,7 @@ const menuURL=`https://opensheet.elk.sh/${SHEET_ID}/MENU`;
 
 let cocktails=[];
 let total=0;
+let sending=false;
 
 Promise.all([
 fetch(techURL).then(r=>r.text()),
@@ -124,7 +141,12 @@ fetch(menuURL).then(r=>r.json())
 .then(([techTxt,menu])=>{
 
 let photos={};
-menu.forEach(r=>photos[r.Коктейль]=r.Фото);
+let available={};
+
+menu.forEach(r=>{
+photos[r.Коктейль]=r.Фото;
+available[r.Коктейль]=r.Доступность;
+});
 
 const json=JSON.parse(techTxt.substr(47).slice(0,-2));
 const rows=json.table.rows;
@@ -142,6 +164,7 @@ const qty=c[6]?.v;
 const unit=c[7]?.v;
 const tool=c[9]?.v;
 const recipe=c[10]?.v;
+const ingOk=c[8]?.v;
 
 if(id){
 current={
@@ -151,13 +174,17 @@ ings:[],
 tools:[],
 recipe:recipe||"",
 photo:photos[name]||"",
-count:0
+count:0,
+disabled:available[name]!=="ДА"
 };
 cocktails.push(current);
 }
 
 if(ing){
-current?.ings.push(`${ing} ${qty} ${unit}`);
+current?.ings.push({
+text:`${ing} ${qty} ${unit}`,
+ok:ingOk==1
+});
 }
 
 if(tool){
@@ -176,19 +203,23 @@ list.innerHTML="";
 cocktails.forEach((c,i)=>{
 
 list.innerHTML+=`
-<div class="card">
+<div class="card ${c.disabled?'disabled':''}">
 
 <div class="name">${c.name}</div>
-
 ${c.photo?`<img src="${c.photo}" class="photo">`:""}
 
-${c.ings.map(x=>`<div class="ing"><span>${x}</span><span></span></div>`).join("")}
+${c.ings.map(x=>`
+<div class="ing ${!x.ok?'miss':''}">
+<span>${x.text}</span>
+</div>`).join("")}
 
 <div class="tools">${c.tools.join(" • ")}</div>
 <div class="recipe">${c.recipe}</div>
 
 <div class="countBox">
-<input type="number" min="0" value="0" onchange="setCount(${i},this.value)">
+<input type="number" value="0" min="0"
+${c.disabled?'disabled':''}
+onchange="setCount(${i},this.value)">
 </div>
 
 </div>`;
@@ -210,6 +241,13 @@ document.getElementById("sumBox").innerText="Сумма: "+total+" ₽";
 
 function sendShift(){
 
+if(sending) return;
+sending=true;
+
+const btn=document.getElementById("closeBtn");
+btn.innerText="Отправка...";
+btn.disabled=true;
+
 const data=cocktails
 .filter(c=>c.count>0)
 .map(c=>({
@@ -223,10 +261,19 @@ method:"POST",
 body:JSON.stringify(data)
 })
 .then(()=>{
-alert("Смена записана в таблицу");
+
+cocktails.forEach(c=>c.count=0);
+document.querySelectorAll("input").forEach(i=>i.value=0);
+
+calc();
+
+btn.innerText="Закрыть смену";
+btn.disabled=false;
+sending=false;
+
+alert("Смена сохранена");
 });
 }
 </script>
-
 </body>
 </html>
