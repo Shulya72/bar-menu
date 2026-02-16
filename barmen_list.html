@@ -1,5 +1,4 @@
 <!DOCTYPE html>
-
 <html lang="ru">
 <head>
 <meta charset="UTF-8">
@@ -105,7 +104,6 @@ width:60px;text-align:center;font-size:18px;background:#000;
 border:1px solid #444;border-radius:10px;color:#fff;height:36px;
 }
 </style>
-
 </head>
 
 <body>
@@ -133,7 +131,7 @@ let cocktails=[];
 let total=0;
 let sending=false;
 
-/* НОРМАЛИЗАЦИЯ НАЗВАНИЙ */
+/* НОРМАЛИЗАЦИЯ */
 function norm(t){
 return String(t)
 .replace(/\u00A0/g," ")
@@ -151,16 +149,22 @@ fetch(stockURL).then(r=>r.text())
 let photos={};
 menu.forEach(r=>photos[r.Коктейль]=r.Фото);
 
-/* ===== СКЛАД ===== */
+/* ===== СКЛАД (ИСПРАВЛЕННЫЙ БЛОК) ===== */
 let stockMap={};
 const stockJson=JSON.parse(stockTxt.substr(47).slice(0,-2));
 const stockRows=stockJson.table.rows;
 
 for(let i=1;i<stockRows.length;i++){
 const row=stockRows[i].c;
-let name=row[0]?.v || row[0]?.f;
-let qty=row[1]?.v || row[1]?.f || 0;
-qty = Number(String(qty).replace(",", "."))||0;
+
+let name=row[0]?.v ?? row[0]?.f;
+let qty=row[1]?.v;
+
+if(qty===null || qty===undefined){
+qty=row[1]?.f;
+}
+
+qty = Number(String(qty).replace(",", ".").replace(/\s/g,"")) || 0;
 
 if(name){
 stockMap[norm(name)] = qty;
@@ -255,7 +259,7 @@ document.getElementById("sum").innerText=Math.round(total);
 function plus(i){cocktails[i].count++;render();}
 function minus(i){if(cocktails[i].count>0) cocktails[i].count--;render();}
 
-/* ===== ЗАКРЫТИЕ СМЕНЫ ===== */
+/* ===== СМЕНА ===== */
 document.getElementById("closeBtn").onclick=closeShift;
 
 function closeShift(){
@@ -272,11 +276,9 @@ const data=cocktails
 
 fetch(SCRIPT_URL,{method:"POST",body:JSON.stringify(data)})
 .then(()=>{
-
 cocktails.forEach(c=>c.count=0);
 total=0;
 render();
-
 alert("Смена закрыта");
 })
 .finally(()=>{
@@ -286,6 +288,5 @@ btn.disabled=false;
 });
 }
 </script>
-
 </body>
 </html>
