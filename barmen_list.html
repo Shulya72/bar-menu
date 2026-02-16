@@ -2,128 +2,190 @@
 <html lang="ru">
 <head>
 <meta charset="UTF-8">
-<meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+
 <title>Бармен PRO</title>
 
 <style>
-body{
+html,body{
+margin:0;
+padding:0;
 background:#000;
 color:#fff;
 font-family:Arial;
-margin:0;
 overflow-x:hidden;
 }
 
-header{
-position:sticky;
+/* ФИКСИРОВАННАЯ ШАПКА */
+.top{
+position:fixed;
 top:0;
+left:0;
+width:100%;
 background:#000;
-padding:12px;
-text-align:center;
-border-bottom:1px solid #222;
 z-index:999;
+padding:14px;
+box-sizing:border-box;
+border-bottom:1px solid #222;
 }
 
-h1{
-margin:4px;
-font-size:20px;
+.title{
+text-align:center;
+font-size:24px;
+font-weight:700;
 }
 
-#sum{
-color:#00ff66;
+.sum{
+text-align:center;
+color:#7CFC00;
 font-size:22px;
-font-weight:bold;
-margin:4px;
+margin-top:4px;
 }
 
-#closeBtn{
-background:#00ff66;
-color:#000;
-border:none;
-padding:12px 20px;
+.search{
+width:100%;
+padding:12px;
 border-radius:12px;
-font-weight:bold;
-font-size:16px;
-margin-top:6px;
+border:1px solid #333;
+background:#111;
+color:#fff;
+margin-top:10px;
 }
 
-#list{
-max-width:700px;
+.closeBtn{
+width:100%;
+padding:14px;
+border-radius:14px;
+background:#7CFC00;
+border:none;
+font-size:16px;
+font-weight:700;
+margin-top:10px;
+}
+
+/* ОТСТУП ПОД ШАПКУ */
+.wrap{
+max-width:720px;
 margin:auto;
-padding:10px;
+padding:14px;
+padding-top:210px;
 }
 
 .card{
 border:1px solid #333;
 border-radius:18px;
-padding:14px;
-margin-bottom:14px;
+padding:18px;
+margin-bottom:22px;
 text-align:center;
-background:#050505;
-transition:0.3s;
+background:#070707;
 }
 
-.card.off{
-opacity:0.35;
+.card.dim{
+opacity:.55;
 }
 
 .name{
 font-size:22px;
-font-weight:bold;
+font-weight:700;
 margin-bottom:10px;
 }
 
 .photo{
 width:100%;
 max-width:260px;
-border-radius:12px;
-margin:0 auto 10px;
+margin:0 auto 14px auto;
 display:block;
+border-radius:14px;
+pointer-events:none;
+}
+
+.ing{
+text-align:left;
+margin-top:10px;
+}
+
+.miss{
+color:#ff4d4d;
+text-decoration:line-through;
+}
+
+.tools{
+color:#7CFC00;
+margin-top:10px;
+}
+
+.recipe{
+color:#aaa;
+margin-top:10px;
+font-size:14px;
+}
+
+.controls{
+display:flex;
+justify-content:center;
+align-items:center;
+gap:10px;
+margin-top:12px;
+}
+
+.btn{
+width:42px;
+height:42px;
+font-size:20px;
+border-radius:10px;
+border:1px solid #444;
+background:#111;
+color:#fff;
 }
 
 .count{
-margin-top:10px;
-font-size:22px;
-}
-
-button{
-font-size:20px;
-padding:6px 14px;
+width:60px;
+text-align:center;
+font-size:18px;
+background:#000;
+border:1px solid #444;
 border-radius:10px;
-border:none;
-background:#111;
 color:#fff;
+height:36px;
 }
 </style>
 </head>
 
 <body>
 
-<header>
-<h1>Панель бармена PRO</h1>
-<div id="sum">0 ₽</div>
-<button id="closeBtn">Закрыть смену</button>
-</header>
+<div class="top">
+<div class="title">Панель бармена</div>
+<div class="sum">Сумма: <span id="sum">0</span> ₽</div>
 
+<input class="search" placeholder="Поиск коктейля..." oninput="render()">
+
+<button class="closeBtn" onclick="closeShift()">Закрыть смену</button>
+</div>
+
+<div class="wrap">
 <div id="list"></div>
+</div>
 
 <script>
-
 const SHEET_ID="1CceZ3cIic_k9Z9GnXg_wOzoUGdYonzVkfypmSzf_ln8";
-const GAS_URL="https://script.google.com/macros/s/AKfycbz69f3BJpr-lFCk_-YzE1bq_CRcXniZEvt2rD4InM_qx15XYwN6IjzI2lbTPIaI3brk/exec";
+const SCRIPT_URL="https://script.google.com/macros/s/AKfycbw1Z5vyo_hwW5my_dFw8t49CnLVz7KZnzuPMiydht-d4SgJCVrpVKafsVqgfYGCAQ95/exec";
+
+const techURL=`https://docs.google.com/spreadsheets/d/${SHEET_ID}/gviz/tq?tqx=out:json&sheet=БАР_КУХНЯ`;
+const menuURL=`https://opensheet.elk.sh/${SHEET_ID}/MENU`;
 
 let cocktails=[];
-let counts={};
 let total=0;
+let sending=false;
 
-async function load(){
+Promise.all([
+fetch(techURL).then(r=>r.text()),
+fetch(menuURL).then(r=>r.json())
+]).then(([techTxt,menu])=>{
 
-const tech=await fetch(`https://docs.google.com/spreadsheets/d/${SHEET_ID}/gviz/tq?tqx=out:json&sheet=БАР_КУХНЯ`)
-.then(r=>r.text());
+let photos={};
+menu.forEach(r=>photos[r.Коктейль]=r.Фото);
 
-const menu=await fetch(`https://opensheet.elk.sh/${SHEET_ID}/MENU`).then(r=>r.json());
-
-const json=JSON.parse(tech.substr(47).slice(0,-2));
+const json=JSON.parse(techTxt.substr(47).slice(0,-2));
 const rows=json.table.rows;
 
 let current=null;
@@ -137,88 +199,108 @@ const cost=c[3]?.v;
 const ing=c[5]?.v;
 const qty=c[6]?.v;
 const unit=c[7]?.v;
+const avail=c[8]?.v;
+const tool=c[9]?.v;
+const recipe=c[10]?.v;
 
 if(id){
 current={
-name:name,
+name,
 cost:parseFloat(cost)||0,
+recipe:recipe||"",
+tools:[],
 ings:[],
-photo:(menu.find(m=>m.Коктейль==name)||{}).Фото||"",
-available:true
+miss:false,
+photo:photos[name]||"",
+count:0
 };
 cocktails.push(current);
 }
 
-if(current && ing){
-current.ings.push(`${ing} ${qty||""} ${unit||""}`);
+if(ing){
+current.ings.push({
+text:`${ing} ${qty} ${unit}`,
+ok:avail==1
+});
+if(avail==0) current.miss=true;
 }
+
+if(tool) current.tools.push(tool);
+
 });
 
 render();
-}
+});
 
 function render(){
+const search=document.querySelector(".search").value.toLowerCase();
 const list=document.getElementById("list");
 list.innerHTML="";
+total=0;
 
 cocktails.forEach((c,i)=>{
+if(search && !c.name.toLowerCase().includes(search)) return;
+
+total+=c.count*c.cost;
 
 list.innerHTML+=`
-<div class="card" id="card${i}">
+<div class="card ${c.miss?'dim':''}">
 <div class="name">${c.name}</div>
 ${c.photo?`<img src="${c.photo}" class="photo">`:""}
-${c.ings.join("<br>")}
-<div class="count">
-<button onclick="add(${i},-1)">-</button>
-<span id="c${i}">0</span>
-<button onclick="add(${i},1)">+</button>
+
+<div class="ing">
+${c.ings.map(x=>`<div class="${x.ok?'':'miss'}">${x.text}</div>`).join("")}
+</div>
+
+<div class="tools">${c.tools.join(" • ")}</div>
+<div class="recipe">${c.recipe}</div>
+
+<div class="controls">
+<button class="btn" onclick="minus(${i})">−</button>
+<input class="count" value="${c.count}" readonly>
+<button class="btn" onclick="plus(${i})">+</button>
 </div>
 </div>`;
 });
+
+document.getElementById("sum").innerText=Math.round(total);
 }
 
-function add(i,n){
-counts[i]=(counts[i]||0)+n;
-if(counts[i]<0) counts[i]=0;
-
-document.getElementById("c"+i).innerText=counts[i];
-
-total=0;
-for(let k in counts){
-total+=counts[k]*cocktails[k].cost;
+function plus(i){
+cocktails[i].count++;
+render();
 }
 
-document.getElementById("sum").innerText=Math.round(total)+" ₽";
+function minus(i){
+if(cocktails[i].count>0) cocktails[i].count--;
+render();
 }
 
-document.getElementById("closeBtn").onclick=async()=>{
-if(!confirm("Закрыть смену?")) return;
+function closeShift(){
 
-let data=[];
+if(sending) return;
+sending=true;
 
-for(let i in counts){
-if(counts[i]>0){
-data.push({
-name:cocktails[i].name,
-count:counts[i],
-cost:cocktails[i].cost*counts[i]
-});
-}
-}
+const data=cocktails
+.filter(c=>c.count>0)
+.map(c=>({
+name:c.name,
+count:c.count,
+cost:c.cost*c.count
+}));
 
-await fetch(GAS_URL,{
+fetch(SCRIPT_URL,{
 method:"POST",
 body:JSON.stringify(data)
-});
-
-counts={};
-total=0;
-document.getElementById("sum").innerText="0 ₽";
+})
+.then(()=>{
+cocktails.forEach(c=>c.count=0);
+sending=false;
 render();
-};
-
-load();
-
+alert("Смена закрыта");
+});
+}
 </script>
+
 </body>
 </html>
