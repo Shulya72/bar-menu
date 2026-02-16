@@ -1,286 +1,230 @@
 <!DOCTYPE html>
-
 <html lang="ru">
 <head>
 <meta charset="UTF-8">
-<meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>Бармен PRO</title>
-
-<meta name="theme-color" content="#000">
 
 <style>
 body{
-    margin:0;
     background:#000;
     color:#fff;
-    font-family:system-ui;
-}
-
-.top{
-    position:sticky;
-    top:0;
-    background:#000;
-    padding:14px;
-    text-align:center;
-    border-bottom:1px solid #222;
-    z-index:5;
-}
-
-.title{
-    font-size:22px;
-    font-weight:700;
-}
-
-.sum{
-    color:#7CFC00;
-    font-size:18px;
-    margin-top:4px;
-}
-
-#list{
+    font-family:Arial;
+    margin:0;
     padding:12px;
-    max-width:700px;
-    margin:auto;
+}
+
+h1{
+    text-align:center;
+    font-size:22px;
+    margin:10px 0;
+}
+
+#sumBox{
+    text-align:center;
+    font-size:20px;
+    margin-bottom:15px;
+    color:#7CFC00;
 }
 
 .card{
-    background:#050505;
+    background:#0b0b0b;
     border:1px solid #222;
     border-radius:18px;
-    padding:16px;
-    margin-bottom:18px;
-}
-
-.card.off{
-    opacity:.35;
+    padding:14px;
+    margin-bottom:16px;
 }
 
 .name{
+    font-size:20px;
     text-align:center;
-    font-size:22px;
     font-weight:700;
-    margin-bottom:10px;
+    margin-bottom:8px;
 }
 
 .photo{
     width:100%;
-    border-radius:14px;
-    margin-bottom:12px;
+    max-width:260px;
+    display:block;
+    margin:0 auto 10px auto;
+    border-radius:12px;
 }
 
 .ing{
+    display:flex;
+    justify-content:space-between;
     font-size:15px;
-    margin:3px 0;
-}
-
-.ing.miss{
-    text-decoration:line-through;
-    color:#888;
+    margin:2px 0;
 }
 
 .tools{
     color:#7CFC00;
-    margin-top:10px;
+    text-align:center;
     font-size:14px;
+    margin-top:8px;
 }
 
 .recipe{
     color:#aaa;
-    font-size:14px;
+    font-size:13px;
+    text-align:center;
+    margin-top:8px;
+}
+
+.countBox{
+    text-align:center;
     margin-top:10px;
 }
 
-.controls{
-    display:flex;
-    justify-content:center;
-    align-items:center;
-    gap:10px;
+input{
+    width:70px;
+    padding:8px;
+    font-size:18px;
+    text-align:center;
+    background:#111;
+    border:1px solid #333;
+    color:#fff;
+    border-radius:8px;
+}
+
+button{
+    width:100%;
+    background:#7CFC00;
+    border:none;
+    padding:14px;
+    font-size:18px;
+    border-radius:12px;
     margin-top:14px;
 }
-
-.btn{
-    width:44px;
-    height:44px;
-    border-radius:12px;
-    border:none;
-    font-size:22px;
-    background:#111;
-    color:#fff;
-}
-
-.count{
-    width:60px;
-    text-align:center;
-    font-size:18px;
-    background:#000;
-    border:1px solid #333;
-    border-radius:10px;
-    padding:8px;
-}
-
-.closeShift{
-    width:100%;
-    margin-top:16px;
-    padding:14px;
-    border:none;
-    border-radius:14px;
-    font-size:16px;
-    background:#7CFC00;
-    color:#000;
-}
 </style>
-
 </head>
 
 <body>
 
-<div class="top">
-<div class="title">Бармен PRO</div>
-<div class="sum">Сумма: <span id="sum">0</span> ₽</div>
-</div>
-
+<h1>Панель бармена PRO</h1>
+<div id="sumBox">Сумма: 0 ₽</div>
 <div id="list"></div>
 
-<button class="closeShift" onclick="closeShift()">Закрыть смену</button>
+<button onclick="sendShift()">Закрыть смену</button>
 
 <script>
+const SCRIPT_URL="https://script.google.com/macros/s/AKfycbw1Z5vyo_hwW5my_dFw8t49CnLVz7KZnzuPMiydht-d4SgJCVrpVKafsVqgfYGCAQ95/exec";
 const SHEET_ID="1CceZ3cIic_k9Z9GnXg_wOzoUGdYonzVkfypmSzf_ln8";
 
 const techURL=`https://docs.google.com/spreadsheets/d/${SHEET_ID}/gviz/tq?tqx=out:json&sheet=БАР_КУХНЯ`;
 const menuURL=`https://opensheet.elk.sh/${SHEET_ID}/MENU`;
 
 let cocktails=[];
-let photos={};
 let total=0;
 
 Promise.all([
-    fetch(techURL).then(r=>r.text()),
-    fetch(menuURL).then(r=>r.json())
+fetch(techURL).then(r=>r.text()),
+fetch(menuURL).then(r=>r.json())
 ])
-.then(([techTxt,menuData])=>{
+.then(([techTxt,menu])=>{
 
-    menuData.forEach(r=>{
-        photos[r.Коктейль]=r.Фото;
-    });
+let photos={};
+menu.forEach(r=>photos[r.Коктейль]=r.Фото);
 
-    const json=JSON.parse(techTxt.substr(47).slice(0,-2));
-    const rows=json.table.rows;
+const json=JSON.parse(techTxt.substr(47).slice(0,-2));
+const rows=json.table.rows;
 
-    let current=null;
+let current=null;
 
-    rows.forEach(r=>{
-        const c=r.c;
+rows.forEach(r=>{
+const c=r.c;
 
-        const id=c[0]?.v;
-        const name=c[1]?.v;
-        const cost=c[3]?.v;
-        const ing=c[5]?.v;
-        const qty=c[6]?.v;
-        const unit=c[7]?.v;
-        const avail=c[8]?.v;
-        const tool=c[9]?.v;
-        const recipe=c[10]?.v;
+const id=c[0]?.v;
+const name=c[1]?.v;
+const cost=c[3]?.v;
+const ing=c[5]?.v;
+const qty=c[6]?.v;
+const unit=c[7]?.v;
+const tool=c[9]?.v;
+const recipe=c[10]?.v;
 
-        if(id){
-            current={
-                name:name,
-                cost:parseFloat(cost)||0,
-                recipe:recipe||"",
-                tools:[],
-                ings:[],
-                miss:false,
-                photo:photos[name]||""
-            };
-            cocktails.push(current);
-        }
+if(id){
+current={
+name,
+cost:parseFloat(cost)||0,
+ings:[],
+tools:[],
+recipe:recipe||"",
+photo:photos[name]||"",
+count:0
+};
+cocktails.push(current);
+}
 
-        if(ing){
-            current?.ings.push({
-                txt:`${ing} ${qty} ${unit}`,
-                ok: avail==1
-            });
-            if(avail!=1) current.miss=true;
-        }
+if(ing){
+current?.ings.push(`${ing} ${qty} ${unit}`);
+}
 
-        if(tool){
-            current?.tools.push(tool);
-        }
-    });
+if(tool){
+current?.tools.push(tool);
+}
 
-    render();
+});
+
+render();
 });
 
 function render(){
-    const list=document.getElementById("list");
-    list.innerHTML="";
+const list=document.getElementById("list");
+list.innerHTML="";
 
-    cocktails.forEach((c,i)=>{
+cocktails.forEach((c,i)=>{
 
-        list.innerHTML+=`
-        <div class="card ${c.miss?'off':''}">
+list.innerHTML+=`
+<div class="card">
 
-            <div class="name">${c.name}</div>
-            ${c.photo ? `<img src="${c.photo}" class="photo">` : ""}
+<div class="name">${c.name}</div>
 
-            ${c.ings.map(x=>`
-                <div class="ing ${x.ok?'':'miss'}">${x.txt}</div>
-            `).join("")}
+${c.photo?`<img src="${c.photo}" class="photo">`:""}
 
-            <div class="tools">${c.tools.join(" • ")}</div>
-            <div class="recipe">${c.recipe}</div>
+${c.ings.map(x=>`<div class="ing"><span>${x}</span><span></span></div>`).join("")}
 
-            <div class="controls">
-                <button class="btn" onclick="minus(${i})">−</button>
-                <input id="c${i}" class="count" value="${load(i)}" onchange="calc()">
-                <button class="btn" onclick="plus(${i})">+</button>
-            </div>
+<div class="tools">${c.tools.join(" • ")}</div>
+<div class="recipe">${c.recipe}</div>
 
-        </div>`;
-    });
+<div class="countBox">
+<input type="number" min="0" value="0" onchange="setCount(${i},this.value)">
+</div>
 
-    calc();
+</div>`;
+});
 }
 
-function plus(i){
-    const el=document.getElementById("c"+i);
-    el.value=parseInt(el.value||0)+1;
-    save();
-    calc();
-}
-
-function minus(i){
-    const el=document.getElementById("c"+i);
-    el.value=Math.max(0,(parseInt(el.value)||0)-1);
-    save();
-    calc();
+function setCount(i,val){
+cocktails[i].count=parseInt(val)||0;
+calc();
 }
 
 function calc(){
-    total=0;
-    cocktails.forEach((c,i)=>{
-        const v=parseInt(document.getElementById("c"+i).value)||0;
-        total+=v*c.cost;
-    });
-    document.getElementById("sum").innerText=total;
+total=0;
+cocktails.forEach(c=>{
+total+=c.cost*c.count;
+});
+document.getElementById("sumBox").innerText="Сумма: "+total+" ₽";
 }
 
-function save(){
-    const data=[];
-    cocktails.forEach((c,i)=>{
-        data[i]=document.getElementById("c"+i).value;
-    });
-    localStorage.setItem("shift",JSON.stringify(data));
-}
+function sendShift(){
 
-function load(i){
-    const data=JSON.parse(localStorage.getItem("shift")||"[]");
-    return data[i]||0;
-}
+const data=cocktails
+.filter(c=>c.count>0)
+.map(c=>({
+name:c.name,
+count:c.count,
+cost:c.cost*c.count
+}));
 
-function closeShift(){
-    if(!confirm("Закрыть смену?")) return;
-    localStorage.removeItem("shift");
-    location.reload();
+fetch(SCRIPT_URL,{
+method:"POST",
+body:JSON.stringify(data)
+})
+.then(()=>{
+alert("Смена записана в таблицу");
+});
 }
 </script>
 
