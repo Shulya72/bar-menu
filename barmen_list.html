@@ -4,7 +4,7 @@
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
 
-<title>Бармен PRO MAX</title>
+<title>Бармен PRO</title>
 
 <style>
 *{box-sizing:border-box;}
@@ -26,10 +26,7 @@ header{
     text-align:center;
 }
 
-h1{
-    margin:4px;
-    font-size:22px;
-}
+h1{margin:5px;font-size:22px;}
 
 #sum{
     color:#00ff66;
@@ -60,7 +57,11 @@ h1{
     padding:14px;
     margin-bottom:16px;
     text-align:center;
-    background:#070707;
+    background:#050505;
+}
+
+.card.disabled{
+    opacity:.35;
 }
 
 .name{
@@ -79,7 +80,7 @@ h1{
 
 .ing{
     text-align:left;
-    margin-top:8px;
+    margin-top:4px;
 }
 
 .ing.miss{
@@ -98,9 +99,7 @@ h1{
     font-size:14px;
 }
 
-.controls{
-    margin-top:12px;
-}
+.controls{margin-top:10px;}
 
 button.qty{
     width:36px;
@@ -108,7 +107,7 @@ button.qty{
     font-size:20px;
     border:none;
     border-radius:10px;
-    background:#222;
+    background:#111;
     color:#fff;
 }
 
@@ -122,17 +121,13 @@ button.qty{
     color:#fff;
     border-radius:8px;
 }
-
-.disabled{
-    opacity:.35;
-}
 </style>
 </head>
 
 <body>
 
 <header>
-<h1>Панель бармена ULTRA</h1>
+<h1>Панель бармена PRO</h1>
 Сумма: <span id="sum">0</span> ₽
 <br>
 <button id="closeBtn">Закрыть смену</button>
@@ -198,9 +193,14 @@ cocktails.push(current);
 
 if(ing){
 let miss=false;
+
 if(stock[ing]!==undefined){
-if(stock[ing]<qty){miss=true;current.can=false;}
+if(stock[ing]<qty){
+miss=true;
+current.can=false;
 }
+}
+
 current.ings.push({text:`${ing} ${qty} ${unit}`,miss});
 }
 
@@ -217,15 +217,15 @@ list.innerHTML="";
 
 cocktails.forEach((c,i)=>{
 
-let cls=c.can?"card":"card disabled";
-
 list.innerHTML+=`
-<div class="${cls}">
+<div class="card ${c.can?'':'disabled'}">
+
 <div class="name">${c.name}</div>
+
 ${c.photo?`<img src="${c.photo}" class="photo">`:""}
 
-<div class="ing">
-${c.ings.map(x=>`<div class="${x.miss?"ing miss":"ing"}">${x.text}</div>`).join("")}
+<div>
+${c.ings.map(x=>`<div class="ing ${x.miss?'miss':''}">${x.text}</div>`).join("")}
 </div>
 
 <div class="tools">${c.tools.join(" • ")}</div>
@@ -239,6 +239,7 @@ ${c.ings.map(x=>`<div class="${x.miss?"ing miss":"ing"}">${x.text}</div>`).join(
 
 </div>`;
 });
+
 calc();
 }
 
@@ -264,20 +265,27 @@ document.getElementById("sum").innerText=Math.round(total);
 }
 
 document.getElementById("closeBtn").onclick=()=>{
-const data=cocktails.filter(c=>c.count>0).map(c=>({
+const data=cocktails
+.filter(c=>c.count>0)
+.map(c=>({
 name:c.name,
 count:c.count,
 cost:c.cost
 }));
 
-if(data.length==0) return;
+if(data.length===0){
+alert("Нет коктейлей");
+return;
+}
 
 fetch(SCRIPT_URL,{
 method:"POST",
 body:JSON.stringify(data)
-}).then(()=>{
+})
+.then(()=>{
 cocktails.forEach(c=>c.count=0);
 render();
+alert("Смена закрыта");
 });
 };
 </script>
