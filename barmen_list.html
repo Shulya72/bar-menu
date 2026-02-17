@@ -6,102 +6,24 @@
 <title>Бармен PRO</title>
 
 <style>
-html,body{
-margin:0;
-padding:0;
-background:#000;
-color:#fff;
-font-family:Arial;
-overflow-x:hidden;
-touch-action:manipulation;
-}
-
-.top{
-position:fixed;
-top:0;
-left:0;
-width:100%;
-background:#000;
-z-index:999;
-padding:14px;
-box-sizing:border-box;
-border-bottom:1px solid #222;
-}
-
-.title{ text-align:center;font-size:24px;font-weight:700;}
-.sum{ text-align:center;color:#7CFC00;font-size:22px;margin-top:4px;}
-
-.search{
-width:100%;
-padding:12px;
-border-radius:12px;
-border:1px solid #333;
-background:#111;
-color:#fff;
-margin-top:10px;
-}
-
-.closeBtn{
-width:100%;
-padding:14px;
-border-radius:14px;
-background:#7CFC00;
-border:none;
-font-size:16px;
-font-weight:700;
-margin-top:10px;
-}
-
-.wrap{
-max-width:720px;
-margin:auto;
-padding:14px;
-padding-top:210px;
-}
-
-.card{
-border:1px solid #333;
-border-radius:18px;
-padding:18px;
-margin-bottom:22px;
-text-align:center;
-background:#070707;
-}
-
+html,body{margin:0;padding:0;background:#000;color:#fff;font-family:Arial;overflow-x:hidden;touch-action:manipulation;}
+.top{position:fixed;top:0;left:0;width:100%;background:#000;z-index:999;padding:14px;box-sizing:border-box;border-bottom:1px solid #222;}
+.title{text-align:center;font-size:24px;font-weight:700;}
+.sum{text-align:center;color:#7CFC00;font-size:22px;margin-top:4px;}
+.search{width:100%;padding:12px;border-radius:12px;border:1px solid #333;background:#111;color:#fff;margin-top:10px;}
+.closeBtn{width:100%;padding:14px;border-radius:14px;background:#7CFC00;border:none;font-size:16px;font-weight:700;margin-top:10px;}
+.wrap{max-width:720px;margin:auto;padding:14px;padding-top:210px;}
+.card{border:1px solid #333;border-radius:18px;padding:18px;margin-bottom:22px;text-align:center;background:#070707;}
 .card.dim{opacity:.45;}
 .name{font-size:22px;font-weight:700;margin-bottom:10px;}
-
-.photo{
-width:100%;
-max-width:260px;
-margin:0 auto 14px auto;
-display:block;
-border-radius:14px;
-pointer-events:none;
-}
-
+.photo{width:100%;max-width:260px;margin:0 auto 14px auto;display:block;border-radius:14px;pointer-events:none;}
 .ing{text-align:left;margin-top:10px;}
 .miss{color:#ff4d4d;text-decoration:line-through;}
 .tools{color:#7CFC00;margin-top:10px;}
 .recipe{color:#aaa;margin-top:10px;font-size:14px;}
-
-.controls{
-display:flex;
-justify-content:center;
-align-items:center;
-gap:10px;
-margin-top:12px;
-}
-
-.btn{
-width:42px;height:42px;font-size:20px;border-radius:10px;
-border:1px solid #444;background:#111;color:#fff;
-}
-
-.count{
-width:60px;text-align:center;font-size:18px;background:#000;
-border:1px solid #444;border-radius:10px;color:#fff;height:36px;
-}
+.controls{display:flex;justify-content:center;align-items:center;gap:10px;margin-top:12px;}
+.btn{width:42px;height:42px;font-size:20px;border-radius:10px;border:1px solid #444;background:#111;color:#fff;}
+.count{width:60px;text-align:center;font-size:18px;background:#000;border:1px solid #444;border-radius:10px;color:#fff;height:36px;}
 </style>
 </head>
 
@@ -130,22 +52,15 @@ let cocktails=[];
 let total=0;
 let sending=false;
 
-/* нормализация текста */
+let initialStock={};
+let localStock={};
+
 function norm(t){
-return String(t)
-.replace(/\u00A0/g,"")
-.replace(/\s+/g,"")
-.trim()
-.toLowerCase();
+return String(t).replace(/\u00A0/g,"").replace(/\s+/g,"").trim().toLowerCase();
 }
 
-/* нормализация числа */
 function normNum(v){
-return Number(
-String(v)
-.replace(/\s/g,"")   // убрать пробелы
-.replace(",",".")    // запятая → точка
-) || 0;
+return Number(String(v).replace(/\s/g,"").replace(",",".") ) || 0;
 }
 
 Promise.all([
@@ -157,20 +72,18 @@ fetch(stockURL).then(r=>r.json())
 let photos={};
 menu.forEach(r=>photos[r.Коктейль]=r.Фото);
 
-/* ===== СКЛАД ===== */
+/* СКЛАД */
 let stockMap={};
-
 stock.forEach(row=>{
 const name=row["ID ингредиента"];
 const qty=row["Остаток"];
-
-if(name){
-stockMap[norm(name)] = normNum(qty);
-console.log("СКЛАД:",norm(name),"=",stockMap[norm(name)]);
-}
+if(name) stockMap[norm(name)]=normNum(qty);
 });
 
-/* ===== ТЕХКАРТА ===== */
+initialStock=JSON.parse(JSON.stringify(stockMap));
+localStock=JSON.parse(JSON.stringify(stockMap));
+
+/* ТЕХКАРТА */
 const json=JSON.parse(techTxt.substr(47).slice(0,-2));
 const rows=json.table.rows;
 
@@ -205,23 +118,33 @@ cocktails.push(current);
 
 if(ing){
 const need=Number(qtyRaw)||0;
-const stockLeft = Number(stockMap[norm(ing)]||0);
-
-console.log("ПРОВЕРКА:",ing,"=>",stockLeft);
-
 current.ings.push({
-text:`${ing} ${need} ${unit} (ост: ${stockLeft})`,
-ok:avail==1 && stockLeft>=need
+raw:ing,
+need:need,
+unit:unit,
+avail:avail==1
 });
-
-if(stockLeft<need || avail==0) current.miss=true;
 }
 
 if(tool) current.tools.push(tool);
 });
 
+recalc();
 render();
 });
+
+function recalc(){
+cocktails.forEach(c=>{
+let miss=false;
+
+c.ings.forEach(i=>{
+const left=localStock[norm(i.raw)]||0;
+if(left<i.need || !i.avail) miss=true;
+});
+
+c.miss=miss;
+});
+}
 
 /* UI */
 function render(){
@@ -240,7 +163,11 @@ list.innerHTML+=`
 ${c.photo?`<img src="${c.photo}" class="photo">`:""}
 
 <div class="ing">
-${c.ings.map(x=>`<div class="${x.ok?'':'miss'}">${x.text}</div>`).join("")}
+${c.ings.map(x=>{
+const left=localStock[norm(x.raw)]||0;
+const ok=left>=x.need && x.avail;
+return `<div class="${ok?'':'miss'}">${x.raw} ${x.need} ${x.unit} (ост: ${left})</div>`;
+}).join("")}
 </div>
 
 <div class="tools">${c.tools.join(" • ")}</div>
@@ -257,8 +184,26 @@ ${c.ings.map(x=>`<div class="${x.ok?'':'miss'}">${x.text}</div>`).join("")}
 document.getElementById("sum").innerText=Math.round(total);
 }
 
-function plus(i){cocktails[i].count++;render();}
-function minus(i){if(cocktails[i].count>0) cocktails[i].count--;render();}
+function apply(i,delta){
+const c=cocktails[i];
+if(delta>0 && c.miss) return;
+
+c.count+=delta;
+if(c.count<0) c.count=0;
+
+c.ings.forEach(ing=>{
+const key=norm(ing.raw);
+if(localStock[key]==null) return;
+localStock[key]-=ing.need*delta;
+if(localStock[key]<0) localStock[key]=0;
+});
+
+recalc();
+render();
+}
+
+function plus(i){apply(i,1);}
+function minus(i){apply(i,-1);}
 
 document.getElementById("closeBtn").onclick=closeShift;
 
@@ -277,7 +222,8 @@ const data=cocktails
 fetch(SCRIPT_URL,{method:"POST",body:JSON.stringify(data)})
 .then(()=>{
 cocktails.forEach(c=>c.count=0);
-total=0;
+localStock=JSON.parse(JSON.stringify(initialStock));
+recalc();
 render();
 alert("Смена закрыта");
 })
