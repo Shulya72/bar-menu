@@ -6,46 +6,18 @@
 <title>Бармен PRO</title>
 
 <style>
-html,body{
+body{
 margin:0;
-padding:0;
 background:#000;
-color:#fff;
 font-family:Arial;
-overflow-x:hidden;
-}
-
-/* верх */
-.top{
-position:fixed;
-top:0;
-left:0;
-width:100%;
-background:#000;
-z-index:999;
-padding:14px;
-border-bottom:1px solid #222;
-}
-.title{text-align:center;font-size:24px;font-weight:700;}
-.sum{text-align:center;color:#7CFC00;font-size:22px;margin-top:4px;}
-
-.closeBtn{
-width:100%;
-padding:14px;
-border-radius:14px;
-background:#7CFC00;
-border:none;
-font-size:16px;
-font-weight:700;
-margin-top:10px;
-color:#000;
+color:#fff;
 }
 
 /* overlay */
 .overlay{
 position:fixed;
 inset:0;
-background:rgba(0,0,0,.96);
+background:rgba(0,0,0,.95);
 display:flex;
 align-items:center;
 justify-content:center;
@@ -54,18 +26,21 @@ opacity:0;
 pointer-events:none;
 transition:.3s;
 }
-.overlay.show{opacity:1;pointer-events:auto;}
+.overlay.show{
+opacity:1;
+pointer-events:auto;
+}
 
-.scene{
-width:300px;
-height:220px;
+.glassWrap{
+width:200px;
+height:260px;
 position:relative;
 }
 
-/* неон */
-.neon{
+/* бокал */
+.glass{
 stroke:#7CFC00;
-stroke-width:3;
+stroke-width:4;
 fill:none;
 stroke-linecap:round;
 stroke-linejoin:round;
@@ -73,109 +48,63 @@ filter:drop-shadow(0 0 6px #7CFC00)
        drop-shadow(0 0 12px #7CFC00);
 }
 
-.fillNeon{
-fill:#7CFC00;
-opacity:.25;
-filter:drop-shadow(0 0 10px #7CFC00);
-}
-
-/* стакан */
-.glass{
-position:absolute;
-left:0;
-bottom:0;
-}
-
-/* шейкер */
-.shaker{
-position:absolute;
-right:0;
-bottom:20px;
-transform-origin:60% 80%;
-}
-
-/* idle качание */
-.idle{
-animation:idleShake 1.2s infinite;
-}
-@keyframes idleShake{
-0%{transform:rotate(-6deg)}
-50%{transform:rotate(6deg)}
-100%{transform:rotate(-6deg)}
-}
-
-/* подъём */
-.pour .shaker{
-animation:lift .4s forwards;
-}
-@keyframes lift{
-to{transform:translateY(-30px)}
-}
-
-/* наклон */
-.pour2 .shaker{
-animation:tilt .6s forwards;
-}
-@keyframes tilt{
-to{transform:translateY(-30px) rotate(-65deg) translateX(-120px)}
-}
-
-/* струя */
-.stream{
-stroke:#7CFC00;
-stroke-width:3;
-opacity:0;
-filter:drop-shadow(0 0 6px #7CFC00);
-}
-.pour2 .stream{animation:flow .8s forwards;}
-@keyframes flow{to{opacity:1}}
-
-/* наполнение стакана */
+/* жидкость */
 .liquid{
 fill:#7CFC00;
-opacity:.3;
-transform-origin:bottom;
-transform:scaleY(0);
+opacity:.25;
 }
-.pour2 .liquid{animation:fill .9s forwards;}
-@keyframes fill{to{transform:scaleY(1)}}
+
+/* пузырьки */
+.bubble{
+fill:#7CFC00;
+opacity:.9;
+filter:drop-shadow(0 0 6px #7CFC00);
+animation:rise linear infinite;
+}
+
+@keyframes rise{
+0%{transform:translateY(0);opacity:0}
+10%{opacity:1}
+100%{transform:translateY(-140px);opacity:0}
+}
+
+/* ускорение при завершении */
+.fast .bubble{
+animation-duration:.7s !important;
+}
 </style>
 </head>
 
 <body>
 
-<div class="top">
-<div class="title">Панель бармена PRO</div>
-<div class="sum">Сумма: <span id="sum">0</span> ₽</div>
-<button class="closeBtn" id="closeBtn">Закрыть смену</button>
-</div>
+<button onclick="closeShift()" style="margin:40px;font-size:20px">
+Закрыть смену
+</button>
 
-<!-- overlay -->
 <div id="overlay" class="overlay">
-<div class="scene">
+<div class="glassWrap">
 
-<!-- стакан -->
-<svg class="glass" width="140" height="170" viewBox="0 0 140 170">
-<path class="neon"
-d="M20 20 H120 V45
-C120 75 95 95 70 95
-C45 95 20 75 20 45 Z"/>
-<line class="neon" x1="70" y1="95" x2="70" y2="140"/>
-<line class="neon" x1="40" y1="140" x2="100" y2="140"/>
-<rect class="liquid" x="28" y="45" width="84" height="45" rx="10"/>
-</svg>
+<svg width="200" height="260" viewBox="0 0 200 260">
 
-<!-- шейкер -->
-<svg id="shaker" class="shaker idle" width="140" height="170" viewBox="0 0 140 170">
-<rect class="neon" x="55" y="15" width="30" height="40" rx="10"/>
-<rect class="neon" x="40" y="50" width="60" height="20" rx="10"/>
-<rect class="neon" x="50" y="65" width="40" height="70" rx="20"/>
-<rect class="fillNeon" x="58" y="95" width="24" height="25" rx="8"/>
-</svg>
+<!-- бокал -->
+<path class="glass"
+d="M30 30 H170 V80
+C170 140 130 170 100 170
+C70 170 30 140 30 80 Z"/>
 
-<!-- струя -->
-<svg width="300" height="200" class="stream">
-<path d="M210 80 C170 95 140 110 100 125"/>
+<line class="glass" x1="100" y1="170" x2="100" y2="230"/>
+<line class="glass" x1="60" y1="230" x2="140" y2="230"/>
+
+<!-- жидкость -->
+<rect class="liquid" x="40" y="80" width="120" height="90" rx="12"/>
+
+<!-- пузырьки -->
+<circle class="bubble" cx="80" cy="150" r="4" style="animation-duration:2.2s"/>
+<circle class="bubble" cx="100" cy="170" r="3" style="animation-duration:2.5s"/>
+<circle class="bubble" cx="120" cy="160" r="4" style="animation-duration:2s"/>
+<circle class="bubble" cx="70" cy="180" r="3" style="animation-duration:2.4s"/>
+<circle class="bubble" cx="130" cy="175" r="3" style="animation-duration:2.3s"/>
+
 </svg>
 
 </div>
@@ -190,32 +119,24 @@ if(sending) return;
 sending=true;
 
 const overlay=document.getElementById("overlay");
-const shaker=document.getElementById("shaker");
 
 overlay.classList.add("show");
-shaker.classList.add("idle");
 
-/* имитация запроса */
+/* имитация запроса сервера */
 setTimeout(()=>{
 
-shaker.classList.remove("idle");
-overlay.classList.add("pour");
+/* ускоряем пузырьки */
+overlay.classList.add("fast");
 
+/* закрываем */
 setTimeout(()=>{
-overlay.classList.add("pour2");
-},400);
-
-/* конец */
-setTimeout(()=>{
-overlay.classList.remove("show","pour","pour2");
-shaker.classList.add("idle");
+overlay.classList.remove("show","fast");
 sending=false;
-},1600);
+},1200);
 
-},2500);
+},3000);
+
 }
-
-document.getElementById("closeBtn").onclick=closeShift;
 </script>
 
 </body>
