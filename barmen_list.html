@@ -6,58 +6,98 @@
 <title>Бармен PRO</title>
 
 <style>
-html,body{margin:0;padding:0;background:#000;color:#fff;font-family:Arial;overflow-x:hidden;touch-action:manipulation;}
-
-.top{
-position:fixed;top:0;left:0;width:100%;
-background:#000;z-index:999;padding:14px;
-box-sizing:border-box;border-bottom:1px solid #222;
+html,body{
+margin:0;
+padding:0;
+background:#000;
+color:#fff;
+font-family:Arial;
+overflow-x:hidden;
+touch-action:manipulation;
 }
 
-.title{text-align:center;font-size:24px;font-weight:700;}
-.sum{text-align:center;color:#7CFC00;font-size:22px;margin-top:4px;}
+/* верх */
+.top{
+position:fixed;
+top:0;
+left:0;
+width:100%;
+background:#000;
+z-index:999;
+padding:14px;
+box-sizing:border-box;
+border-bottom:1px solid #222;
+}
 
+.title{text-align:center;font-size:22px;font-weight:700;}
+.sum{text-align:center;color:#7CFC00;font-size:20px;margin-top:2px;}
+
+/* вкладки */
 .tabs{
 display:flex;
-gap:6px;
-margin-top:10px;
+justify-content:space-around;
+margin-top:8px;
+border-bottom:1px solid #222;
 }
 
 .tab{
 flex:1;
-padding:10px;
-border-radius:10px;
-border:1px solid #333;
-background:#111;
-color:#fff;
-font-size:14px;
+padding:8px 0;
+background:none;
+border:none;
+color:#777;
+font-size:13px;
+font-weight:500;
 }
 
 .tab.active{
-background:#7CFC00;
-color:#000;
-font-weight:700;
+color:#7CFC00;
+border-bottom:2px solid #7CFC00;
+font-weight:600;
 }
 
-.search{width:100%;padding:12px;border-radius:12px;border:1px solid #333;background:#111;color:#fff;margin-top:10px;}
+/* бар верх */
+.search{
+width:100%;
+padding:10px;
+border-radius:12px;
+border:1px solid #333;
+background:#111;
+color:#fff;
+margin-top:10px;
+}
 
 .closeBtn{
 width:100%;
-padding:14px;
+padding:12px;
 border-radius:14px;
 background:#7CFC00;
 border:none;
-font-size:16px;
+font-size:15px;
 font-weight:700;
-margin-top:10px;
+margin-top:8px;
 color:#000;
 -webkit-appearance:none;
 appearance:none;
 }
 
-.wrap{max-width:720px;margin:auto;padding:14px;padding-top:280px;}
+/* контент */
+.wrap{
+max-width:720px;
+margin:auto;
+padding:14px;
+padding-top:260px;
+}
 
-.card{border:1px solid #333;border-radius:18px;padding:18px;margin-bottom:22px;text-align:center;background:#070707;}
+.card{
+border:1px solid #333;
+border-radius:18px;
+padding:18px;
+margin-bottom:22px;
+text-align:center;
+background:#070707;
+}
+
 .card.dim{opacity:.45;}
 .name{font-size:22px;font-weight:700;margin-bottom:10px;}
 .photo{width:100%;max-width:260px;margin:0 auto 14px auto;display:block;border-radius:14px;}
@@ -65,9 +105,33 @@ appearance:none;
 .miss{color:#ff4d4d;text-decoration:line-through;}
 .tools{color:#7CFC00;margin-top:10px;}
 .recipe{color:#aaa;margin-top:10px;font-size:14px;}
-.controls{display:flex;justify-content:center;align-items:center;gap:10px;margin-top:12px;}
-.btn{width:42px;height:42px;font-size:20px;border-radius:10px;border:1px solid #444;background:#111;color:#fff;}
-.count{width:60px;text-align:center;font-size:18px;background:#000;border:1px solid #444;border-radius:10px;color:#fff;height:36px;}
+
+.controls{
+display:flex;
+justify-content:center;
+align-items:center;
+gap:10px;
+margin-top:12px;
+}
+
+.btn{
+width:42px;height:42px;font-size:20px;
+border-radius:10px;
+border:1px solid #444;
+background:#111;
+color:#fff;
+}
+
+.count{
+width:60px;
+text-align:center;
+font-size:18px;
+background:#000;
+border:1px solid #444;
+border-radius:10px;
+color:#fff;
+height:36px;
+}
 
 .screen{display:none;}
 .screen.active{display:block;}
@@ -77,7 +141,7 @@ appearance:none;
 <body>
 
 <div class="top">
-<div class="title">Панель бармена PRO</div>
+<div class="title">Панель бармена</div>
 <div class="sum">Сумма: <span id="sum">0</span> ₽</div>
 
 <div class="tabs">
@@ -95,27 +159,23 @@ appearance:none;
 
 <div class="wrap">
 
-<!-- БАР -->
 <div id="screen-bar" class="screen active">
 <div id="list"></div>
 </div>
 
-<!-- СКЛАД -->
 <div id="screen-stock" class="screen">
 <h2>📦 Склад</h2>
-<p>Скоро тут будет управление складами</p>
+<p>Тут будет склад</p>
 </div>
 
-<!-- МАГАЗИН -->
 <div id="screen-shop" class="screen">
 <h2>🛒 Магазин</h2>
-<p>Скоро тут будет магазин</p>
+<p>Тут будет магазин</p>
 </div>
 
-<!-- УЧЁТ -->
 <div id="screen-stats" class="screen">
 <h2>📊 Учёт</h2>
-<p>Здесь будет статистика расходов за вечер</p>
+<p>Тут будет статистика расходов</p>
 </div>
 
 </div>
@@ -132,7 +192,7 @@ document.getElementById("barTop").style.display = name==="bar" ? "block":"none";
 }
 </script>
 
-<!-- ТВОЙ ОРИГИНАЛЬНЫЙ JS -->
+<!-- ТВОЙ БАРМЕНСКИЙ КОД -->
 <script>
 const SHEET_ID="1CceZ3cIic_k9Z9GnXg_wOzoUGdYonzVkfypmSzf_ln8";
 const SCRIPT_URL="https://script.google.com/macros/s/AKfycbz69f3BJpr-lFCk_-YzE1bq_CRcXniZEvt2rD4InM_qx15XYwN6IjzI2lbTPIaI3brk/exec";
