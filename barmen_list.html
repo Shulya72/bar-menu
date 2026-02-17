@@ -19,9 +19,8 @@ box-sizing:border-box;border-bottom:1px solid #222;
 
 .tabs{
 display:flex;
-justify-content:space-between;
-margin-top:10px;
 gap:6px;
+margin-top:10px;
 }
 
 .tab{
@@ -56,7 +55,7 @@ color:#000;
 appearance:none;
 }
 
-.wrap{max-width:720px;margin:auto;padding:14px;padding-top:260px;}
+.wrap{max-width:720px;margin:auto;padding:14px;padding-top:280px;}
 
 .card{border:1px solid #333;border-radius:18px;padding:18px;margin-bottom:22px;text-align:center;background:#070707;}
 .card.dim{opacity:.45;}
@@ -85,13 +84,13 @@ appearance:none;
 <button class="tab active" onclick="showScreen('bar',this)">🍸 Бар</button>
 <button class="tab" onclick="showScreen('stock',this)">📦 Склад</button>
 <button class="tab" onclick="showScreen('shop',this)">🛒 Магазин</button>
+<button class="tab" onclick="showScreen('stats',this)">📊 Учёт</button>
 </div>
 
 <div id="barTop">
 <input class="search" placeholder="Поиск..." oninput="render()">
 <button class="closeBtn" id="closeBtn">Закрыть смену</button>
 </div>
-
 </div>
 
 <div class="wrap">
@@ -104,13 +103,19 @@ appearance:none;
 <!-- СКЛАД -->
 <div id="screen-stock" class="screen">
 <h2>📦 Склад</h2>
-<p>Экран склада будет здесь</p>
+<p>Скоро тут будет управление складами</p>
 </div>
 
 <!-- МАГАЗИН -->
 <div id="screen-shop" class="screen">
 <h2>🛒 Магазин</h2>
-<p>Экран магазина будет здесь</p>
+<p>Скоро тут будет магазин</p>
+</div>
+
+<!-- УЧЁТ -->
+<div id="screen-stats" class="screen">
+<h2>📊 Учёт</h2>
+<p>Здесь будет статистика расходов за вечер</p>
 </div>
 
 </div>
@@ -127,7 +132,7 @@ document.getElementById("barTop").style.display = name==="bar" ? "block":"none";
 }
 </script>
 
-<!-- ТВОЙ ОРИГИНАЛЬНЫЙ JS БЕЗ ИЗМЕНЕНИЙ -->
+<!-- ТВОЙ ОРИГИНАЛЬНЫЙ JS -->
 <script>
 const SHEET_ID="1CceZ3cIic_k9Z9GnXg_wOzoUGdYonzVkfypmSzf_ln8";
 const SCRIPT_URL="https://script.google.com/macros/s/AKfycbz69f3BJpr-lFCk_-YzE1bq_CRcXniZEvt2rD4InM_qx15XYwN6IjzI2lbTPIaI3brk/exec";
