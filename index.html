@@ -2,66 +2,18 @@
 <html lang="ru">
 <head>
 <meta charset="UTF-8">
-<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>Бармен PRO</title>
 
 <style>
-html,body{
+body{
 margin:0;
-padding:0;
 background:#000;
 color:#fff;
 font-family:Arial;
-overflow-x:hidden;
-touch-action:manipulation;
 }
 
-.top{
-position:fixed;
-top:0;
-left:0;
-width:100%;
-background:#000;
-z-index:999;
-padding:14px;
-border-bottom:1px solid #222;
-}
-
-.title{text-align:center;font-size:24px;font-weight:700;}
-.sum{text-align:center;color:#7CFC00;font-size:22px;margin-top:4px;}
-
-.search{
-width:100%;
-padding:12px;
-border-radius:12px;
-border:1px solid #333;
-background:#111;
-color:#fff;
-margin-top:10px;
-}
-
-.closeBtn{
-width:100%;
-padding:14px;
-border-radius:14px;
-background:#7CFC00;
-border:none;
-font-size:16px;
-font-weight:700;
-margin-top:10px;
-color:#000;
--webkit-appearance:none;
-appearance:none;
-}
-
-.wrap{max-width:720px;margin:auto;padding:14px;padding-top:210px;}
-.card{border:1px solid #333;border-radius:18px;padding:18px;margin-bottom:22px;background:#070707;}
-.name{font-size:22px;font-weight:700;margin-bottom:10px;}
-.controls{display:flex;justify-content:center;gap:10px;margin-top:12px;}
-.btn{width:42px;height:42px;font-size:20px;border-radius:10px;border:1px solid #444;background:#111;color:#fff;}
-.count{width:60px;text-align:center;font-size:18px;background:#000;border:1px solid #444;border-radius:10px;color:#fff;height:36px;}
-
-/* ===== overlay ===== */
+/* overlay */
 .overlay{
 position:fixed;
 inset:0;
@@ -72,141 +24,148 @@ justify-content:center;
 z-index:9999;
 opacity:0;
 pointer-events:none;
-transition:.25s;
+transition:.3s;
 }
-.overlay.show{opacity:1;pointer-events:auto;}
+.overlay.show{
+opacity:1;
+pointer-events:auto;
+}
 
-.scene{width:260px;height:200px;position:relative;}
+.scene{
+width:260px;
+height:220px;
+position:relative;
+}
 
-.neonStroke{
+/* neon */
+.neon{
 stroke:#7CFC00;
-stroke-width:4;
+stroke-width:3.5;
 fill:none;
 stroke-linecap:round;
 stroke-linejoin:round;
-filter:drop-shadow(0 0 6px #7CFC00) drop-shadow(0 0 12px #7CFC00);
+filter:drop-shadow(0 0 6px #7CFC00)
+       drop-shadow(0 0 14px #7CFC00);
 }
 
-.neonFill{
+.glowFill{
 fill:#7CFC00;
 opacity:.18;
-filter:drop-shadow(0 0 8px #7CFC00);
+filter:drop-shadow(0 0 12px #7CFC00);
 }
 
-.shakerWrap{
+/* shaker */
+.shaker{
 position:absolute;
-right:0;
-top:0;
-transform-origin:60% 70%;
+right:10px;
+top:10px;
+transform-origin:70% 70%;
 }
 
-.shake{animation:shake .55s infinite;}
+.shake{
+animation:shake .5s infinite;
+}
 @keyframes shake{
-0%{transform:rotate(-6deg)}
-50%{transform:rotate(6deg)}
-100%{transform:rotate(-6deg)}
+0%{transform:rotate(-7deg)}
+50%{transform:rotate(7deg)}
+100%{transform:rotate(-7deg)}
 }
 
-.pour .shakerWrap{
+/* pour */
+.pour .shaker{
 animation:tilt .6s forwards;
 }
 @keyframes tilt{
-to{transform:rotate(70deg) translate(-40px,25px)}
+to{transform:rotate(65deg) translate(-45px,25px)}
 }
 
+/* stream */
 .stream{
 stroke:#7CFC00;
-stroke-width:4;
+stroke-width:3.5;
 opacity:0;
 filter:drop-shadow(0 0 6px #7CFC00);
 }
-.pour .stream{animation:flow .8s forwards;}
-@keyframes flow{to{opacity:1}}
+.pour .stream{
+animation:flow .8s forwards;
+}
+@keyframes flow{
+to{opacity:1}
+}
 
+/* liquid */
 .liquid{
 fill:#7CFC00;
 opacity:.25;
 transform-origin:bottom;
 transform:scaleY(0);
 }
-.pour .liquid{animation:fill .9s forwards;}
-@keyframes fill{to{transform:scaleY(1)}}
+.pour .liquid{
+animation:fill .9s forwards;
+}
+@keyframes fill{
+to{transform:scaleY(1)}
+}
 </style>
 </head>
 
 <body>
 
-<div class="top">
-<div class="title">Панель бармена PRO</div>
-<div class="sum">Сумма: <span id="sum">0</span> ₽</div>
-<input class="search" placeholder="Поиск..." oninput="render()">
-<button class="closeBtn" id="closeBtn">Закрыть смену</button>
-</div>
+<button onclick="closeShift()" style="margin:40px;font-size:20px">Закрыть смену</button>
 
-<div class="wrap">
-<div id="list"></div>
-</div>
-
-<!-- overlay -->
 <div id="overlay" class="overlay">
 <div class="scene">
 
 <!-- glass -->
-<svg width="150" height="170" viewBox="0 0 150 170" style="position:absolute;left:0;bottom:0">
-<path class="neonStroke"
-d="M20 20 H130 V45 
-C130 75 105 95 75 95
-C45 95 20 75 20 45 Z"/>
-<line class="neonStroke" x1="75" y1="95" x2="75" y2="140"/>
-<line class="neonStroke" x1="45" y1="140" x2="105" y2="140"/>
-<rect class="liquid" x="28" y="45" width="94" height="45" rx="8"/>
+<svg width="140" height="180" viewBox="0 0 140 180" style="position:absolute;left:0;bottom:0">
+<path class="neon"
+d="M20 20 H120 V50
+C120 80 95 100 70 100
+C45 100 20 80 20 50 Z"/>
+<line class="neon" x1="70" y1="100" x2="70" y2="145"/>
+<line class="neon" x1="40" y1="145" x2="100" y2="145"/>
+<rect class="liquid" x="28" y="50" width="84" height="45" rx="10"/>
 </svg>
 
 <!-- shaker -->
-<div class="shakerWrap shake" id="shaker">
-<svg width="140" height="170" viewBox="0 0 140 170">
-<rect class="neonStroke" x="40" y="50" width="60" height="80" rx="24"/>
-<rect class="neonStroke" x="30" y="70" width="80" height="22" rx="10"/>
-<rect class="neonStroke" x="52" y="20" width="36" height="40" rx="12"/>
+<svg id="shaker" class="shaker shake" width="140" height="180" viewBox="0 0 140 180">
+<rect class="neon" x="45" y="60" width="50" height="75" rx="25"/>
+<rect class="neon" x="35" y="80" width="70" height="22" rx="10"/>
+<rect class="neon" x="58" y="20" width="24" height="45" rx="10"/>
 </svg>
-</div>
 
 <!-- stream -->
-<svg width="260" height="200" class="stream">
-<path d="M150 70 C120 80 105 90 80 100"/>
+<svg class="stream" width="260" height="220">
+<path d="M150 80 C120 95 100 105 80 120"/>
 </svg>
 
 </div>
 </div>
 
 <script>
-/* ==== ТВОЙ РАБОЧИЙ КОД БАРА НЕ ТРОГАЕМ ==== */
-/* Я оставлю только демонстрацию closeShift.
-   Вставь сюда свой текущий рабочий JS полностью
-   и замени только функцию closeShift */
-
 function closeShift(){
+
 const overlay=document.getElementById("overlay");
 const shaker=document.getElementById("shaker");
 
 overlay.classList.add("show");
 shaker.classList.add("shake");
 
-/* имитация ответа сервера */
+/* имитация ожидания сервера */
 setTimeout(()=>{
 shaker.classList.remove("shake");
 overlay.classList.add("pour");
 
+/* конец */
 setTimeout(()=>{
 overlay.classList.remove("show");
 overlay.classList.remove("pour");
 shaker.classList.add("shake");
-},1400);
+},1500);
 
-},2500);
+},3000);
+
 }
-
-document.getElementById("closeBtn").onclick=closeShift;
 </script>
 
 </body>
