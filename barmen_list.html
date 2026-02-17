@@ -11,7 +11,23 @@ html,body{margin:0;padding:0;background:#000;color:#fff;font-family:Arial;overfl
 .title{text-align:center;font-size:24px;font-weight:700;}
 .sum{text-align:center;color:#7CFC00;font-size:22px;margin-top:4px;}
 .search{width:100%;padding:12px;border-radius:12px;border:1px solid #333;background:#111;color:#fff;margin-top:10px;}
-.closeBtn{width:100%;padding:14px;border-radius:14px;background:#7CFC00;border:none;font-size:16px;font-weight:700;margin-top:10px;}
+
+.closeBtn{
+width:100%;
+padding:14px;
+border-radius:14px;
+background:#7CFC00;
+border:none;
+font-size:16px;
+font-weight:700;
+margin-top:10px;
+
+color:#000;                 /* фикс цвета текста */
+-webkit-appearance:none;    /* убирает iOS стиль */
+appearance:none;
+text-decoration:none;
+}
+
 .wrap{max-width:720px;margin:auto;padding:14px;padding-top:210px;}
 .card{border:1px solid #333;border-radius:18px;padding:18px;margin-bottom:22px;text-align:center;background:#070707;}
 .card.dim{opacity:.45;}
@@ -60,7 +76,6 @@ function normNum(v){
 return Number(String(v).replace(/\s/g,"").replace(",",".") ) || 0;
 }
 
-/* загрузка склада без кэша */
 function loadStock(){
 return fetch(stockURL)
 .then(r=>r.text())
@@ -219,7 +234,6 @@ const data=cocktails
 
 fetch(SCRIPT_URL,{method:"POST",body:JSON.stringify(data)})
 .then(()=>{
-/* перечитываем склад напрямую из Sheets */
 loadStock().then(stock=>{
 localStock=JSON.parse(JSON.stringify(stock));
 cocktails.forEach(c=>c.count=0);
