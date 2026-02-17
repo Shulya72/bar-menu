@@ -21,11 +21,9 @@ border:none;
 font-size:16px;
 font-weight:700;
 margin-top:10px;
-
-color:#000;                 /* фикс цвета текста */
--webkit-appearance:none;    /* убирает iOS стиль */
+color:#000;
+-webkit-appearance:none;
 appearance:none;
-text-decoration:none;
 }
 
 .wrap{max-width:720px;margin:auto;padding:14px;padding-top:210px;}
@@ -222,6 +220,16 @@ document.getElementById("closeBtn").onclick=closeShift;
 
 function closeShift(){
 if(sending) return;
+
+const sum=Math.round(total);
+
+if(sum<=0){
+alert("Нет заказов");
+return;
+}
+
+if(!confirm(`Закрыть смену на ${sum} ₽ ?`)) return;
+
 sending=true;
 
 const btn=document.getElementById("closeBtn");
