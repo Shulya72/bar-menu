@@ -16,7 +16,7 @@ html,body{margin:0;padding:0;background:#000;color:#fff;font-family:Arial;overfl
 .card{border:1px solid #333;border-radius:18px;padding:18px;margin-bottom:22px;text-align:center;background:#070707;}
 .card.dim{opacity:.45;}
 .name{font-size:22px;font-weight:700;margin-bottom:10px;}
-.photo{width:100%;max-width:260px;margin:0 auto 14px auto;display:block;border-radius:14px;pointer-events:none;}
+.photo{width:100%;max-width:260px;margin:0 auto 14px auto;display:block;border-radius:14px;}
 .ing{text-align:left;margin-top:10px;}
 .miss{color:#ff4d4d;text-decoration:line-through;}
 .tools{color:#7CFC00;margin-top:10px;}
@@ -45,13 +45,12 @@ const SHEET_ID="1CceZ3cIic_k9Z9GnXg_wOzoUGdYonzVkfypmSzf_ln8";
 const SCRIPT_URL="https://script.google.com/macros/s/AKfycbz69f3BJpr-lFCk_-YzE1bq_CRcXniZEvt2rD4InM_qx15XYwN6IjzI2lbTPIaI3brk/exec";
 
 const techURL=`https://docs.google.com/spreadsheets/d/${SHEET_ID}/gviz/tq?tqx=out:json&sheet=БАР_КУХНЯ`;
+const stockURL=`https://docs.google.com/spreadsheets/d/${SHEET_ID}/gviz/tq?tqx=out:json&sheet=Открытый_склад`;
 const menuURL=`https://opensheet.elk.sh/${SHEET_ID}/MENU`;
-const stockURL=`https://opensheet.elk.sh/${SHEET_ID}/Открытый_склад`;
 
 let cocktails=[];
 let total=0;
 let sending=false;
-
 let localStock={};
 
 function norm(t){
@@ -61,23 +60,35 @@ function normNum(v){
 return Number(String(v).replace(/\s/g,"").replace(",",".") ) || 0;
 }
 
+/* загрузка склада без кэша */
+function loadStock(){
+return fetch(stockURL)
+.then(r=>r.text())
+.then(txt=>{
+const json=JSON.parse(txt.substr(47).slice(0,-2));
+const rows=json.table.rows;
+
+let stock={};
+rows.forEach(r=>{
+const c=r.c;
+const name=c[0]?.v;
+const qty=c[1]?.v;
+if(name) stock[norm(name)]=normNum(qty);
+});
+return stock;
+});
+}
+
 Promise.all([
 fetch(techURL).then(r=>r.text()),
 fetch(menuURL).then(r=>r.json()),
-fetch(stockURL).then(r=>r.json())
+loadStock()
 ]).then(([techTxt,menu,stock])=>{
+
+localStock=JSON.parse(JSON.stringify(stock));
 
 let photos={};
 menu.forEach(r=>photos[r.Коктейль]=r.Фото);
-
-let stockMap={};
-stock.forEach(row=>{
-const name=row["ID ингредиента"];
-const qty=row["Остаток"];
-if(name) stockMap[norm(name)]=normNum(qty);
-});
-
-localStock=JSON.parse(JSON.stringify(stockMap));
 
 const json=JSON.parse(techTxt.substr(47).slice(0,-2));
 const rows=json.table.rows;
@@ -208,7 +219,19 @@ const data=cocktails
 
 fetch(SCRIPT_URL,{method:"POST",body:JSON.stringify(data)})
 .then(()=>{
-location.reload(); // ← гарантированная синхронизация
+/* перечитываем склад напрямую из Sheets */
+loadStock().then(stock=>{
+localStock=JSON.parse(JSON.stringify(stock));
+cocktails.forEach(c=>c.count=0);
+recalc();
+render();
+alert("Смена закрыта");
+});
+})
+.finally(()=>{
+sending=false;
+btn.innerText="Закрыть смену";
+btn.disabled=false;
 });
 }
 </script>
