@@ -2,269 +2,199 @@
 <html lang="ru">
 <head>
 <meta charset="UTF-8">
-<meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
-
-<meta name="theme-color" content="#181818">
-<meta name="apple-mobile-web-app-capable" content="yes">
-<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
-
-<title>Карта бара</title>
-
-<link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;600&display=swap" rel="stylesheet">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Бармен PRO</title>
 
 <style>
-html{
-    background:#181818;
+html,body{
+margin:0;
+padding:0;
+background:#000;
+color:#fff;
+font-family:Arial;
+overflow-x:hidden;
 }
 
-body{
-    margin:0;
-    padding-top:env(safe-area-inset-top);
-    font-family:'Inter',sans-serif;
-    background: radial-gradient(circle at top, #181818 0%, #080808 70%);
-    color:#fff;
+/* ============ UI (оставляем как был) ============ */
+.top{
+position:fixed;
+top:0;
+left:0;
+width:100%;
+background:#000;
+z-index:999;
+padding:14px;
+border-bottom:1px solid #222;
+}
+.title{text-align:center;font-size:24px;font-weight:700;}
+.sum{text-align:center;color:#7CFC00;font-size:22px;margin-top:4px;}
+
+.closeBtn{
+width:100%;
+padding:14px;
+border-radius:14px;
+background:#7CFC00;
+border:none;
+font-size:16px;
+font-weight:700;
+margin-top:10px;
+color:#000;
 }
 
-.topBar{
-    display:flex;
-    justify-content:center;
-    margin-top:18px;
+.wrap{max-width:720px;margin:auto;padding:14px;padding-top:210px;}
+.card{border:1px solid #333;border-radius:18px;padding:18px;margin-bottom:22px;background:#070707;}
+.name{font-size:22px;font-weight:700;margin-bottom:10px;}
+.controls{display:flex;justify-content:center;gap:10px;margin-top:12px;}
+.btn{width:42px;height:42px;font-size:20px;border-radius:10px;border:1px solid #444;background:#111;color:#fff;}
+.count{width:60px;text-align:center;font-size:18px;background:#000;border:1px solid #444;border-radius:10px;color:#fff;height:36px;}
+
+/* ============ OVERLAY ============ */
+.overlay{
+position:fixed;
+inset:0;
+background:rgba(0,0,0,0.96);
+display:flex;
+align-items:center;
+justify-content:center;
+z-index:9999;
+opacity:0;
+pointer-events:none;
+transition:.3s;
+}
+.overlay.show{opacity:1;pointer-events:auto;}
+
+.scene{
+width:220px;
+height:220px;
+position:relative;
 }
 
-.homeBtn{
-    background:rgba(255,255,255,0.06);
-    border:1px solid rgba(255,255,255,0.15);
-    color:#fff;
-    padding:10px 18px;
-    border-radius:14px;
-    font-size:14px;
-    backdrop-filter:blur(6px);
-    cursor:pointer;
+/* НЕОН */
+.neon{
+stroke:#7CFC00;
+stroke-width:4;
+fill:none;
+filter:drop-shadow(0 0 8px #7CFC00);
 }
 
-.container{
-    max-width:720px;
-    margin:auto;
-    padding:18px;
+/* ШЕЙКЕР */
+.shaker{
+position:absolute;
+right:10px;
+top:20px;
+transform-origin:center;
 }
 
-.filters{
-    display:flex;
-    gap:10px;
-    margin-bottom:16px;
+/* ТРЯСКА */
+.shake{
+animation:shake .6s infinite;
+}
+@keyframes shake{
+0%{transform:rotate(-6deg);}
+50%{transform:rotate(6deg);}
+100%{transform:rotate(-6deg);}
 }
 
-select,input{
-    background:#141414;
-    border:1px solid rgba(255,255,255,0.1);
-    color:#fff;
-    padding:12px;
-    border-radius:14px;
-    width:100%;
+/* НАКЛОН */
+.pour .shaker{
+animation:tilt .6s forwards;
+}
+@keyframes tilt{
+to{transform:rotate(65deg) translateX(-40px) translateY(10px);}
 }
 
-select option{
-    background:#141414;
-    color:#fff;
+/* СТРУЯ */
+.stream{
+stroke:#7CFC00;
+stroke-width:4;
+opacity:0;
+filter:drop-shadow(0 0 6px #7CFC00);
+}
+.pour .stream{
+animation:stream 1s forwards;
+}
+@keyframes stream{
+to{opacity:1;}
 }
 
-.randomBtn{
-    width:100%;
-    margin-bottom:18px;
-    padding:14px;
-    border-radius:16px;
-    border:none;
-    font-size:15px;
-    font-weight:600;
-    background:#7CFC00;
-    color:#000;
-    cursor:pointer;
+/* ЖИДКОСТЬ В БОКАЛЕ */
+.fill{
+fill:#7CFC00;
+opacity:.25;
+height:0;
 }
-
-.card{
-    background:rgba(255,255,255,0.04);
-    border-radius:18px;
-    padding:20px;
-    margin-bottom:14px;
-    border:1px solid rgba(255,255,255,0.08);
+.pour .fill{
+animation:fillup 1s forwards;
 }
-
-.photo{
-    width:100%;
-    border-radius:14px;
-    margin-bottom:12px;
-}
-
-.card.flash{
-    animation:breath 1.6s ease-in-out 2;
-}
-
-@keyframes breath{
-    0%{ box-shadow:0 0 0 rgba(124,252,0,0); }
-    50%{ box-shadow:0 0 30px rgba(124,252,0,0.9); }
-    100%{ box-shadow:0 0 0 rgba(124,252,0,0); }
-}
-
-.name{
-    font-size:23px;
-    font-weight:600;
-}
-
-.price{
-    margin-top:6px;
-    font-size:18px;
-    color:#7CFC00;
-}
-
-.stars{
-    margin-top:10px;
-    font-size:13px;
-    color:#aaa;
-}
-
-.comp{
-    margin-top:14px;
-    font-size:14px;
-    color:#ddd;
-    line-height:1.5;
+@keyframes fillup{
+to{height:60px;}
 }
 </style>
 </head>
 
 <body>
 
-<div class="topBar">
-<button class="homeBtn" onclick="render()">🍸 Карта бара</button>
+<div class="top">
+<div class="title">Панель бармена PRO</div>
+<div class="sum">Сумма: <span id="sum">0</span> ₽</div>
+<button class="closeBtn" id="closeBtn">Закрыть смену</button>
 </div>
 
-<div class="container">
-
-<div class="filters">
-<select id="strength">
-<option value="">Крепость: все</option>
-<option value="noalc">☆ безалкогольные</option>
-<option value="лег">★ лёгкие</option>
-<option value="сред">★★ средние</option>
-<option value="креп">★★★ крепкие</option>
-</select>
-
-<input id="search" placeholder="Содержит… (водка, апельсин)">
+<div class="wrap">
+<div id="list"></div>
 </div>
 
-<button class="randomBtn" onclick="randomDrink()">🥃 Что выпить?</button>
+<!-- OVERLAY -->
+<div id="overlay" class="overlay">
+<div class="scene">
 
-<div id="menu"></div>
+<!-- БОКАЛ -->
+<svg width="120" height="160" viewBox="0 0 120 160">
+<path class="neon" d="M10 10 H110 V40 C110 70 90 80 60 80 C30 80 10 70 10 40 Z"/>
+<line class="neon" x1="60" y1="80" x2="60" y2="130"/>
+<line class="neon" x1="30" y1="130" x2="90" y2="130"/>
+<rect id="liquid" class="fill" x="15" y="40" width="90" height="0"/>
+</svg>
 
+<!-- ШЕЙКЕР -->
+<svg class="shaker shake" width="120" height="160" viewBox="0 0 120 160">
+<rect class="neon" x="30" y="40" width="60" height="80" rx="20"/>
+<rect class="neon" x="20" y="60" width="80" height="20" rx="10"/>
+<rect class="neon" x="45" y="10" width="30" height="40" rx="10"/>
+</svg>
+
+<!-- СТРУЯ -->
+<svg class="stream" width="200" height="200">
+<path d="M130 70 C100 80 80 90 60 100"/>
+</svg>
+
+</div>
 </div>
 
 <script>
+const overlay=document.getElementById("overlay");
+const shaker=document.querySelector(".shaker");
 
-const SHEET_ID="1CceZ3cIic_k9Z9GnXg_wOzoUGdYonzVkfypmSzf_ln8";
-const url="https://opensheet.elk.sh/"+SHEET_ID+"/MENU";
+document.getElementById("closeBtn").onclick=closeShift;
 
-let cocktails=[];
+function closeShift(){
 
-fetch(url)
-.then(r=>r.json())
-.then(data=>{
-    cocktails=data;
-    render();
-});
+overlay.classList.add("show");
+shaker.classList.add("shake");
 
-function buildCard(row, stars, flash=false){
-    return `
-    <div class="card ${flash ? "flash":""}">
-    ${row.Фото ? `<img src="${row.Фото}" class="photo">` : ""}
-    <div class="name">${row.Коктейль}</div>
-    <div class="price">${row.Цена}</div>
-    <div class="stars">Крепость — ${stars}</div>
-    <div class="comp">${row.Состав}</div>
-    </div>`;
+setTimeout(()=>{
+/* имитация ответа сервера */
+overlay.classList.add("pour");
+shaker.classList.remove("shake");
+
+setTimeout(()=>{
+overlay.classList.remove("show");
+overlay.classList.remove("pour");
+shaker.classList.add("shake");
+},1500);
+
+},3000);
 }
-
-function render(){
-
-    const strength=document.getElementById("strength").value;
-    const search=document.getElementById("search").value.toLowerCase();
-    const menu=document.getElementById("menu");
-
-    menu.innerHTML="";
-
-    cocktails.forEach(row=>{
-
-        if(!row.Коктейль) return;
-
-        let s=(row.Крепость||"").toLowerCase().replace("ё","е");
-
-        if(strength==="noalc" && s) return;
-        if(strength && strength!=="noalc" && !s.includes(strength)) return;
-        if(search && !row.Состав.toLowerCase().includes(search)) return;
-
-        let stars="☆";
-        if(s.includes("лег")) stars="★";
-        if(s.includes("сред")) stars="★★";
-        if(s.includes("креп")) stars="★★★";
-
-        menu.innerHTML+=buildCard(row,stars);
-    });
-}
-
-function randomDrink(){
-
-    if(cocktails.length===0) return;
-
-    const strength=document.getElementById("strength").value;
-    const search=document.getElementById("search").value.toLowerCase();
-    const menu=document.getElementById("menu");
-
-    let filtered=cocktails.filter(row=>{
-
-        if(!row.Коктейль) return false;
-
-        let s=(row.Крепость||"").toLowerCase().replace("ё","е");
-
-        if(strength==="noalc" && s) return false;
-        if(strength && strength!=="noalc" && !s.includes(strength)) return false;
-        if(search && !row.Состав.toLowerCase().includes(search)) return false;
-
-        return true;
-    });
-
-    if(filtered.length===0) return;
-
-    let speed=60;
-    let slowdown=1.12;
-    let time=0;
-    let duration=2400;
-
-    function spin(){
-
-        let rand=filtered[Math.floor(Math.random()*filtered.length)];
-        let s=(rand.Крепость||"").toLowerCase().replace("ё","е");
-
-        let stars="☆";
-        if(s.includes("лег")) stars="★";
-        if(s.includes("сред")) stars="★★";
-        if(s.includes("креп")) stars="★★★";
-
-        menu.innerHTML=buildCard(rand,stars);
-
-        time+=speed;
-        speed*=slowdown;
-
-        if(time<duration){
-            setTimeout(spin,speed);
-        }else{
-            menu.innerHTML=buildCard(rand,stars,true);
-        }
-    }
-
-    spin();
-}
-
-document.getElementById("strength").onchange=render;
-document.getElementById("search").oninput=render;
-
 </script>
 
 </body>
