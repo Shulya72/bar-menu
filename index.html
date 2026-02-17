@@ -2,7 +2,7 @@
 <html lang="ru">
 <head>
 <meta charset="UTF-8">
-<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
 <title>Бармен PRO</title>
 
 <style>
@@ -13,9 +13,9 @@ background:#000;
 color:#fff;
 font-family:Arial;
 overflow-x:hidden;
+touch-action:manipulation;
 }
 
-/* ============ UI (оставляем как был) ============ */
 .top{
 position:fixed;
 top:0;
@@ -26,8 +26,19 @@ z-index:999;
 padding:14px;
 border-bottom:1px solid #222;
 }
+
 .title{text-align:center;font-size:24px;font-weight:700;}
 .sum{text-align:center;color:#7CFC00;font-size:22px;margin-top:4px;}
+
+.search{
+width:100%;
+padding:12px;
+border-radius:12px;
+border:1px solid #333;
+background:#111;
+color:#fff;
+margin-top:10px;
+}
 
 .closeBtn{
 width:100%;
@@ -39,6 +50,8 @@ font-size:16px;
 font-weight:700;
 margin-top:10px;
 color:#000;
+-webkit-appearance:none;
+appearance:none;
 }
 
 .wrap{max-width:720px;margin:auto;padding:14px;padding-top:210px;}
@@ -48,87 +61,76 @@ color:#000;
 .btn{width:42px;height:42px;font-size:20px;border-radius:10px;border:1px solid #444;background:#111;color:#fff;}
 .count{width:60px;text-align:center;font-size:18px;background:#000;border:1px solid #444;border-radius:10px;color:#fff;height:36px;}
 
-/* ============ OVERLAY ============ */
+/* ===== overlay ===== */
 .overlay{
 position:fixed;
 inset:0;
-background:rgba(0,0,0,0.96);
+background:rgba(0,0,0,.96);
 display:flex;
 align-items:center;
 justify-content:center;
 z-index:9999;
 opacity:0;
 pointer-events:none;
-transition:.3s;
+transition:.25s;
 }
 .overlay.show{opacity:1;pointer-events:auto;}
 
-.scene{
-width:220px;
-height:220px;
-position:relative;
-}
+.scene{width:260px;height:200px;position:relative;}
 
-/* НЕОН */
-.neon{
+.neonStroke{
 stroke:#7CFC00;
 stroke-width:4;
 fill:none;
+stroke-linecap:round;
+stroke-linejoin:round;
+filter:drop-shadow(0 0 6px #7CFC00) drop-shadow(0 0 12px #7CFC00);
+}
+
+.neonFill{
+fill:#7CFC00;
+opacity:.18;
 filter:drop-shadow(0 0 8px #7CFC00);
 }
 
-/* ШЕЙКЕР */
-.shaker{
+.shakerWrap{
 position:absolute;
-right:10px;
-top:20px;
-transform-origin:center;
+right:0;
+top:0;
+transform-origin:60% 70%;
 }
 
-/* ТРЯСКА */
-.shake{
-animation:shake .6s infinite;
-}
+.shake{animation:shake .55s infinite;}
 @keyframes shake{
-0%{transform:rotate(-6deg);}
-50%{transform:rotate(6deg);}
-100%{transform:rotate(-6deg);}
+0%{transform:rotate(-6deg)}
+50%{transform:rotate(6deg)}
+100%{transform:rotate(-6deg)}
 }
 
-/* НАКЛОН */
-.pour .shaker{
+.pour .shakerWrap{
 animation:tilt .6s forwards;
 }
 @keyframes tilt{
-to{transform:rotate(65deg) translateX(-40px) translateY(10px);}
+to{transform:rotate(70deg) translate(-40px,25px)}
 }
 
-/* СТРУЯ */
 .stream{
 stroke:#7CFC00;
 stroke-width:4;
 opacity:0;
 filter:drop-shadow(0 0 6px #7CFC00);
 }
-.pour .stream{
-animation:stream 1s forwards;
-}
-@keyframes stream{
-to{opacity:1;}
-}
+.pour .stream{animation:flow .8s forwards;}
+@keyframes flow{to{opacity:1}}
 
-/* ЖИДКОСТЬ В БОКАЛЕ */
-.fill{
+.liquid{
 fill:#7CFC00;
 opacity:.25;
-height:0;
+transform-origin:bottom;
+transform:scaleY(0);
 }
-.pour .fill{
-animation:fillup 1s forwards;
-}
-@keyframes fillup{
-to{height:60px;}
-}
+.pour .liquid{animation:fill .9s forwards;}
+@keyframes fill{to{transform:scaleY(1)}}
 </style>
 </head>
 
@@ -137,6 +139,7 @@ to{height:60px;}
 <div class="top">
 <div class="title">Панель бармена PRO</div>
 <div class="sum">Сумма: <span id="sum">0</span> ₽</div>
+<input class="search" placeholder="Поиск..." oninput="render()">
 <button class="closeBtn" id="closeBtn">Закрыть смену</button>
 </div>
 
@@ -144,57 +147,66 @@ to{height:60px;}
 <div id="list"></div>
 </div>
 
-<!-- OVERLAY -->
+<!-- overlay -->
 <div id="overlay" class="overlay">
 <div class="scene">
 
-<!-- БОКАЛ -->
-<svg width="120" height="160" viewBox="0 0 120 160">
-<path class="neon" d="M10 10 H110 V40 C110 70 90 80 60 80 C30 80 10 70 10 40 Z"/>
-<line class="neon" x1="60" y1="80" x2="60" y2="130"/>
-<line class="neon" x1="30" y1="130" x2="90" y2="130"/>
-<rect id="liquid" class="fill" x="15" y="40" width="90" height="0"/>
+<!-- glass -->
+<svg width="150" height="170" viewBox="0 0 150 170" style="position:absolute;left:0;bottom:0">
+<path class="neonStroke"
+d="M20 20 H130 V45 
+C130 75 105 95 75 95
+C45 95 20 75 20 45 Z"/>
+<line class="neonStroke" x1="75" y1="95" x2="75" y2="140"/>
+<line class="neonStroke" x1="45" y1="140" x2="105" y2="140"/>
+<rect class="liquid" x="28" y="45" width="94" height="45" rx="8"/>
 </svg>
 
-<!-- ШЕЙКЕР -->
-<svg class="shaker shake" width="120" height="160" viewBox="0 0 120 160">
-<rect class="neon" x="30" y="40" width="60" height="80" rx="20"/>
-<rect class="neon" x="20" y="60" width="80" height="20" rx="10"/>
-<rect class="neon" x="45" y="10" width="30" height="40" rx="10"/>
+<!-- shaker -->
+<div class="shakerWrap shake" id="shaker">
+<svg width="140" height="170" viewBox="0 0 140 170">
+<rect class="neonStroke" x="40" y="50" width="60" height="80" rx="24"/>
+<rect class="neonStroke" x="30" y="70" width="80" height="22" rx="10"/>
+<rect class="neonStroke" x="52" y="20" width="36" height="40" rx="12"/>
 </svg>
+</div>
 
-<!-- СТРУЯ -->
-<svg class="stream" width="200" height="200">
-<path d="M130 70 C100 80 80 90 60 100"/>
+<!-- stream -->
+<svg width="260" height="200" class="stream">
+<path d="M150 70 C120 80 105 90 80 100"/>
 </svg>
 
 </div>
 </div>
 
 <script>
-const overlay=document.getElementById("overlay");
-const shaker=document.querySelector(".shaker");
-
-document.getElementById("closeBtn").onclick=closeShift;
+/* ==== ТВОЙ РАБОЧИЙ КОД БАРА НЕ ТРОГАЕМ ==== */
+/* Я оставлю только демонстрацию closeShift.
+   Вставь сюда свой текущий рабочий JS полностью
+   и замени только функцию closeShift */
 
 function closeShift(){
+const overlay=document.getElementById("overlay");
+const shaker=document.getElementById("shaker");
 
 overlay.classList.add("show");
 shaker.classList.add("shake");
 
-setTimeout(()=>{
 /* имитация ответа сервера */
-overlay.classList.add("pour");
+setTimeout(()=>{
 shaker.classList.remove("shake");
+overlay.classList.add("pour");
 
 setTimeout(()=>{
 overlay.classList.remove("show");
 overlay.classList.remove("pour");
 shaker.classList.add("shake");
-},1500);
+},1400);
 
-},3000);
+},2500);
 }
+
+document.getElementById("closeBtn").onclick=closeShift;
 </script>
 
 </body>
