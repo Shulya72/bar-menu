@@ -146,7 +146,6 @@ c.miss=miss;
 });
 }
 
-/* UI */
 function render(){
 const search=document.querySelector(".search").value.toLowerCase();
 const list=document.getElementById("list");
@@ -222,10 +221,28 @@ const data=cocktails
 fetch(SCRIPT_URL,{method:"POST",body:JSON.stringify(data)})
 .then(()=>{
 cocktails.forEach(c=>c.count=0);
-localStock=JSON.parse(JSON.stringify(initialStock));
+
+/* перечитываем склад из таблицы */
+fetch(stockURL)
+.then(r=>r.json())
+.then(stock=>{
+let newStock={};
+
+stock.forEach(row=>{
+const name=row["ID ингредиента"];
+const qty=row["Остаток"];
+if(name){
+newStock[norm(name)]=normNum(qty);
+}
+});
+
+initialStock=JSON.parse(JSON.stringify(newStock));
+localStock=JSON.parse(JSON.stringify(newStock));
+
 recalc();
 render();
 alert("Смена закрыта");
+});
 })
 .finally(()=>{
 sending=false;
