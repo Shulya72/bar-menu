@@ -17,7 +17,6 @@ html,body{margin:0;padding:0;background:#000;color:#fff;font-family:Arial;}
 .tab.active{color:#7CFC00;border-bottom:2px solid #7CFC00;font-weight:600;}
 
 .search{width:100%;padding:10px;border-radius:12px;border:1px solid #333;background:#111;color:#fff;margin-top:10px;}
-
 .closeBtn{width:100%;padding:12px;border-radius:14px;background:#7CFC00;border:none;font-size:15px;font-weight:700;margin-top:8px;color:#000;}
 
 .wrap{max-width:720px;margin:auto;padding:14px;padding-top:260px;}
@@ -100,11 +99,9 @@ document.getElementById("barTop").style.display = name==="bar" ? "block":"none";
 const ACCOUNT_URL="https://opensheet.elk.sh/1CceZ3cIic_k9Z9GnXg_wOzoUGdYonzVkfypmSzf_ln8/СМЕНЫ";
 
 function loadAccount(){
-
 fetch(ACCOUNT_URL)
 .then(r=>r.json())
 .then(rows=>{
-
 let days={};
 
 rows.forEach(r=>{
@@ -119,7 +116,6 @@ let html="";
 
 Object.keys(days).reverse().forEach(day=>{
 let sum=0;
-
 html+=`<div class="day"><div class="dayTitle">${day}</div>`;
 
 days[day].forEach(r=>{
@@ -137,14 +133,13 @@ html+=`<div class="total">Итого: ${sum.toFixed(2)} ₽</div></div>`;
 });
 
 document.getElementById("account").innerHTML=html;
-
 });
 }
 </script>
 
-<!-- ТВОЙ БАРМЕНСКИЙ КОД ОСТАЁТСЯ НИЖЕ БЕЗ ИЗМЕНЕНИЙ -->
-<!-- ВСТАВЬ СЮДА СВОЙ ТЕКУЩИЙ РАБОЧИЙ JS БАРА -->
-<script src=""></script>
+<script>
+const SCRIPT_URL="https://script.google.com/macros/s/AKfycby1q11YpzRc7VHUpq8IJdu4AUy5i25wjCI-hN9QqjWvXGQEHMk8aOnpH9xxKvmDi842/exec";
+</script>
 
 </body>
 </html>
