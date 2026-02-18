@@ -15,6 +15,7 @@ font-family:Arial;
 overflow-x:hidden;
 }
 
+/* верх */
 .top{
 position:fixed;
 top:0;
@@ -30,6 +31,7 @@ border-bottom:1px solid #222;
 .title{text-align:center;font-size:22px;font-weight:700;}
 .sum{text-align:center;color:#7CFC00;font-size:20px;margin-top:2px;}
 
+/* вкладки */
 .tabs{
 display:flex;
 justify-content:space-around;
@@ -82,8 +84,53 @@ padding:14px;
 padding-top:260px;
 }
 
+/* ← ВОТ ЭТО ЕДИНСТВЕННОЕ ИЗМЕНЕНИЕ */
 #screen-stats{
 margin-top:-140px;
+}
+
+.card{
+border:1px solid #333;
+border-radius:18px;
+padding:18px;
+margin-bottom:22px;
+text-align:center;
+background:#070707;
+}
+
+.card.dim{opacity:.45;}
+.name{font-size:22px;font-weight:700;margin-bottom:10px;}
+.photo{width:100%;max-width:260px;margin:0 auto 14px auto;display:block;border-radius:14px;}
+.ing{text-align:left;margin-top:10px;}
+.miss{color:#ff4d4d;text-decoration:line-through;}
+.tools{color:#7CFC00;margin-top:10px;}
+.recipe{color:#aaa;margin-top:10px;font-size:14px;}
+
+.controls{
+display:flex;
+justify-content:center;
+align-items:center;
+gap:10px;
+margin-top:12px;
+}
+
+.btn{
+width:42px;height:42px;font-size:20px;
+border-radius:10px;
+border:1px solid #444;
+background:#111;
+color:#fff;
+}
+
+.count{
+width:60px;
+text-align:center;
+font-size:18px;
+background:#000;
+border:1px solid #444;
+border-radius:10px;
+color:#fff;
+height:36px;
 }
 
 .screen{display:none;}
@@ -131,15 +178,15 @@ font-weight:700;
 </div>
 
 <div id="barTop">
-<input class="search" placeholder="Поиск...">
-<button class="closeBtn">Закрыть смену</button>
+<input class="search" placeholder="Поиск..." oninput="render()">
+<button class="closeBtn" id="closeBtn">Закрыть смену</button>
 </div>
 </div>
 
 <div class="wrap">
 
 <div id="screen-bar" class="screen active">
-<div style="height:400px"></div>
+<div id="list"></div>
 </div>
 
 <div id="screen-stock" class="screen"></div>
@@ -176,7 +223,6 @@ let days={};
 rows.forEach(r=>{
 let d=r["Дата"];
 if(!d) return;
-
 let day=d.split(" ")[0];
 if(!days[day]) days[day]={};
 
@@ -219,5 +265,6 @@ document.getElementById("account").innerHTML=html;
 }
 </script>
 
+<!-- ВСТАВЬ СЮДА ТВОЙ РАБОЧИЙ БАРНЫЙ JS КАК ОН БЫЛ -->
 </body>
 </html>
