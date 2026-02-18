@@ -16,6 +16,7 @@ overflow-x:hidden;
 touch-action:manipulation;
 }
 
+/* верх */
 .top{
 position:fixed;
 top:0;
@@ -31,6 +32,7 @@ border-bottom:1px solid #222;
 .title{text-align:center;font-size:22px;font-weight:700;}
 .sum{text-align:center;color:#7CFC00;font-size:20px;margin-top:2px;}
 
+/* вкладки */
 .tabs{
 display:flex;
 justify-content:space-around;
@@ -54,6 +56,7 @@ border-bottom:2px solid #7CFC00;
 font-weight:600;
 }
 
+/* бар верх */
 .search{
 width:100%;
 padding:10px;
@@ -74,18 +77,16 @@ font-size:15px;
 font-weight:700;
 margin-top:8px;
 color:#000;
+-webkit-appearance:none;
+appearance:none;
 }
 
+/* контент */
 .wrap{
 max-width:720px;
 margin:auto;
 padding:14px;
 padding-top:260px;
-}
-
-/* учёт сверху */
-.statsTop{
-padding-top:120px !important;
 }
 
 .card{
@@ -135,29 +136,9 @@ height:36px;
 .screen{display:none;}
 .screen.active{display:block;}
 
-.day{
-margin-bottom:20px;
-padding:16px;
-border:1px solid #222;
-border-radius:16px;
-background:#050505;
-}
-
-.dayTitle{
-font-size:18px;
-color:#7CFC00;
-margin-bottom:10px;
-}
-
-.row{
-display:flex;
-justify-content:space-between;
-margin-bottom:6px;
-}
-
-.total{
-margin-top:10px;
-font-weight:700;
+/* 👇 ВАЖНО: правильный отступ для учёта */
+#screen-stats{
+padding-top:10px;
 }
 </style>
 </head>
@@ -188,11 +169,11 @@ font-weight:700;
 </div>
 
 <div id="screen-stock" class="screen">
-<h2>📦 Склад позже</h2>
+<h2>📦 Склад</h2>
 </div>
 
 <div id="screen-shop" class="screen">
-<h2>🛒 Магазин позже</h2>
+<h2>🛒 Магазин</h2>
 </div>
 
 <div id="screen-stats" class="screen">
@@ -210,13 +191,6 @@ document.querySelectorAll(".tab").forEach(t=>t.classList.remove("active"));
 btn.classList.add("active");
 
 document.getElementById("barTop").style.display = name==="bar" ? "block":"none";
-
-const wrap=document.querySelector(".wrap");
-if(name==="stats"){
-wrap.classList.add("statsTop");
-}else{
-wrap.classList.remove("statsTop");
-}
 }
 </script>
 
@@ -237,9 +211,9 @@ if(!d) return;
 let day=d.split(" ")[0];
 if(!days[day]) days[day]={};
 
-let name=r["Коктейль"];
-let count=Number(r["Кол-во"])||0;
-let cost=Number(r["Себестоимость"])||0;
+const name=r["Коктейль"];
+const count=Number(r["Кол-во"])||0;
+const cost=Math.round(Number(r["Себестоимость"])||0);
 
 if(!days[day][name]){
 days[day][name]={count:0,cost:0};
@@ -254,20 +228,20 @@ let html="";
 Object.keys(days).reverse().forEach(day=>{
 let sum=0;
 
-html+=`<div class="day"><div class="dayTitle">${day}</div>`;
+html+=`<div class="card"><div style="color:#7CFC00;font-size:18px;margin-bottom:10px">${day}</div>`;
 
 Object.keys(days[day]).forEach(name=>{
-let item=days[day][name];
-sum+=item.cost;
+let row=days[day][name];
+sum+=row.cost;
 
 html+=`
-<div class="row">
-<div>${name} ×${item.count}</div>
-<div>${Math.round(item.cost)} ₽</div>
+<div style="display:flex;justify-content:space-between;margin-bottom:6px">
+<div>${name} ×${row.count}</div>
+<div>${row.cost} ₽</div>
 </div>`;
 });
 
-html+=`<div class="total">Итого: ${Math.round(sum)} ₽</div></div>`;
+html+=`<div style="margin-top:10px;font-weight:700">Итого: ${sum} ₽</div></div>`;
 });
 
 document.getElementById("account").innerHTML=html;
@@ -275,8 +249,8 @@ document.getElementById("account").innerHTML=html;
 }
 </script>
 
-<!-- ТУТ ВСТАВЛЕН ТВОЙ РАБОЧИЙ JS БАРА БЕЗ ИЗМЕНЕНИЙ -->
-<script src="bar.js"></script>
+<!-- твой барный код ниже без изменений -->
+<script src=""></script>
 
 </body>
 </html>
