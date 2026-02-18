@@ -53,12 +53,8 @@ color:#7CFC00;
 border-bottom:2px solid #7CFC00;
 }
 
-/* фикс отступов */
-#barTop{
-padding-right:14px;
-}
+#barTop{padding-right:14px;}
 
-/* бар верх */
 .search{
 width:100%;
 padding:10px;
@@ -83,7 +79,6 @@ color:#000;
 box-sizing:border-box;
 }
 
-/* контент */
 .wrap{
 max-width:720px;
 margin:auto;
@@ -142,6 +137,35 @@ height:36px;
 .dayTitle{font-size:18px;margin-bottom:10px;color:#7CFC00;}
 .row{display:flex;justify-content:space-between;margin-bottom:6px;}
 .total{margin-top:10px;font-weight:700;}
+
+/* фильтр */
+.filterBar{
+display:flex;
+gap:8px;
+margin-bottom:14px;
+flex-wrap:wrap;
+}
+
+.fbtn{
+background:#111;
+border:1px solid #333;
+color:#aaa;
+padding:6px 10px;
+border-radius:8px;
+}
+
+.fbtn.active{
+color:#7CFC00;
+border-color:#7CFC00;
+}
+
+#datePick{
+background:#111;
+border:1px solid #333;
+color:#fff;
+padding:6px;
+border-radius:8px;
+}
 </style>
 </head>
 
@@ -179,6 +203,14 @@ height:36px;
 </div>
 
 <div id="screen-stats" class="screen">
+
+<div class="filterBar">
+<button class="fbtn active" id="f-day" onclick="setMode('day')">День</button>
+<button class="fbtn" id="f-month" onclick="setMode('month')">Месяц</button>
+<button class="fbtn" id="f-year" onclick="setMode('year')">Год</button>
+<input type="date" id="datePick" onchange="loadAccount()">
+</div>
+
 <div id="account"></div>
 </div>
 
@@ -199,62 +231,81 @@ document.getElementById("barTop").style.display = name==="bar" ? "block":"none";
 <script>
 const ACCOUNT_URL="https://opensheet.elk.sh/1CceZ3cIic_k9Z9GnXg_wOzoUGdYonzVkfypmSzf_ln8/СМЕНЫ";
 
+let mode="day";
+
+function setMode(m){
+mode=m;
+document.querySelectorAll(".fbtn").forEach(b=>b.classList.remove("active"));
+document.getElementById("f-"+m).classList.add("active");
+loadAccount();
+}
+
 function loadAccount(){
+
 fetch(ACCOUNT_URL)
 .then(r=>r.json())
 .then(rows=>{
 
-let days={};
+let pick=document.getElementById("datePick").value;
+if(!pick){
+pick=new Date().toISOString().slice(0,10);
+document.getElementById("datePick").value=pick;
+}
+
+let data={};
 
 rows.forEach(r=>{
 let d=r["Дата"];
 if(!d) return;
-let day=d.split(" ")[0];
-if(!days[day]) days[day]={};
+
+let date=d.split(" ")[0];
+
+let ok=false;
+if(mode==="day") ok=date===pick;
+if(mode==="month") ok=date.slice(0,7)===pick.slice(0,7);
+if(mode==="year") ok=date.slice(0,4)===pick.slice(0,4);
+if(!ok) return;
 
 let name=r["Коктейль"];
 let count=Number(r["Кол-во"])||0;
 let cost=Number(r["Себестоимость"])||0;
 
-if(!days[day][name]) days[day][name]={count:0,cost:0};
+if(!data[name]) data[name]={count:0,cost:0};
 
-days[day][name].count+=count;
-days[day][name].cost+=cost;
+data[name].count+=count;
+data[name].cost+=cost;
 });
 
 let html="";
-
-Object.keys(days).reverse().forEach(day=>{
 let sum=0;
-html+=`<div class="day"><div class="dayTitle">${day}</div>`;
 
-Object.keys(days[day]).forEach(name=>{
-let obj=days[day][name];
-sum+=obj.cost;
+html+=`<div class="day"><div class="dayTitle">${mode.toUpperCase()}</div>`;
+
+Object.keys(data).forEach(name=>{
+let o=data[name];
+sum+=o.cost;
 
 html+=`
 <div class="row">
-<div>${name} ×${obj.count}</div>
-<div>${Math.round(obj.cost)} ₽</div>
+<div>${name} ×${o.count}</div>
+<div>${Math.round(o.cost)} ₽</div>
 </div>`;
 });
 
 html+=`<div class="total">Итого: ${Math.round(sum)} ₽</div></div>`;
-});
 
 document.getElementById("account").innerHTML=html;
 });
 }
 </script>
 
+<!-- дальше твой код бара без изменений -->
 <script>
 const SHEET_ID="1CceZ3cIic_k9Z9GnXg_wOzoUGdYonzVkfypmSzf_ln8";
 const SCRIPT_URL="https://script.google.com/macros/s/AKfycbz69f3BJpr-lFCk_-YzE1bq_CRcXniZEvt2rD4InM_qx15XYwN6IjzI2lbTPIaI3brk/exec";
-
 const techURL=`https://docs.google.com/spreadsheets/d/${SHEET_ID}/gviz/tq?tqx=out:json&sheet=БАР_КУХНЯ`;
 const stockURL=`https://docs.google.com/spreadsheets/d/${SHEET_ID}/gviz/tq?tqx=out:json&sheet=Открытый_склад`;
 const menuURL=`https://opensheet.elk.sh/${SHEET_ID}/MENU`;
-
 let cocktails=[];
 let total=0;
 let sending=false;
@@ -285,20 +336,15 @@ fetch(techURL).then(r=>r.text()),
 fetch(menuURL).then(r=>r.json()),
 loadStock()
 ]).then(([techTxt,menu,stock])=>{
-
 localStock=JSON.parse(JSON.stringify(stock));
-
 let photos={};
 menu.forEach(r=>photos[r.Коктейль]=r.Фото);
-
 const json=JSON.parse(techTxt.substr(47).slice(0,-2));
 const rows=json.table.rows;
-
 let current=null;
 
 rows.forEach(r=>{
 const c=r.c;
-
 const id=c[0]?.v;
 const name=c[1]?.v;
 const cost=c[3]?.v;
