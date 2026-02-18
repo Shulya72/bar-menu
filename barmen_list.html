@@ -6,98 +6,23 @@
 <title>Бармен PRO</title>
 
 <style>
-html,body{
-margin:0;
-padding:0;
-background:#000;
-color:#fff;
-font-family:Arial;
-overflow-x:hidden;
-touch-action:manipulation;
-}
+html,body{margin:0;padding:0;background:#000;color:#fff;font-family:Arial;overflow-x:hidden;touch-action:manipulation;}
 
-/* верх */
-.top{
-position:fixed;
-top:0;
-left:0;
-width:100%;
-background:#000;
-z-index:999;
-padding:14px;
-box-sizing:border-box;
-border-bottom:1px solid #222;
-}
-
+.top{position:fixed;top:0;left:0;width:100%;background:#000;z-index:999;padding:14px;box-sizing:border-box;border-bottom:1px solid #222;}
 .title{text-align:center;font-size:22px;font-weight:700;}
 .sum{text-align:center;color:#7CFC00;font-size:20px;margin-top:2px;}
 
-/* вкладки */
-.tabs{
-display:flex;
-justify-content:space-around;
-margin-top:8px;
-border-bottom:1px solid #222;
-}
+.tabs{display:flex;justify-content:space-around;margin-top:8px;border-bottom:1px solid #222;}
+.tab{flex:1;padding:8px 0;background:none;border:none;color:#777;font-size:13px;font-weight:500;}
+.tab.active{color:#7CFC00;border-bottom:2px solid #7CFC00;font-weight:600;}
 
-.tab{
-flex:1;
-padding:8px 0;
-background:none;
-border:none;
-color:#777;
-font-size:13px;
-font-weight:500;
-}
+.search{width:100%;padding:10px;border-radius:12px;border:1px solid #333;background:#111;color:#fff;margin-top:10px;}
 
-.tab.active{
-color:#7CFC00;
-border-bottom:2px solid #7CFC00;
-font-weight:600;
-}
+.closeBtn{width:100%;padding:12px;border-radius:14px;background:#7CFC00;border:none;font-size:15px;font-weight:700;margin-top:8px;color:#000;}
 
-/* бар верх */
-.search{
-width:100%;
-padding:10px;
-border-radius:12px;
-border:1px solid #333;
-background:#111;
-color:#fff;
-margin-top:10px;
-}
+.wrap{max-width:720px;margin:auto;padding:14px;padding-top:260px;}
 
-.closeBtn{
-width:100%;
-padding:12px;
-border-radius:14px;
-background:#7CFC00;
-border:none;
-font-size:15px;
-font-weight:700;
-margin-top:8px;
-color:#000;
--webkit-appearance:none;
-appearance:none;
-}
-
-/* контент */
-.wrap{
-max-width:720px;
-margin:auto;
-padding:14px;
-padding-top:260px;
-}
-
-.card{
-border:1px solid #333;
-border-radius:18px;
-padding:18px;
-margin-bottom:22px;
-text-align:center;
-background:#070707;
-}
-
+.card{border:1px solid #333;border-radius:18px;padding:18px;margin-bottom:22px;text-align:center;background:#070707;}
 .card.dim{opacity:.45;}
 .name{font-size:22px;font-weight:700;margin-bottom:10px;}
 .photo{width:100%;max-width:260px;margin:0 auto 14px auto;display:block;border-radius:14px;}
@@ -106,35 +31,17 @@ background:#070707;
 .tools{color:#7CFC00;margin-top:10px;}
 .recipe{color:#aaa;margin-top:10px;font-size:14px;}
 
-.controls{
-display:flex;
-justify-content:center;
-align-items:center;
-gap:10px;
-margin-top:12px;
-}
-
-.btn{
-width:42px;height:42px;font-size:20px;
-border-radius:10px;
-border:1px solid #444;
-background:#111;
-color:#fff;
-}
-
-.count{
-width:60px;
-text-align:center;
-font-size:18px;
-background:#000;
-border:1px solid #444;
-border-radius:10px;
-color:#fff;
-height:36px;
-}
+.controls{display:flex;justify-content:center;align-items:center;gap:10px;margin-top:12px;}
+.btn{width:42px;height:42px;font-size:20px;border-radius:10px;border:1px solid #444;background:#111;color:#fff;}
+.count{width:60px;text-align:center;font-size:18px;background:#000;border:1px solid #444;border-radius:10px;color:#fff;height:36px;}
 
 .screen{display:none;}
 .screen.active{display:block;}
+
+.day{margin-bottom:20px;padding:14px;border:1px solid #222;border-radius:14px;background:#050505;}
+.dayTitle{font-size:18px;margin-bottom:10px;color:#7CFC00;}
+.row{display:flex;justify-content:space-between;margin-bottom:6px;}
+.total{margin-top:10px;font-weight:700;}
 </style>
 </head>
 
@@ -163,20 +70,9 @@ height:36px;
 <div id="list"></div>
 </div>
 
-<div id="screen-stock" class="screen">
-<h2>📦 Склад</h2>
-<p>Тут будет склад</p>
-</div>
-
-<div id="screen-shop" class="screen">
-<h2>🛒 Магазин</h2>
-<p>Тут будет магазин</p>
-</div>
-
-<div id="screen-stats" class="screen">
-<h2>📊 Учёт</h2>
-<p>Тут будет статистика расходов</p>
-</div>
+<div id="screen-stock" class="screen"><h2>📦 Склад позже</h2></div>
+<div id="screen-shop" class="screen"><h2>🛒 Магазин позже</h2></div>
+<div id="screen-stats" class="screen"><h2>📊 Учёт</h2></div>
 
 </div>
 
@@ -192,11 +88,10 @@ document.getElementById("barTop").style.display = name==="bar" ? "block":"none";
 }
 </script>
 
-<!-- ТВОЙ БАРМЕНСКИЙ КОД -->
+<!-- ТВОЙ БАРМЕНСКИЙ КОД БЕЗ ИЗМЕНЕНИЙ -->
 <script>
 const SHEET_ID="1CceZ3cIic_k9Z9GnXg_wOzoUGdYonzVkfypmSzf_ln8";
 const SCRIPT_URL="https://script.google.com/macros/s/AKfycbz69f3BJpr-lFCk_-YzE1bq_CRcXniZEvt2rD4InM_qx15XYwN6IjzI2lbTPIaI3brk/exec";
-
 const techURL=`https://docs.google.com/spreadsheets/d/${SHEET_ID}/gviz/tq?tqx=out:json&sheet=БАР_КУХНЯ`;
 const stockURL=`https://docs.google.com/spreadsheets/d/${SHEET_ID}/gviz/tq?tqx=out:json&sheet=Открытый_склад`;
 const menuURL=`https://opensheet.elk.sh/${SHEET_ID}/MENU`;
@@ -210,9 +105,7 @@ function norm(t){return String(t).replace(/\u00A0/g,"").replace(/\s+/g,"").trim(
 function normNum(v){return Number(String(v).replace(/\s/g,"").replace(",",".") ) || 0;}
 
 function loadStock(){
-return fetch(stockURL)
-.then(r=>r.text())
-.then(txt=>{
+return fetch(stockURL).then(r=>r.text()).then(txt=>{
 const json=JSON.parse(txt.substr(47).slice(0,-2));
 const rows=json.table.rows;
 let stock={};
@@ -372,12 +265,12 @@ btn.disabled=false;
 });
 }
 </script>
-  /* ===== УЧЁТ ===== */
-const ACCOUNT_URL =
-"https://opensheet.elk.sh/1CceZ3cIic_k9Z9GnXg_wOzoUGdYonzVkfypmSzf_ln8/СМЕНЫ";
+
+<!-- УЧЁТ -->
+<script>
+const ACCOUNT_URL="https://opensheet.elk.sh/1CceZ3cIic_k9Z9GnXg_wOzoUGdYonzVkfypmSzf_ln8/СМЕНЫ";
 
 function loadAccount(){
-
 fetch(ACCOUNT_URL)
 .then(r=>r.json())
 .then(rows=>{
@@ -387,9 +280,7 @@ let days={};
 rows.forEach(r=>{
 let d=r["Дата"];
 if(!d) return;
-
 let day=d.split(" ")[0];
-
 if(!days[day]) days[day]=[];
 days[day].push(r);
 });
@@ -397,50 +288,28 @@ days[day].push(r);
 let html="";
 
 Object.keys(days).reverse().forEach(day=>{
-
 let sum=0;
-
-html+=`
-<div style="margin-bottom:20px;
-padding:14px;
-border:1px solid #222;
-border-radius:14px;
-background:#050505;">
-
-<div style="
-font-size:18px;
-margin-bottom:10px;
-color:#7CFC00;">
-${day}
-</div>
-`;
+html+=`<div class="day"><div class="dayTitle">${day}</div>`;
 
 days[day].forEach(r=>{
-
 let cost=Number(r["Себестоимость"])||0;
 sum+=cost;
 
 html+=`
-<div style="display:flex;justify-content:space-between;margin-bottom:6px;">
+<div class="row">
 <div>${r["Коктейль"]} ×${r["Кол-во"]}</div>
 <div>${cost.toFixed(2)} ₽</div>
-</div>
-`;
+</div>`;
 });
 
-html+=`
-<div style="margin-top:10px;font-weight:700;">
-Итого: ${sum.toFixed(2)} ₽
-</div>
-</div>
-`;
-
+html+=`<div class="total">Итого: ${sum.toFixed(2)} ₽</div></div>`;
 });
 
-document.getElementById("screen-stats").innerHTML =
-"<h2>📊 Учёт</h2>"+html;
+document.getElementById("screen-stats").innerHTML=html;
 
 });
 }
+</script>
+
 </body>
 </html>
