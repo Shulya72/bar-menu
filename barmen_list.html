@@ -6,100 +6,28 @@
 <title>Бармен PRO</title>
 
 <style>
-html,body{
-margin:0;
-padding:0;
-background:#000;
-color:#fff;
-font-family:Arial;
-overflow-x:hidden;
-}
+html,body{margin:0;padding:0;background:#000;color:#fff;font-family:Arial;overflow-x:hidden;}
 
-/* верх */
-.top{
-position:fixed;
-top:0;
-left:0;
-width:100%;
-background:#000;
-z-index:999;
-padding:14px;
-box-sizing:border-box;
-border-bottom:1px solid #222;
-}
-
+.top{position:fixed;top:0;left:0;width:100%;background:#000;z-index:999;padding:14px;box-sizing:border-box;border-bottom:1px solid #222;}
 .title{text-align:center;font-size:22px;font-weight:700;}
 .sum{text-align:center;color:#7CFC00;font-size:20px;margin-top:2px;}
 
-/* вкладки */
-.tabs{
-display:flex;
-justify-content:space-around;
-margin-top:8px;
-border-bottom:1px solid #222;
-}
+.tabs{display:flex;justify-content:space-around;margin-top:8px;border-bottom:1px solid #222;}
+.tab{flex:1;padding:8px 0;background:none;border:none;color:#777;font-size:13px;}
+.tab.active{color:#7CFC00;border-bottom:2px solid #7CFC00;}
 
-.tab{
-flex:1;
-padding:8px 0;
-background:none;
-border:none;
-color:#777;
-font-size:13px;
-}
+#barTop{padding-right:14px;}
 
-.tab.active{
-color:#7CFC00;
-border-bottom:2px solid #7CFC00;
-}
-
-/* фикс отступов */
-#barTop{
-padding-right:14px;
-}
-
-/* бар верх */
-.search{
-width:100%;
-padding:10px;
-border-radius:12px;
-border:1px solid #333;
-background:#111;
-color:#fff;
-margin-top:10px;
-box-sizing:border-box;
-}
+.search{width:100%;padding:10px;border-radius:12px;border:1px solid #333;background:#111;color:#fff;margin-top:10px;box-sizing:border-box;}
 
 .closeBtn{
-width:100%;
-padding:12px;
-border-radius:14px;
-background:#7CFC00;
-border:none;
-font-size:15px;
-font-weight:700;
-margin-top:8px;
-color:#000;
-box-sizing:border-box;
+width:100%;padding:12px;border-radius:14px;background:#7CFC00;border:none;
+font-size:15px;font-weight:700;margin-top:8px;color:#000;box-sizing:border-box;
 }
 
-/* контент */
-.wrap{
-max-width:720px;
-margin:auto;
-padding:14px;
-padding-top:260px;
-}
+.wrap{max-width:720px;margin:auto;padding:14px;padding-top:260px;}
 
-.card{
-border:1px solid #333;
-border-radius:18px;
-padding:18px;
-margin-bottom:22px;
-text-align:center;
-background:#070707;
-}
-
+.card{border:1px solid #333;border-radius:18px;padding:18px;margin-bottom:22px;text-align:center;background:#070707;}
 .card.dim{opacity:.45;}
 .name{font-size:22px;font-weight:700;margin-bottom:10px;}
 .photo{width:100%;max-width:260px;margin:0 auto 14px auto;border-radius:14px;}
@@ -108,39 +36,17 @@ background:#070707;
 .tools{color:#7CFC00;margin-top:10px;}
 .recipe{color:#aaa;margin-top:10px;font-size:14px;}
 
-.controls{
-display:flex;
-justify-content:center;
-align-items:center;
-gap:10px;
-margin-top:12px;
-}
-
-.btn{
-width:42px;height:42px;font-size:20px;
-border-radius:10px;
-border:1px solid #444;
-background:#111;
-color:#fff;
-}
-
-.count{
-width:60px;
-text-align:center;
-font-size:18px;
-background:#000;
-border:1px solid #444;
-border-radius:10px;
-color:#fff;
-height:36px;
-}
+.controls{display:flex;justify-content:center;align-items:center;gap:10px;margin-top:12px;}
+.btn{width:42px;height:42px;font-size:20px;border-radius:10px;border:1px solid #444;background:#111;color:#fff;}
+.count{width:60px;text-align:center;font-size:18px;background:#000;border:1px solid #444;border-radius:10px;color:#fff;height:36px;}
 
 .screen{display:none;}
 .screen.active{display:block;}
 
 .day{margin-bottom:20px;padding:14px;border:1px solid #222;border-radius:14px;background:#050505;}
 .dayTitle{font-size:18px;margin-bottom:10px;color:#7CFC00;}
-.row{display:flex;justify-content:space-between;margin-bottom:6px;}
+.row{display:flex;gap:6px;margin-bottom:6px;align-items:center;}
+.row input{background:#111;border:1px solid #333;color:#fff;border-radius:6px;padding:4px;}
 .total{margin-top:10px;font-weight:700;}
 </style>
 </head>
@@ -155,28 +61,6 @@ height:36px;
 <button class="tab active" onclick="showScreen('bar',this)">🍸 Бар</button>
 <button class="tab" onclick="showScreen('stock',this)">📦 Склад</button>
 <button class="tab" onclick="showScreen('shop',this);loadShop()">🛒 Магазин</button>
-  <script>
-function syncShop(){
-
-const inputs=document.querySelectorAll("#shopTable input");
-
-let data=[];
-
-inputs.forEach(i=>{
-data.push({
-row:i.dataset.row,
-col:i.dataset.col,
-value:i.value
-});
-});
-
-fetch(SCRIPT_URL,{
-method:"POST",
-body:JSON.stringify({shop:data})
-})
-.then(()=>alert("Синхронизировано"));
-}
-</script>
 <button class="tab" onclick="showScreen('stats',this);loadAccount()">📊 Учёт</button>
 </div>
 
@@ -197,14 +81,10 @@ body:JSON.stringify({shop:data})
 </div>
 
 <div id="screen-shop" class="screen">
-
 <div class="day">
 <div class="dayTitle">Магазин</div>
-
 <div id="shopTable"></div>
-
 <button class="closeBtn" onclick="syncShop()">Синхронизировать</button>
-
 </div>
 </div>
 
@@ -218,13 +98,82 @@ body:JSON.stringify({shop:data})
 function showScreen(name,btn){
 document.querySelectorAll(".screen").forEach(s=>s.classList.remove("active"));
 document.getElementById("screen-"+name).classList.add("active");
-
 document.querySelectorAll(".tab").forEach(t=>t.classList.remove("active"));
 btn.classList.add("active");
-
 document.getElementById("barTop").style.display = name==="bar" ? "block":"none";
 }
 </script>
+
+<!-- ================= МАГАЗИН ================= -->
+
+<script>
+function loadShop(){
+
+const url=`https://docs.google.com/spreadsheets/d/${SHEET_ID}/gviz/tq?tqx=out:json&sheet=БАР_КУХНЯ`;
+
+fetch(url)
+.then(r=>r.text())
+.then(txt=>{
+
+const json=JSON.parse(txt.substr(47).slice(0,-2));
+const rows=json.table.rows;
+
+let html=`
+<div class="row" style="font-weight:700;margin-bottom:10px">
+<div style="width:25%">Ингредиент</div>
+<div style="width:35%">Бренд</div>
+<div style="width:15%">Объем</div>
+<div style="width:15%">Цена</div>
+</div>
+`;
+
+rows.forEach((r,i)=>{
+const c=r.c;
+
+const ingredient=c[12]?.v;
+const brand=c[13]?.v;
+const qty=c[14]?.v;
+const price=c[16]?.v;
+
+if(!ingredient) return;
+
+html+=`
+<div class="row">
+<div style="width:25%">${ingredient}</div>
+<input data-row="${i}" data-col="13" value="${brand||""}" style="width:35%">
+<input data-row="${i}" data-col="14" value="${qty||""}" style="width:15%">
+<input data-row="${i}" data-col="16" value="${price||""}" style="width:15%">
+</div>
+`;
+});
+
+document.getElementById("shopTable").innerHTML=html;
+
+});
+}
+
+function syncShop(){
+
+const inputs=document.querySelectorAll("#shopTable input");
+let data=[];
+
+inputs.forEach(i=>{
+data.push({
+row:i.dataset.row,
+col:i.dataset.col,
+value:i.value
+});
+});
+
+fetch(SCRIPT_URL,{
+method:"POST",
+body:JSON.stringify({shop:data})
+})
+.then(()=>alert("Синхронизировано"));
+}
+</script>
+
+<!-- ================= УЧЕТ ================= -->
 
 <script>
 const ACCOUNT_URL="https://opensheet.elk.sh/1CceZ3cIic_k9Z9GnXg_wOzoUGdYonzVkfypmSzf_ln8/СМЕНЫ";
@@ -233,7 +182,6 @@ function loadAccount(){
 fetch(ACCOUNT_URL)
 .then(r=>r.json())
 .then(rows=>{
-
 let days={};
 
 rows.forEach(r=>{
@@ -247,7 +195,6 @@ let count=Number(r["Кол-во"])||0;
 let cost=Number(r["Себестоимость"])||0;
 
 if(!days[day][name]) days[day][name]={count:0,cost:0};
-
 days[day][name].count+=count;
 days[day][name].cost+=cost;
 });
@@ -277,6 +224,7 @@ document.getElementById("account").innerHTML=html;
 }
 </script>
 
+<!-- ================= БАР (твой код) ================= -->
 <script>
 const SHEET_ID="1CceZ3cIic_k9Z9GnXg_wOzoUGdYonzVkfypmSzf_ln8";
 const SCRIPT_URL="https://script.google.com/macros/s/AKfycbz69f3BJpr-lFCk_-YzE1bq_CRcXniZEvt2rD4InM_qx15XYwN6IjzI2lbTPIaI3brk/exec";
@@ -453,97 +401,6 @@ alert("Смена закрыта");
 sending=false;
 btn.innerText="Закрыть смену";
 btn.disabled=false;
-});
-}
-</script>
-  
-<script>
-function loadShop(){
-
-const url=`https://docs.google.com/spreadsheets/d/${SHEET_ID}/gviz/tq?tqx=out:json&sheet=БАР_КУХНЯ`;
-
-fetch(url)
-.then(r=>r.text())
-.then(txt=>{
-const json=JSON.parse(txt.substr(47).slice(0,-2));
-const rows=json.table.rows;
-
-let html="";
-
-rows.forEach(r=>{
-const c=r.c;
-
-const ingredient=c[12]?.v;   // M
-const brand=c[13]?.v;        // N
-const qty=c[14]?.v;          // O
-const unit=c[15]?.v;         // P
-const price=c[16]?.v;        // Q
-
-if(!ingredient) return;
-
-html+=`
-<div class="card">
-<div class="name">${ingredient}</div>
-<div>${brand||""}</div>
-<div>${qty||0} ${unit||""}</div>
-<div class="price">${price||0} ₽</div>
-</div>`;
-});
-
-document.getElementById("shopList").innerHTML=html;
-});
-}
-</script>
-
-  <script>
-function loadShop(){
-
-const url=`https://docs.google.com/spreadsheets/d/${SHEET_ID}/gviz/tq?tqx=out:json&sheet=БАР_КУХНЯ`;
-
-fetch(url)
-.then(r=>r.text())
-.then(txt=>{
-
-const json=JSON.parse(txt.substr(47).slice(0,-2));
-const rows=json.table.rows;
-
-let html=`
-<div class="row" style="font-weight:700;margin-bottom:10px">
-<div style="width:25%">Ингредиент</div>
-<div style="width:35%">Бренд</div>
-<div style="width:15%">Объем</div>
-<div style="width:15%">Цена</div>
-</div>
-`;
-
-rows.forEach((r,i)=>{
-const c=r.c;
-
-const ingredient=c[12]?.v;
-const brand=c[13]?.v;
-const qty=c[14]?.v;
-const price=c[16]?.v;
-
-if(!ingredient) return;
-
-html+=`
-<div class="row">
-<div style="width:25%">${ingredient}</div>
-
-<input data-row="${i}" data-col="13"
-value="${brand||""}" style="width:35%">
-
-<input data-row="${i}" data-col="14"
-value="${qty||""}" style="width:15%">
-
-<input data-row="${i}" data-col="16"
-value="${price||""}" style="width:15%">
-</div>
-`;
-});
-
-document.getElementById("shopTable").innerHTML=html;
-
 });
 }
 </script>
