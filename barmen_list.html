@@ -15,6 +15,7 @@ font-family:Arial;
 overflow-x:hidden;
 }
 
+/* верх */
 .top{
 position:fixed;
 top:0;
@@ -30,6 +31,7 @@ border-bottom:1px solid #222;
 .title{text-align:center;font-size:22px;font-weight:700;}
 .sum{text-align:center;color:#7CFC00;font-size:20px;margin-top:2px;}
 
+/* вкладки */
 .tabs{
 display:flex;
 justify-content:space-around;
@@ -51,8 +53,12 @@ color:#7CFC00;
 border-bottom:2px solid #7CFC00;
 }
 
-#barTop{padding-right:14px;}
+/* фикс отступов */
+#barTop{
+padding-right:14px;
+}
 
+/* бар верх */
 .search{
 width:100%;
 padding:10px;
@@ -77,32 +83,7 @@ color:#000;
 box-sizing:border-box;
 }
 
-/* УЧЕТ */
-.statsFilter{
-margin-top:10px;
-display:flex;
-gap:8px;
-}
-
-.statsFilter select{
-flex:1;
-padding:10px;
-border-radius:10px;
-background:#111;
-color:#fff;
-border:1px solid #333;
-}
-
-.statsSum{
-margin-top:8px;
-padding:12px;
-border-radius:14px;
-background:#7CFC00;
-color:#000;
-font-weight:700;
-text-align:center;
-}
-
+/* контент */
 .wrap{
 max-width:720px;
 margin:auto;
@@ -117,6 +98,41 @@ padding:18px;
 margin-bottom:22px;
 text-align:center;
 background:#070707;
+}
+
+.card.dim{opacity:.45;}
+.name{font-size:22px;font-weight:700;margin-bottom:10px;}
+.photo{width:100%;max-width:260px;margin:0 auto 14px auto;border-radius:14px;}
+.ing{text-align:left;margin-top:10px;}
+.miss{color:#ff4d4d;text-decoration:line-through;}
+.tools{color:#7CFC00;margin-top:10px;}
+.recipe{color:#aaa;margin-top:10px;font-size:14px;}
+
+.controls{
+display:flex;
+justify-content:center;
+align-items:center;
+gap:10px;
+margin-top:12px;
+}
+
+.btn{
+width:42px;height:42px;font-size:20px;
+border-radius:10px;
+border:1px solid #444;
+background:#111;
+color:#fff;
+}
+
+.count{
+width:60px;
+text-align:center;
+font-size:18px;
+background:#000;
+border:1px solid #444;
+border-radius:10px;
+color:#fff;
+height:36px;
 }
 
 .screen{display:none;}
@@ -146,24 +162,6 @@ background:#070707;
 <input class="search" placeholder="Поиск..." oninput="render()">
 <button class="closeBtn" id="closeBtn">Закрыть смену</button>
 </div>
-
-<!-- ФИЛЬТР УЧЕТА -->
-<div id="statsTop" style="display:none">
-
-<div class="statsFilter">
-<select id="filterType" onchange="applyFilter()">
-<option value="day">День</option>
-<option value="month">Месяц</option>
-<option value="year">Год</option>
-</select>
-
-<input type="date" id="filterDate" onchange="applyFilter()">
-</div>
-
-<div class="statsSum">Сумма: <span id="statsTotal">0</span> ₽</div>
-
-</div>
-
 </div>
 
 <div class="wrap">
@@ -172,8 +170,13 @@ background:#070707;
 <div id="list"></div>
 </div>
 
-<div id="screen-stock" class="screen"></div>
-<div id="screen-shop" class="screen"></div>
+<div id="screen-stock" class="screen">
+<h2>Склад позже</h2>
+</div>
+
+<div id="screen-shop" class="screen">
+<h2>Магазин позже</h2>
+</div>
 
 <div id="screen-stats" class="screen">
 <div id="account"></div>
@@ -190,59 +193,44 @@ document.querySelectorAll(".tab").forEach(t=>t.classList.remove("active"));
 btn.classList.add("active");
 
 document.getElementById("barTop").style.display = name==="bar" ? "block":"none";
-document.getElementById("statsTop").style.display = name==="stats" ? "block":"none";
 }
 </script>
 
 <script>
 const ACCOUNT_URL="https://opensheet.elk.sh/1CceZ3cIic_k9Z9GnXg_wOzoUGdYonzVkfypmSzf_ln8/СМЕНЫ";
-let accountRows=[];
 
 function loadAccount(){
 fetch(ACCOUNT_URL)
 .then(r=>r.json())
 .then(rows=>{
-accountRows=rows;
-applyFilter();
-});
-}
 
-function applyFilter(){
-const type=document.getElementById("filterType").value;
-const date=document.getElementById("filterDate").value;
-if(!date)return;
+let days={};
 
-let filtered={};
-let totalSum=0;
-
-accountRows.forEach(r=>{
+rows.forEach(r=>{
 let d=r["Дата"];
-if(!d)return;
+if(!d) return;
 let day=d.split(" ")[0];
-
-let match=false;
-
-if(type==="day") match=day===date;
-if(type==="month") match=day.slice(0,7)===date.slice(0,7);
-if(type==="year") match=day.slice(0,4)===date.slice(0,4);
-
-if(!match)return;
+if(!days[day]) days[day]={};
 
 let name=r["Коктейль"];
 let count=Number(r["Кол-во"])||0;
 let cost=Number(r["Себестоимость"])||0;
 
-if(!filtered[name]) filtered[name]={count:0,cost:0};
+if(!days[day][name]) days[day][name]={count:0,cost:0};
 
-filtered[name].count+=count;
-filtered[name].cost+=cost;
-totalSum+=cost;
+days[day][name].count+=count;
+days[day][name].cost+=cost;
 });
 
-let html=`<div class="day">`;
+let html="";
 
-Object.keys(filtered).forEach(name=>{
-let obj=filtered[name];
+Object.keys(days).reverse().forEach(day=>{
+let sum=0;
+html+=`<div class="day"><div class="dayTitle">${day}</div>`;
+
+Object.keys(days[day]).forEach(name=>{
+let obj=days[day][name];
+sum+=obj.cost;
 
 html+=`
 <div class="row">
@@ -251,10 +239,191 @@ html+=`
 </div>`;
 });
 
-html+=`<div class="total">Итого: ${Math.round(totalSum)} ₽</div></div>`;
+html+=`<div class="total">Итого: ${Math.round(sum)} ₽</div></div>`;
+});
 
 document.getElementById("account").innerHTML=html;
-document.getElementById("statsTotal").innerText=Math.round(totalSum);
+});
+}
+</script>
+
+<script>
+const SHEET_ID="1CceZ3cIic_k9Z9GnXg_wOzoUGdYonzVkfypmSzf_ln8";
+const SCRIPT_URL="https://script.google.com/macros/s/AKfycbz69f3BJpr-lFCk_-YzE1bq_CRcXniZEvt2rD4InM_qx15XYwN6IjzI2lbTPIaI3brk/exec";
+
+const techURL=`https://docs.google.com/spreadsheets/d/${SHEET_ID}/gviz/tq?tqx=out:json&sheet=БАР_КУХНЯ`;
+const stockURL=`https://docs.google.com/spreadsheets/d/${SHEET_ID}/gviz/tq?tqx=out:json&sheet=Открытый_склад`;
+const menuURL=`https://opensheet.elk.sh/${SHEET_ID}/MENU`;
+
+let cocktails=[];
+let total=0;
+let sending=false;
+let localStock={};
+
+function norm(t){return String(t).replace(/\u00A0/g,"").replace(/\s+/g,"").trim().toLowerCase();}
+function normNum(v){return Number(String(v).replace(/\s/g,"").replace(",",".") ) || 0;}
+
+function loadStock(){
+return fetch(stockURL)
+.then(r=>r.text())
+.then(txt=>{
+const json=JSON.parse(txt.substr(47).slice(0,-2));
+const rows=json.table.rows;
+let stock={};
+rows.forEach(r=>{
+const c=r.c;
+const name=c[0]?.v;
+const qty=c[1]?.v;
+if(name) stock[norm(name)]=normNum(qty);
+});
+return stock;
+});
+}
+
+Promise.all([
+fetch(techURL).then(r=>r.text()),
+fetch(menuURL).then(r=>r.json()),
+loadStock()
+]).then(([techTxt,menu,stock])=>{
+
+localStock=JSON.parse(JSON.stringify(stock));
+
+let photos={};
+menu.forEach(r=>photos[r.Коктейль]=r.Фото);
+
+const json=JSON.parse(techTxt.substr(47).slice(0,-2));
+const rows=json.table.rows;
+
+let current=null;
+
+rows.forEach(r=>{
+const c=r.c;
+
+const id=c[0]?.v;
+const name=c[1]?.v;
+const cost=c[3]?.v;
+const ing=c[5]?.v;
+const qtyRaw=c[6]?.v;
+const unit=c[7]?.v;
+const avail=c[8]?.v;
+const tool=c[9]?.v;
+const recipe=c[10]?.v;
+
+if(id){
+current={name,cost:parseFloat(cost)||0,recipe:recipe||"",tools:[],ings:[],miss:false,photo:photos[name]||"",count:0};
+cocktails.push(current);
+}
+
+if(ing){
+const need=Number(qtyRaw)||0;
+current.ings.push({raw:ing,need:need,unit:unit,avail:avail==1});
+}
+
+if(tool) current.tools.push(tool);
+});
+
+recalc();
+render();
+});
+
+function recalc(){
+cocktails.forEach(c=>{
+let miss=false;
+c.ings.forEach(i=>{
+const left=localStock[norm(i.raw)]||0;
+if(left<i.need || !i.avail) miss=true;
+});
+c.miss=miss;
+});
+}
+
+function render(){
+const search=document.querySelector(".search").value.toLowerCase();
+const list=document.getElementById("list");
+list.innerHTML="";
+total=0;
+
+cocktails.forEach((c,i)=>{
+if(search && !c.name.toLowerCase().includes(search)) return;
+total+=c.count*c.cost;
+
+list.innerHTML+=`
+<div class="card ${c.miss?'dim':''}">
+<div class="name">${c.name}</div>
+${c.photo?`<img src="${c.photo}" class="photo">`:""}
+<div class="ing">
+${c.ings.map(x=>{
+const left=localStock[norm(x.raw)]||0;
+const ok=left>=x.need && x.avail;
+return `<div class="${ok?'':'miss'}">${x.raw} ${x.need} ${x.unit} (ост: ${left})</div>`;
+}).join("")}
+</div>
+<div class="tools">${c.tools.join(" • ")}</div>
+<div class="recipe">${c.recipe}</div>
+<div class="controls">
+<button class="btn" onclick="minus(${i})">−</button>
+<input class="count" value="${c.count}" readonly>
+<button class="btn" onclick="plus(${i})">+</button>
+</div>
+</div>`;
+});
+
+document.getElementById("sum").innerText=Math.round(total);
+}
+
+function apply(i,delta){
+const c=cocktails[i];
+if(delta>0 && c.miss) return;
+
+c.count+=delta;
+if(c.count<0) c.count=0;
+
+c.ings.forEach(ing=>{
+const key=norm(ing.raw);
+if(localStock[key]==null) return;
+localStock[key]-=ing.need*delta;
+if(localStock[key]<0) localStock[key]=0;
+});
+
+recalc();
+render();
+}
+
+function plus(i){apply(i,1);}
+function minus(i){apply(i,-1);}
+
+document.getElementById("closeBtn").onclick=closeShift;
+
+function closeShift(){
+if(sending) return;
+const sum=Math.round(total);
+if(sum<=0){alert("Нет заказов");return;}
+if(!confirm(`Закрыть смену на ${sum} ₽ ?`)) return;
+
+sending=true;
+
+const btn=document.getElementById("closeBtn");
+btn.innerText="Отправка...";
+btn.disabled=true;
+
+const data=cocktails.filter(c=>c.count>0)
+.map(c=>({name:c.name,count:c.count,cost:Math.round(c.cost*c.count)}));
+
+fetch(SCRIPT_URL,{method:"POST",body:JSON.stringify(data)})
+.then(()=>{
+loadStock().then(stock=>{
+localStock=JSON.parse(JSON.stringify(stock));
+cocktails.forEach(c=>c.count=0);
+recalc();
+render();
+alert("Смена закрыта");
+});
+})
+.finally(()=>{
+sending=false;
+btn.innerText="Закрыть смену";
+btn.disabled=false;
+});
 }
 </script>
 
