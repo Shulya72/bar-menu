@@ -2,7 +2,7 @@
 <html lang="ru">
 <head>
 <meta charset="UTF-8">
-<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
 <title>Бармен PRO</title>
 
 <style>
@@ -13,9 +13,9 @@ background:#000;
 color:#fff;
 font-family:Arial;
 overflow-x:hidden;
+touch-action:manipulation;
 }
 
-/* верх */
 .top{
 position:fixed;
 top:0;
@@ -31,7 +31,6 @@ border-bottom:1px solid #222;
 .title{text-align:center;font-size:22px;font-weight:700;}
 .sum{text-align:center;color:#7CFC00;font-size:20px;margin-top:2px;}
 
-/* вкладки */
 .tabs{
 display:flex;
 justify-content:space-around;
@@ -84,11 +83,6 @@ padding:14px;
 padding-top:260px;
 }
 
-/* ← ВОТ ЭТО ЕДИНСТВЕННОЕ ИЗМЕНЕНИЕ */
-#screen-stats{
-margin-top:-140px;
-}
-
 .card{
 border:1px solid #333;
 border-radius:18px;
@@ -98,13 +92,8 @@ text-align:center;
 background:#070707;
 }
 
-.card.dim{opacity:.45;}
 .name{font-size:22px;font-weight:700;margin-bottom:10px;}
 .photo{width:100%;max-width:260px;margin:0 auto 14px auto;display:block;border-radius:14px;}
-.ing{text-align:left;margin-top:10px;}
-.miss{color:#ff4d4d;text-decoration:line-through;}
-.tools{color:#7CFC00;margin-top:10px;}
-.recipe{color:#aaa;margin-top:10px;font-size:14px;}
 
 .controls{
 display:flex;
@@ -137,17 +126,16 @@ height:36px;
 .screen.active{display:block;}
 
 .day{
-margin-top:18px;
-padding:18px;
-border:1px solid #333;
-border-radius:18px;
+margin-top:20px;
+border:1px solid #222;
+border-radius:16px;
+padding:16px;
 background:#050505;
-max-width:600px;
 }
 
 .dayTitle{
-font-size:20px;
 color:#7CFC00;
+font-size:18px;
 margin-bottom:10px;
 }
 
@@ -189,8 +177,13 @@ font-weight:700;
 <div id="list"></div>
 </div>
 
-<div id="screen-stock" class="screen"></div>
-<div id="screen-shop" class="screen"></div>
+<div id="screen-stock" class="screen">
+<h2>Склад позже</h2>
+</div>
+
+<div id="screen-shop" class="screen">
+<h2>Магазин позже</h2>
+</div>
 
 <div id="screen-stats" class="screen">
 <div id="account"></div>
@@ -223,6 +216,7 @@ let days={};
 rows.forEach(r=>{
 let d=r["Дата"];
 if(!d) return;
+
 let day=d.split(" ")[0];
 if(!days[day]) days[day]={};
 
@@ -230,9 +224,7 @@ let name=r["Коктейль"];
 let count=Number(r["Кол-во"])||0;
 let cost=Number(r["Себестоимость"])||0;
 
-if(!days[day][name]){
-days[day][name]={count:0,cost:0};
-}
+if(!days[day][name]) days[day][name]={count:0,cost:0};
 
 days[day][name].count+=count;
 days[day][name].cost+=cost;
@@ -252,11 +244,11 @@ sum+=item.cost;
 html+=`
 <div class="row">
 <div>${name} ×${item.count}</div>
-<div>${Math.round(item.cost)} ₽</div>
+<div>${item.cost} ₽</div>
 </div>`;
 });
 
-html+=`<div class="total">Итого: ${Math.round(sum)} ₽</div></div>`;
+html+=`<div class="total">Итого: ${sum} ₽</div></div>`;
 });
 
 document.getElementById("account").innerHTML=html;
@@ -265,6 +257,7 @@ document.getElementById("account").innerHTML=html;
 }
 </script>
 
-<!-- ВСТАВЬ СЮДА ТВОЙ РАБОЧИЙ БАРНЫЙ JS КАК ОН БЫЛ -->
+<script src="bar.js"></script>
+
 </body>
 </html>
