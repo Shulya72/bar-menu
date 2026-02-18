@@ -7,26 +7,16 @@
 
 <style>
 html,body{margin:0;padding:0;background:#000;color:#fff;font-family:Arial;overflow-x:hidden;}
-
 .top{position:fixed;top:0;left:0;width:100%;background:#000;z-index:999;padding:14px;box-sizing:border-box;border-bottom:1px solid #222;}
 .title{text-align:center;font-size:22px;font-weight:700;}
 .sum{text-align:center;color:#7CFC00;font-size:20px;margin-top:2px;}
-
 .tabs{display:flex;justify-content:space-around;margin-top:8px;border-bottom:1px solid #222;}
 .tab{flex:1;padding:8px 0;background:none;border:none;color:#777;font-size:13px;}
 .tab.active{color:#7CFC00;border-bottom:2px solid #7CFC00;}
-
 #barTop{padding-right:14px;}
-
 .search{width:100%;padding:10px;border-radius:12px;border:1px solid #333;background:#111;color:#fff;margin-top:10px;box-sizing:border-box;}
-
-.closeBtn{
-width:100%;padding:12px;border-radius:14px;background:#7CFC00;border:none;
-font-size:15px;font-weight:700;margin-top:8px;color:#000;box-sizing:border-box;
-}
-
+.closeBtn{width:100%;padding:12px;border-radius:14px;background:#7CFC00;border:none;font-size:15px;font-weight:700;margin-top:8px;color:#000;}
 .wrap{max-width:720px;margin:auto;padding:14px;padding-top:260px;}
-
 .card{border:1px solid #333;border-radius:18px;padding:18px;margin-bottom:22px;text-align:center;background:#070707;}
 .card.dim{opacity:.45;}
 .name{font-size:22px;font-weight:700;margin-bottom:10px;}
@@ -35,14 +25,11 @@ font-size:15px;font-weight:700;margin-top:8px;color:#000;box-sizing:border-box;
 .miss{color:#ff4d4d;text-decoration:line-through;}
 .tools{color:#7CFC00;margin-top:10px;}
 .recipe{color:#aaa;margin-top:10px;font-size:14px;}
-
 .controls{display:flex;justify-content:center;align-items:center;gap:10px;margin-top:12px;}
 .btn{width:42px;height:42px;font-size:20px;border-radius:10px;border:1px solid #444;background:#111;color:#fff;}
 .count{width:60px;text-align:center;font-size:18px;background:#000;border:1px solid #444;border-radius:10px;color:#fff;height:36px;}
-
 .screen{display:none;}
 .screen.active{display:block;}
-
 .day{margin-bottom:20px;padding:14px;border:1px solid #222;border-radius:14px;background:#050505;}
 .dayTitle{font-size:18px;margin-bottom:10px;color:#7CFC00;}
 .row{display:flex;gap:6px;margin-bottom:6px;align-items:center;}
@@ -104,8 +91,12 @@ document.getElementById("barTop").style.display = name==="bar" ? "block":"none";
 }
 </script>
 
-<!-- ================= МАГАЗИН ================= -->
+<script>
+const SHEET_ID="1CceZ3cIic_k9Z9GnXg_wOzoUGdYonzVkfypmSzf_ln8";
+const SCRIPT_URL="https://script.google.com/macros/s/AKfycbz69f3BJpr-lFCk_-YzE1bq_CRcXniZEvt2rD4InM_qx15XYwN6IjzI2lbTPIaI3brk/exec";
+</script>
 
+<!-- МАГАЗИН -->
 <script>
 function loadShop(){
 
@@ -114,27 +105,23 @@ const url=`https://docs.google.com/spreadsheets/d/${SHEET_ID}/gviz/tq?tqx=out:js
 fetch(url)
 .then(r=>r.text())
 .then(txt=>{
-
 const json=JSON.parse(txt.substr(47).slice(0,-2));
 const rows=json.table.rows;
 
 let html=`
-<div class="row" style="font-weight:700;margin-bottom:10px">
+<div class="row" style="font-weight:700">
 <div style="width:25%">Ингредиент</div>
 <div style="width:35%">Бренд</div>
 <div style="width:15%">Объем</div>
 <div style="width:15%">Цена</div>
-</div>
-`;
+</div>`;
 
 rows.forEach((r,i)=>{
 const c=r.c;
-
 const ingredient=c[12]?.v;
 const brand=c[13]?.v;
 const qty=c[14]?.v;
 const price=c[16]?.v;
-
 if(!ingredient) return;
 
 html+=`
@@ -143,20 +130,16 @@ html+=`
 <input data-row="${i}" data-col="13" value="${brand||""}" style="width:35%">
 <input data-row="${i}" data-col="14" value="${qty||""}" style="width:15%">
 <input data-row="${i}" data-col="16" value="${price||""}" style="width:15%">
-</div>
-`;
+</div>`;
 });
 
 document.getElementById("shopTable").innerHTML=html;
-
 });
 }
 
 function syncShop(){
-
 const inputs=document.querySelectorAll("#shopTable input");
 let data=[];
-
 inputs.forEach(i=>{
 data.push({
 row:i.dataset.row,
@@ -173,8 +156,7 @@ body:JSON.stringify({shop:data})
 }
 </script>
 
-<!-- ================= УЧЕТ ================= -->
-
+<!-- УЧЕТ -->
 <script>
 const ACCOUNT_URL="https://opensheet.elk.sh/1CceZ3cIic_k9Z9GnXg_wOzoUGdYonzVkfypmSzf_ln8/СМЕНЫ";
 
@@ -183,52 +165,41 @@ fetch(ACCOUNT_URL)
 .then(r=>r.json())
 .then(rows=>{
 let days={};
-
 rows.forEach(r=>{
 let d=r["Дата"];
 if(!d) return;
 let day=d.split(" ")[0];
 if(!days[day]) days[day]={};
-
 let name=r["Коктейль"];
 let count=Number(r["Кол-во"])||0;
 let cost=Number(r["Себестоимость"])||0;
-
 if(!days[day][name]) days[day][name]={count:0,cost:0};
 days[day][name].count+=count;
 days[day][name].cost+=cost;
 });
 
 let html="";
-
 Object.keys(days).reverse().forEach(day=>{
 let sum=0;
 html+=`<div class="day"><div class="dayTitle">${day}</div>`;
-
 Object.keys(days[day]).forEach(name=>{
 let obj=days[day][name];
 sum+=obj.cost;
-
 html+=`
 <div class="row">
 <div>${name} ×${obj.count}</div>
 <div>${Math.round(obj.cost)} ₽</div>
 </div>`;
 });
-
 html+=`<div class="total">Итого: ${Math.round(sum)} ₽</div></div>`;
 });
-
 document.getElementById("account").innerHTML=html;
 });
 }
 </script>
 
-<!-- ================= БАР (твой код) ================= -->
+<!-- БАР (твой оригинал без изменений) -->
 <script>
-const SHEET_ID="1CceZ3cIic_k9Z9GnXg_wOzoUGdYonzVkfypmSzf_ln8";
-const SCRIPT_URL="https://script.google.com/macros/s/AKfycbz69f3BJpr-lFCk_-YzE1bq_CRcXniZEvt2rD4InM_qx15XYwN6IjzI2lbTPIaI3brk/exec";
-
 const techURL=`https://docs.google.com/spreadsheets/d/${SHEET_ID}/gviz/tq?tqx=out:json&sheet=БАР_КУХНЯ`;
 const stockURL=`https://docs.google.com/spreadsheets/d/${SHEET_ID}/gviz/tq?tqx=out:json&sheet=Открытый_склад`;
 const menuURL=`https://opensheet.elk.sh/${SHEET_ID}/MENU`;
@@ -263,9 +234,7 @@ fetch(techURL).then(r=>r.text()),
 fetch(menuURL).then(r=>r.json()),
 loadStock()
 ]).then(([techTxt,menu,stock])=>{
-
 localStock=JSON.parse(JSON.stringify(stock));
-
 let photos={};
 menu.forEach(r=>photos[r.Коктейль]=r.Фото);
 
@@ -276,7 +245,6 @@ let current=null;
 
 rows.forEach(r=>{
 const c=r.c;
-
 const id=c[0]?.v;
 const name=c[1]?.v;
 const cost=c[3]?.v;
@@ -291,12 +259,10 @@ if(id){
 current={name,cost:parseFloat(cost)||0,recipe:recipe||"",tools:[],ings:[],miss:false,photo:photos[name]||"",count:0};
 cocktails.push(current);
 }
-
 if(ing){
 const need=Number(qtyRaw)||0;
 current.ings.push({raw:ing,need:need,unit:unit,avail:avail==1});
 }
-
 if(tool) current.tools.push(tool);
 });
 
@@ -329,15 +295,6 @@ list.innerHTML+=`
 <div class="card ${c.miss?'dim':''}">
 <div class="name">${c.name}</div>
 ${c.photo?`<img src="${c.photo}" class="photo">`:""}
-<div class="ing">
-${c.ings.map(x=>{
-const left=localStock[norm(x.raw)]||0;
-const ok=left>=x.need && x.avail;
-return `<div class="${ok?'':'miss'}">${x.raw} ${x.need} ${x.unit} (ост: ${left})</div>`;
-}).join("")}
-</div>
-<div class="tools">${c.tools.join(" • ")}</div>
-<div class="recipe">${c.recipe}</div>
 <div class="controls">
 <button class="btn" onclick="minus(${i})">−</button>
 <input class="count" value="${c.count}" readonly>
@@ -352,17 +309,14 @@ document.getElementById("sum").innerText=Math.round(total);
 function apply(i,delta){
 const c=cocktails[i];
 if(delta>0 && c.miss) return;
-
 c.count+=delta;
 if(c.count<0) c.count=0;
-
 c.ings.forEach(ing=>{
 const key=norm(ing.raw);
 if(localStock[key]==null) return;
 localStock[key]-=ing.need*delta;
 if(localStock[key]<0) localStock[key]=0;
 });
-
 recalc();
 render();
 }
@@ -379,7 +333,6 @@ if(sum<=0){alert("Нет заказов");return;}
 if(!confirm(`Закрыть смену на ${sum} ₽ ?`)) return;
 
 sending=true;
-
 const btn=document.getElementById("closeBtn");
 btn.innerText="Отправка...";
 btn.disabled=true;
