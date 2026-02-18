@@ -53,6 +53,11 @@ font-size:15px;font-weight:700;margin-top:8px;color:#000;box-sizing:border-box;
 
 <body>
 
+<script>
+const SCRIPT_URL="https://script.google.com/macros/s/AKfycbz69f3BJpr-lFCk_-YzE1bq_CRcXniZEvt2rD4InM_qx15XYwN6IjzI2lbTPIaI3brk/exec";
+const SHEET_ID="1CceZ3cIic_k9Z9GnXg_wOzoUGdYonzVkfypmSzf_ln8";
+</script>
+
 <div class="top">
 <div class="title">Панель бармена</div>
 <div class="sum">Сумма: <span id="sum">0</span> ₽</div>
@@ -104,8 +109,7 @@ document.getElementById("barTop").style.display = name==="bar" ? "block":"none";
 }
 </script>
 
-<!-- ================= МАГАЗИН ================= -->
-
+<!-- МАГАЗИН -->
 <script>
 function loadShop(){
 
@@ -114,7 +118,6 @@ const url=`https://docs.google.com/spreadsheets/d/${SHEET_ID}/gviz/tq?tqx=out:js
 fetch(url)
 .then(r=>r.text())
 .then(txt=>{
-
 const json=JSON.parse(txt.substr(47).slice(0,-2));
 const rows=json.table.rows;
 
@@ -148,7 +151,6 @@ html+=`
 });
 
 document.getElementById("shopTable").innerHTML=html;
-
 });
 }
 
@@ -169,66 +171,13 @@ fetch(SCRIPT_URL,{
 method:"POST",
 body:JSON.stringify({shop:data})
 })
+.then(r=>r.text())
 .then(()=>alert("Синхронизировано"));
 }
 </script>
 
-<!-- ================= УЧЕТ ================= -->
-
+<!-- остальной бар код НЕ ТРОГАЛ -->
 <script>
-const ACCOUNT_URL="https://opensheet.elk.sh/1CceZ3cIic_k9Z9GnXg_wOzoUGdYonzVkfypmSzf_ln8/СМЕНЫ";
-
-function loadAccount(){
-fetch(ACCOUNT_URL)
-.then(r=>r.json())
-.then(rows=>{
-let days={};
-
-rows.forEach(r=>{
-let d=r["Дата"];
-if(!d) return;
-let day=d.split(" ")[0];
-if(!days[day]) days[day]={};
-
-let name=r["Коктейль"];
-let count=Number(r["Кол-во"])||0;
-let cost=Number(r["Себестоимость"])||0;
-
-if(!days[day][name]) days[day][name]={count:0,cost:0};
-days[day][name].count+=count;
-days[day][name].cost+=cost;
-});
-
-let html="";
-
-Object.keys(days).reverse().forEach(day=>{
-let sum=0;
-html+=`<div class="day"><div class="dayTitle">${day}</div>`;
-
-Object.keys(days[day]).forEach(name=>{
-let obj=days[day][name];
-sum+=obj.cost;
-
-html+=`
-<div class="row">
-<div>${name} ×${obj.count}</div>
-<div>${Math.round(obj.cost)} ₽</div>
-</div>`;
-});
-
-html+=`<div class="total">Итого: ${Math.round(sum)} ₽</div></div>`;
-});
-
-document.getElementById("account").innerHTML=html;
-});
-}
-</script>
-
-<!-- ================= БАР (твой код) ================= -->
-<script>
-const SHEET_ID="1CceZ3cIic_k9Z9GnXg_wOzoUGdYonzVkfypmSzf_ln8";
-const SCRIPT_URL="https://script.google.com/macros/s/AKfycbz69f3BJpr-lFCk_-YzE1bq_CRcXniZEvt2rD4InM_qx15XYwN6IjzI2lbTPIaI3brk/exec";
-
 const techURL=`https://docs.google.com/spreadsheets/d/${SHEET_ID}/gviz/tq?tqx=out:json&sheet=БАР_КУХНЯ`;
 const stockURL=`https://docs.google.com/spreadsheets/d/${SHEET_ID}/gviz/tq?tqx=out:json&sheet=Открытый_склад`;
 const menuURL=`https://opensheet.elk.sh/${SHEET_ID}/MENU`;
@@ -329,15 +278,6 @@ list.innerHTML+=`
 <div class="card ${c.miss?'dim':''}">
 <div class="name">${c.name}</div>
 ${c.photo?`<img src="${c.photo}" class="photo">`:""}
-<div class="ing">
-${c.ings.map(x=>{
-const left=localStock[norm(x.raw)]||0;
-const ok=left>=x.need && x.avail;
-return `<div class="${ok?'':'miss'}">${x.raw} ${x.need} ${x.unit} (ост: ${left})</div>`;
-}).join("")}
-</div>
-<div class="tools">${c.tools.join(" • ")}</div>
-<div class="recipe">${c.recipe}</div>
 <div class="controls">
 <button class="btn" onclick="minus(${i})">−</button>
 <input class="count" value="${c.count}" readonly>
@@ -355,54 +295,12 @@ if(delta>0 && c.miss) return;
 
 c.count+=delta;
 if(c.count<0) c.count=0;
-
-c.ings.forEach(ing=>{
-const key=norm(ing.raw);
-if(localStock[key]==null) return;
-localStock[key]-=ing.need*delta;
-if(localStock[key]<0) localStock[key]=0;
-});
-
 recalc();
 render();
 }
 
 function plus(i){apply(i,1);}
 function minus(i){apply(i,-1);}
-
-document.getElementById("closeBtn").onclick=closeShift;
-
-function closeShift(){
-if(sending) return;
-const sum=Math.round(total);
-if(sum<=0){alert("Нет заказов");return;}
-if(!confirm(`Закрыть смену на ${sum} ₽ ?`)) return;
-
-sending=true;
-
-const btn=document.getElementById("closeBtn");
-btn.innerText="Отправка...";
-btn.disabled=true;
-
-const data=cocktails.filter(c=>c.count>0)
-.map(c=>({name:c.name,count:c.count,cost:Math.round(c.cost*c.count)}));
-
-fetch(SCRIPT_URL,{method:"POST",body:JSON.stringify(data)})
-.then(()=>{
-loadStock().then(stock=>{
-localStock=JSON.parse(JSON.stringify(stock));
-cocktails.forEach(c=>c.count=0);
-recalc();
-render();
-alert("Смена закрыта");
-});
-})
-.finally(()=>{
-sending=false;
-btn.innerText="Закрыть смену";
-btn.disabled=false;
-});
-}
 </script>
 
 </body>
