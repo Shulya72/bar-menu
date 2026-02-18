@@ -148,7 +148,7 @@ height:36px;
 <button class="tab active" onclick="showScreen('bar',this)">🍸 Бар</button>
 <button class="tab" onclick="showScreen('stock',this)">📦 Склад</button>
 <button class="tab" onclick="showScreen('shop',this)">🛒 Магазин</button>
-<button class="tab" onclick="showScreen('stats',this)">📊 Учёт</button>
+<button class="tab" onclick="showScreen('stats',this);loadAccount()">📊 Учёт</button>
 </div>
 
 <div id="barTop">
@@ -372,5 +372,75 @@ btn.disabled=false;
 });
 }
 </script>
+  /* ===== УЧЁТ ===== */
+const ACCOUNT_URL =
+"https://opensheet.elk.sh/1CceZ3cIic_k9Z9GnXg_wOzoUGdYonzVkfypmSzf_ln8/СМЕНЫ";
+
+function loadAccount(){
+
+fetch(ACCOUNT_URL)
+.then(r=>r.json())
+.then(rows=>{
+
+let days={};
+
+rows.forEach(r=>{
+let d=r["Дата"];
+if(!d) return;
+
+let day=d.split(" ")[0];
+
+if(!days[day]) days[day]=[];
+days[day].push(r);
+});
+
+let html="";
+
+Object.keys(days).reverse().forEach(day=>{
+
+let sum=0;
+
+html+=`
+<div style="margin-bottom:20px;
+padding:14px;
+border:1px solid #222;
+border-radius:14px;
+background:#050505;">
+
+<div style="
+font-size:18px;
+margin-bottom:10px;
+color:#7CFC00;">
+${day}
+</div>
+`;
+
+days[day].forEach(r=>{
+
+let cost=Number(r["Себестоимость"])||0;
+sum+=cost;
+
+html+=`
+<div style="display:flex;justify-content:space-between;margin-bottom:6px;">
+<div>${r["Коктейль"]} ×${r["Кол-во"]}</div>
+<div>${cost.toFixed(2)} ₽</div>
+</div>
+`;
+});
+
+html+=`
+<div style="margin-top:10px;font-weight:700;">
+Итого: ${sum.toFixed(2)} ₽
+</div>
+</div>
+`;
+
+});
+
+document.getElementById("screen-stats").innerHTML =
+"<h2>📊 Учёт</h2>"+html;
+
+});
+}
 </body>
 </html>
