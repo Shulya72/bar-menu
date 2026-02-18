@@ -154,7 +154,7 @@ height:36px;
 <div class="tabs">
 <button class="tab active" onclick="showScreen('bar',this)">🍸 Бар</button>
 <button class="tab" onclick="showScreen('stock',this)">📦 Склад</button>
-<button class="tab" onclick="showScreen('shop',this)">🛒 Магазин</button>
+<button class="tab" onclick="showScreen('shop',this);loadShop()">🛒 Магазин</button>
 <button class="tab" onclick="showScreen('stats',this);loadAccount()">📊 Учёт</button>
 </div>
 
@@ -175,7 +175,7 @@ height:36px;
 </div>
 
 <div id="screen-shop" class="screen">
-<h2>Магазин позже</h2>
+<div id="shopList"></div>
 </div>
 
 <div id="screen-stats" class="screen">
@@ -423,6 +423,44 @@ alert("Смена закрыта");
 sending=false;
 btn.innerText="Закрыть смену";
 btn.disabled=false;
+});
+}
+</script>
+  
+<script>
+function loadShop(){
+
+const url=`https://docs.google.com/spreadsheets/d/${SHEET_ID}/gviz/tq?tqx=out:json&sheet=БАР_КУХНЯ`;
+
+fetch(url)
+.then(r=>r.text())
+.then(txt=>{
+const json=JSON.parse(txt.substr(47).slice(0,-2));
+const rows=json.table.rows;
+
+let html="";
+
+rows.forEach(r=>{
+const c=r.c;
+
+const ingredient=c[12]?.v;   // M
+const brand=c[13]?.v;        // N
+const qty=c[14]?.v;          // O
+const unit=c[15]?.v;         // P
+const price=c[16]?.v;        // Q
+
+if(!ingredient) return;
+
+html+=`
+<div class="card">
+<div class="name">${ingredient}</div>
+<div>${brand||""}</div>
+<div>${qty||0} ${unit||""}</div>
+<div class="price">${price||0} ₽</div>
+</div>`;
+});
+
+document.getElementById("shopList").innerHTML=html;
 });
 }
 </script>
