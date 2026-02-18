@@ -13,7 +13,6 @@ background:#000;
 color:#fff;
 font-family:Arial;
 overflow-x:hidden;
-touch-action:manipulation;
 }
 
 /* верх */
@@ -47,7 +46,6 @@ background:none;
 border:none;
 color:#777;
 font-size:13px;
-font-weight:500;
 }
 
 .tab.active{
@@ -56,7 +54,6 @@ border-bottom:2px solid #7CFC00;
 font-weight:600;
 }
 
-/* бар верх */
 .search{
 width:100%;
 padding:10px;
@@ -65,6 +62,7 @@ border:1px solid #333;
 background:#111;
 color:#fff;
 margin-top:10px;
+box-sizing:border-box;
 }
 
 .closeBtn{
@@ -77,16 +75,18 @@ font-size:15px;
 font-weight:700;
 margin-top:8px;
 color:#000;
--webkit-appearance:none;
-appearance:none;
 }
 
-/* контент */
 .wrap{
 max-width:720px;
 margin:auto;
 padding:14px;
 padding-top:260px;
+}
+
+/* учёт поднимаем вверх но красиво */
+#screen-stats{
+margin-top:-150px;
 }
 
 .card{
@@ -136,9 +136,30 @@ height:36px;
 .screen{display:none;}
 .screen.active{display:block;}
 
-/* 👇 ВАЖНО: правильный отступ для учёта */
-#screen-stats{
-padding-top:10px;
+.day{
+margin-top:18px;
+padding:18px;
+border:1px solid #333;
+border-radius:18px;
+background:#050505;
+max-width:600px;
+}
+
+.dayTitle{
+font-size:20px;
+color:#7CFC00;
+margin-bottom:10px;
+}
+
+.row{
+display:flex;
+justify-content:space-between;
+margin-bottom:6px;
+}
+
+.total{
+margin-top:10px;
+font-weight:700;
 }
 </style>
 </head>
@@ -168,13 +189,8 @@ padding-top:10px;
 <div id="list"></div>
 </div>
 
-<div id="screen-stock" class="screen">
-<h2>📦 Склад</h2>
-</div>
-
-<div id="screen-shop" class="screen">
-<h2>🛒 Магазин</h2>
-</div>
+<div id="screen-stock" class="screen"></div>
+<div id="screen-shop" class="screen"></div>
 
 <div id="screen-stats" class="screen">
 <div id="account"></div>
@@ -207,13 +223,12 @@ let days={};
 rows.forEach(r=>{
 let d=r["Дата"];
 if(!d) return;
-
 let day=d.split(" ")[0];
 if(!days[day]) days[day]={};
-
-const name=r["Коктейль"];
-const count=Number(r["Кол-во"])||0;
-const cost=Math.round(Number(r["Себестоимость"])||0);
+    
+let name=r["Коктейль"];
+let count=Number(r["Кол-во"])||0;
+let cost=Number(r["Себестоимость"])||0;
 
 if(!days[day][name]){
 days[day][name]={count:0,cost:0};
@@ -228,29 +243,30 @@ let html="";
 Object.keys(days).reverse().forEach(day=>{
 let sum=0;
 
-html+=`<div class="card"><div style="color:#7CFC00;font-size:18px;margin-bottom:10px">${day}</div>`;
+html+=`<div class="day"><div class="dayTitle">${day}</div>`;
 
 Object.keys(days[day]).forEach(name=>{
-let row=days[day][name];
-sum+=row.cost;
+let item=days[day][name];
+sum+=item.cost;
 
 html+=`
-<div style="display:flex;justify-content:space-between;margin-bottom:6px">
-<div>${name} ×${row.count}</div>
-<div>${row.cost} ₽</div>
+<div class="row">
+<div>${name} ×${item.count}</div>
+<div>${Math.round(item.cost)} ₽</div>
 </div>`;
 });
 
-html+=`<div style="margin-top:10px;font-weight:700">Итого: ${sum} ₽</div></div>`;
+html+=`<div class="total">Итого: ${Math.round(sum)} ₽</div></div>`;
 });
 
 document.getElementById("account").innerHTML=html;
+
 });
 }
 </script>
 
-<!-- твой барный код ниже без изменений -->
-<script src=""></script>
+<!-- ВАШ БАРНЫЙ JS (рабочий) -->
+<script src="bar.js"></script>
 
 </body>
 </html>
