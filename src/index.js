@@ -234,18 +234,20 @@ export default {
         const ext=(String(file.name||"").split(".").pop()||"jpg").toLowerCase().replace(/[^a-z0-9]/g,"");
         const key="cocktails/"+crypto.randomUUID()+"."+((ext==="jpeg")?"jpg":ext||"jpg");
         await env.PHOTOS.put(key,file.stream(),{httpMetadata:{contentType:file.type||"image/jpeg",cacheControl:"public, max-age=31536000"}});
-        return json({ok:true,key,url:"/api/cocktail-photo/"+encodeURIComponent(key)});
+        return json({ok:true,key,url:"/api/cocktail-photo?key="+encodeURIComponent(key)});
       }
 
-      if (url.pathname.startsWith("/api/cocktail-photo/") && request.method === "GET") {
+      if ((url.pathname === "/api/cocktail-photo" || url.pathname.startsWith("/api/cocktail-photo/")) && request.method === "GET") {
         if(!env.PHOTOS)return new Response("R2 не подключено",{status:503});
-        const key=decodeURIComponent(url.pathname.slice("/api/cocktail-photo/".length));
+        let key=url.searchParams.get("key")||"";
+        if(!key && url.pathname.startsWith("/api/cocktail-photo/")) key=decodeURIComponent(url.pathname.slice("/api/cocktail-photo/".length));
         if(!key.startsWith("cocktails/"))return new Response("Not found",{status:404});
         const object=await env.PHOTOS.get(key);
         if(!object)return new Response("Not found",{status:404});
         const headers=new Headers();
         object.writeHttpMetadata(headers);
         headers.set("etag",object.httpEtag);
+        headers.set("cache-control","public, max-age=31536000");
         return new Response(object.body,{headers});
       }
 
@@ -558,7 +560,7 @@ const load=async()=>{
   const [cr,pr]=await Promise.all([fetch("/api/cocktails"),fetch("/api/ingredients")]);
   const cocktails=await cr.json(); products=await pr.json();
   document.querySelector("#list").innerHTML=cocktails.length
-    ? cocktails.map(c=>'<div style="padding:16px 0;border-bottom:1px solid #292929"><div class="row" style="justify-content:space-between;align-items:flex-start"><div><h3 style="margin:0 0 8px">'+esc(c.name)+'</h3><div class="muted" style="margin-bottom:8px">'+esc(c.description||"Без описания")+'</div><div style="margin-bottom:8px">'+(c.category?'<span class="pill">'+esc(c.category)+'</span>':"")+(c.strength?'<span class="pill">'+esc(c.strength)+'</span>':"")+'<span class="pill">'+Number(c.price_rub||0)+' ₽</span></div></div><button type="button" class="secondary edit-cocktail" data-id="'+c.id+'">✏️ Редактировать</button></div><div><b>Состав:</b>'+(c.recipe_items?.length?'<ul style="margin:6px 0 0 20px">'+c.recipe_items.map(i=>'<li>'+esc(i.ingredient_name)+' — '+Number(i.quantity).toFixed(2)+' '+esc(i.unit)+'</li>').join("")+'</ul>':' <span class="muted">не указан</span>')+'</div>'+(c.glass?'<div class="muted" style="margin-top:8px">Бокал: '+esc(c.glass)+'</div>':"")+(c.ice?'<div class="muted">Лёд: '+esc(c.ice)+'</div>':"")+(c.method?'<div class="muted">Метод: '+esc(c.method)+'</div>':"")+(c.garnish?'<div class="muted">Гарнир: '+esc(c.garnish)+'</div>':"")+(c.photo_url?'<div class="muted" style="margin-top:8px">📷 Фото добавлено</div>':"")+'</div>').join("")
+    ? cocktails.map(c=>'<div style="padding:16px 0;border-bottom:1px solid #292929"><div class="row" style="justify-content:space-between;align-items:flex-start"><div><h3 style="margin:0 0 8px">'+esc(c.name)+'</h3><div class="muted" style="margin-bottom:8px">'+esc(c.description||"Без описания")+'</div><div style="margin-bottom:8px">'+(c.category?'<span class="pill">'+esc(c.category)+'</span>':"")+(c.strength?'<span class="pill">'+esc(c.strength)+'</span>':"")+'<span class="pill">'+Number(c.price_rub||0)+' ₽</span></div></div><button type="button" class="secondary edit-cocktail" data-id="'+c.id+'">✏️ Редактировать</button></div><div><b>Состав:</b>'+(c.recipe_items?.length?'<ul style="margin:6px 0 0 20px">'+c.recipe_items.map(i=>'<li>'+esc(i.ingredient_name)+' — '+Number(i.quantity).toFixed(2)+' '+esc(i.unit)+'</li>').join("")+'</ul>':' <span class="muted">не указан</span>')+'</div>'+(c.glass?'<div class="muted" style="margin-top:8px">Бокал: '+esc(c.glass)+'</div>':"")+(c.ice?'<div class="muted">Лёд: '+esc(c.ice)+'</div>':"")+(c.method?'<div class="muted">Метод: '+esc(c.method)+'</div>':"")+(c.garnish?'<div class="muted">Гарнир: '+esc(c.garnish)+'</div>':"")+(c.photo_url?'<img src="'+esc(c.photo_url)+'" style="width:180px;height:135px;object-fit:cover;border-radius:12px;margin-top:12px;display:block" alt="Фото '+esc(c.name)+'">':"")+'</div>').join("")
     : '<div class="empty">Пока коктейлей нет. Создай первый 👇</div>';
   document.querySelectorAll(".edit-cocktail").forEach(btn=>btn.onclick=()=>startEdit(cocktails.find(c=>Number(c.id)===Number(btn.dataset.id))));
   if (!document.querySelector(".recipe-row")) addRow();
@@ -785,7 +787,7 @@ renderStock();
 <div class="wrap"><div class="row" style="margin-bottom:14px"><a href="/" style="display:inline-block;padding:10px 14px;border:1px solid #333;border-radius:12px;background:#151515">🏠 Главное меню</a></div><div id="menu" class="grid"><div class="card">Загрузка...</div></div></div>
 <script>
 const esc=s=>String(s??"").replace(/[&<>"']/g,c=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[c]));
-fetch("/api/cocktails").then(r=>r.json()).then(x=>{document.querySelector("#menu").innerHTML=x.length?x.map(c=>'<div class="card">'+(c.photo_url?'<img src="'+esc(c.photo_url)+'" style="width:100%;aspect-ratio:4/3;object-fit:cover;border-radius:12px;margin-bottom:12px">':"")+'<h2>'+esc(c.name)+'</h2><p class="muted">'+esc(c.description)+'</p><span class="pill">'+esc(c.strength||"")+'</span><span class="pill">'+Number(c.price_rub||0)+' ₽</span></div>').join(""):'<div class="card">Пока коктейлей нет.</div>'});
+fetch("/api/cocktails").then(r=>r.json()).then(x=>{document.querySelector("#menu").innerHTML=x.length?x.map(c=>'<div class="card">'+(c.photo_url?'<img src="'+esc(c.photo_url)+'" style="width:100%;aspect-ratio:4/3;object-fit:cover;border-radius:12px;margin-bottom:12px;display:block" alt="Фото '+esc(c.name)+'">':"")+'<h2>'+esc(c.name)+'</h2><p class="muted">'+esc(c.description)+'</p><span class="pill">'+esc(c.strength||"")+'</span><span class="pill">'+Number(c.price_rub||0)+' ₽</span></div>').join(""):'<div class="card">Пока коктейлей нет.</div>'});
 </script>`);
 
       if (url.pathname === "/bar/shop") return page(`
