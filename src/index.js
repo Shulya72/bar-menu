@@ -235,7 +235,7 @@ export default {
         if(!Number.isInteger(ingredientId)||ingredientId<1) return json({error:"Выберите ингредиент"},400);
         if(!(qty>0)) return json({error:"Укажите количество"},400);
         if(!(price>=0)) return json({error:"Укажите цену закупки"},400);
-        if(!/^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}$/.test(purchaseDate)) return json({error:"Укажите дату и время покупки"},400);
+        if(!/^\d{4}-\d{2}-\d{2}$/.test(purchaseDate)) return json({error:"Укажите дату покупки"},400);
         const ing=await env.DB.prepare("SELECT id,name,unit FROM ingredients WHERE id=? AND is_active=1").bind(ingredientId).first();
         if(!ing)return json({error:"Ингредиент не найден"},404);
         let product=await env.DB.prepare("SELECT id FROM products WHERE ingredient_id=? AND brand=? AND store=? AND is_active=1 LIMIT 1").bind(ingredientId,brand,store).first();
@@ -482,7 +482,10 @@ const formatDate=s=>{const m=String(s||"").match(/^(\d{4})-(\d{2})-(\d{2})/);ret
 const unitPrice=(price,qty)=>qty>0?(Number(price)/Number(qty)).toFixed(4):"0.0000";
 
 async function loadIngredients(){
-  const r=await fetch("/api/ingredients"); ingredients=await r.json();
+  const r=await fetch("/api/ingredients");
+  const data=await r.json();
+  if(!r.ok||!Array.isArray(data)) throw new Error(data?.error||"Не удалось загрузить ингредиенты");
+  ingredients=data;
   const opts=ingredients.map(i=>'<option value="'+i.id+'">'+esc(i.name)+' ('+esc(i.unit)+')</option>').join("");
   document.querySelector("#ingredientSelect").innerHTML='<option value="">Выберите ингредиент...</option>'+opts;
   document.querySelector("#filterIngredient").innerHTML='<option value="">Все ингредиенты</option>'+opts;
@@ -493,6 +496,7 @@ async function loadHistory(){
   const from=document.querySelector("#filterFrom").value, to=document.querySelector("#filterTo").value, ing=document.querySelector("#filterIngredient").value;
   if(from)params.set("date_from",from); if(to)params.set("date_to",to); if(ing)params.set("ingredient_id",ing);
   const r=await fetch("/api/shop/purchases?"+params.toString()); const history=await r.json();
+  if(!r.ok||!Array.isArray(history)) throw new Error(history?.error||"Не удалось загрузить закупки");
   document.querySelector("#history").innerHTML=history.length?history.map(x=>{
     const consumed=Math.max(0,Number(x.purchased_qty)-Number(x.remaining_qty));
     return '<div class="purchase-item" data-id="'+x.id+'" style="padding:13px 0;border-bottom:1px solid #292929">'+
@@ -545,7 +549,14 @@ document.querySelector("#applyFilter").onclick=loadHistory;
 document.querySelector("#clearFilter").onclick=()=>{document.querySelector("#filterFrom").value="";document.querySelector("#filterTo").value="";document.querySelector("#filterIngredient").value="";loadHistory();};
 document.querySelector("#todayFilter").onclick=()=>{const d=new Date();const s=d.getFullYear()+"-"+pad(d.getMonth()+1)+"-"+pad(d.getDate());document.querySelector("#filterFrom").value=s;document.querySelector("#filterTo").value=s;loadHistory();};
 
-await loadIngredients(); await loadHistory();
+try{
+  await loadIngredients();
+  await loadHistory();
+}catch(e){
+  document.querySelector("#ingredientSelect").innerHTML='<option value="">Ошибка загрузки ингредиентов</option>';
+  document.querySelector("#filterIngredient").innerHTML='<option value="">Не удалось загрузить</option>';
+  document.querySelector("#history").innerHTML='<div class="empty">Ошибка: '+esc(e.message||e)+'</div>';
+}
 </script>`, "Магазин");
 
       if (url.pathname === "/bar/orders") return page(`
