@@ -46,6 +46,11 @@ const ensureIngredientSystem=async env=>{
   await env.DB.prepare("INSERT OR IGNORE INTO recipe_ingredients(cocktail_id,ingredient_id,quantity) SELECT ri.cocktail_id,p.ingredient_id,ri.quantity FROM recipe_items ri JOIN products p ON p.id=ri.product_id WHERE p.ingredient_id IS NOT NULL").run();
 };
 
+const ensureShopSystem=async env=>{
+  await ensureIngredientSystem(env);
+  try{await env.DB.prepare("ALTER TABLE products ADD COLUMN store TEXT DEFAULT ''").run()}catch(e){}
+};
+
 const resolveIngredient=async(env,name)=>{
   await ensureIngredientSystem(env);
   const n=String(name||"").trim();
@@ -111,7 +116,7 @@ const getCocktails = async (env) => {
 const getProducts = async (env) => {
   await ensureIngredientSystem(env);
   const { results } = await env.DB.prepare(
-    "SELECT p.id,p.ingredient_id,i.name ingredient_name,p.brand,p.category,p.unit,p.min_stock,COALESCE(SUM(b.remaining_qty),0) stock FROM products p JOIN ingredients i ON i.id=p.ingredient_id LEFT JOIN purchase_batches b ON b.product_id=p.id WHERE p.is_active=1 GROUP BY p.id ORDER BY i.name,p.brand"
+    "SELECT p.id,p.ingredient_id,i.name ingredient_name,p.brand,p.store,p.category,p.unit,p.min_stock,COALESCE(SUM(b.remaining_qty),0) stock FROM products p JOIN ingredients i ON i.id=p.ingredient_id LEFT JOIN purchase_batches b ON b.product_id=p.id WHERE p.is_active=1 GROUP BY p.id ORDER BY i.name,p.brand"
   ).all();
   return results;
 };
@@ -160,6 +165,36 @@ export default {
         if(data.brand)await env.DB.prepare("UPDATE products SET brand=? WHERE id=?").bind(String(data.brand),id).run();
         if(Number(data.purchase_qty)>0&&Number(data.purchase_price)>=0)await env.DB.prepare("INSERT INTO purchase_batches(product_id,purchased_qty,remaining_qty,price_rub) VALUES(?,?,?,?)").bind(id,Number(data.purchase_qty),Number(data.purchase_qty),Number(data.purchase_price)).run();
         return json({ok:true,id,existing:true},201);
+      }
+
+      if (url.pathname === "/api/shop/purchases" && request.method === "GET") {
+        await ensureShopSystem(env);
+        const {results}=await env.DB.prepare(
+          `SELECT pb.id,pb.purchased_qty,pb.remaining_qty,pb.price_rub,pb.purchased_at,
+                  i.id ingredient_id,i.name ingredient_name,i.unit,p.brand,p.store
+           FROM purchase_batches pb JOIN products p ON p.id=pb.product_id
+           JOIN ingredients i ON i.id=p.ingredient_id
+           ORDER BY pb.purchased_at DESC,pb.id DESC LIMIT 100`).all();
+        return json(results);
+      }
+      if (url.pathname === "/api/shop/purchase" && request.method === "POST") {
+        await ensureShopSystem(env);
+        const data=await request.json();
+        const ingredientId=Number(data.ingredient_id), qty=Number(data.quantity), price=Number(data.price_rub);
+        const store=String(data.store||"").trim(), brand=String(data.brand||"").trim();
+        if(!Number.isInteger(ingredientId)||ingredientId<1) return json({error:"Выберите ингредиент"},400);
+        if(!(qty>0)) return json({error:"Укажите количество"},400);
+        if(!(price>=0)) return json({error:"Укажите цену закупки"},400);
+        const ing=await env.DB.prepare("SELECT id,name,unit FROM ingredients WHERE id=? AND is_active=1").bind(ingredientId).first();
+        if(!ing)return json({error:"Ингредиент не найден"},404);
+        let product=await env.DB.prepare("SELECT id FROM products WHERE ingredient_id=? AND brand=? AND store=? AND is_active=1 LIMIT 1").bind(ingredientId,brand,store).first();
+        let productId;
+        if(product){productId=Number(product.id)}else{
+          const pr=await env.DB.prepare("INSERT INTO products(name,brand,category,unit,min_stock,ingredient_id,store) VALUES(?,?,?,?,0,?,?)").bind(ing.name,brand,"",ing.unit,ingredientId,store).run();
+          productId=Number(pr.meta.last_row_id);
+        }
+        const batch=await env.DB.prepare("INSERT INTO purchase_batches(product_id,purchased_qty,remaining_qty,price_rub) VALUES(?,?,?,?)").bind(productId,qty,qty,price).run();
+        return json({ok:true,id:Number(batch.meta.last_row_id),product_id:productId},201);
       }
 
       if (url.pathname === "/api/ingredients" && request.method === "GET") {
