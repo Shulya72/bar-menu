@@ -394,17 +394,22 @@ fetch("/api/cocktails").then(r=>r.json()).then(x=>{document.querySelector("#menu
 </script>`);
 
       if (url.pathname === "/bar/shop") return page(`
-<header><h1>🛒 Магазин</h1><div class="sub">Закупки — следующий модуль</div></header>
-<div class="wrap"><div class="row" style="margin-bottom:14px"><a href="/" style="display:inline-block;padding:10px 14px;border:1px solid #333;border-radius:12px;background:#151515">🏠 Главное меню</a></div><div class="card"><h2>Здесь будет учёт закупок</h2><p class="muted">Партии товара, цена закупки, остаток партии и журнал движений.</p><a href="/bar">← Назад</a></div></div>`);
-
-      if (url.pathname === "/bar/orders") return page(`
-<header><h1>🔔 Заказы</h1><div class="sub">Заказы гостей — следующий модуль</div></header>
-<div class="wrap"><div class="row" style="margin-bottom:14px"><a href="/" style="display:inline-block;padding:10px 14px;border:1px solid #333;border-radius:12px;background:#151515">🏠 Главное меню</a></div><div class="card"><h2>Здесь будут заказы</h2><p class="muted">Гость → заказ → принят барменом → приготовлен → выдан.</p><a href="/bar">← Назад</a></div></div>`);
-
-      return new Response("Не найдено",{status:404});
-    } catch (error) {
-      console.error(error);
-      return json({error:"Ошибка сервера",details:String(error?.message||error)},500);
-    }
-  }
-};
+<header><h1>🛒 Магазин</h1><div class="sub">Закупки и партии товара</div></header>
+<div class="wrap">
+<div class="row" style="margin-bottom:14px"><a href="/" style="display:inline-block;padding:10px 14px;border:1px solid #333;border-radius:12px;background:#151515">🏠 Главное меню</a><a href="/bar/stock" style="display:inline-block;padding:10px 14px;border:1px solid #333;border-radius:12px;background:#151515">📦 Склад</a></div>
+<div class="card"><h2>Новая закупка</h2><p class="muted">Фиксируем фактически купленную партию.</p>
+<form id="purchaseForm">
+<label>Ингредиент *</label><select name="ingredient_id" id="ingredientSelect" required><option value="">Загрузка...</option></select>
+<label>Магазин / поставщик</label><input name="store" placeholder="Например, Перекрёсток">
+<label>Бренд</label><input name="brand" placeholder="Например, Царская">
+<div class="grid"><div><label>Количество *</label><input name="quantity" type="number" min="0.01" step="0.01" required placeholder="1000"></div><div><label>Цена закупки, ₽ *</label><input name="price_rub" type="number" min="0" step="0.01" required placeholder="650"></div></div>
+<div style="margin-top:16px"><button>🛒 Оприходовать закупку</button></div><p id="msg" class="muted"></p>
+</form></div>
+<div style="height:16px"></div><div class="card"><h2>Последние закупки</h2><div id="history">Загрузка...</div></div>
+</div>
+<script>
+const esc=s=>String(s??"").replace(/[&<>"']/g,c=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[c]));
+async function load(){const [ir,hr]=await Promise.all([fetch("/api/ingredients"),fetch("/api/shop/purchases")]);const ingredients=await ir.json(),history=await hr.json();document.querySelector("#ingredientSelect").innerHTML='<option value="">Выберите ингредиент...</option>'+ingredients.map(i=>'<option value="'+i.id+'">'+esc(i.name)+' ('+esc(i.unit)+')</option>').join("");document.querySelector("#history").innerHTML=history.length?history.map(x=>'<div style="padding:13px 0;border-bottom:1px solid #292929"><b>'+esc(x.ingredient_name)+'</b><div class="muted">'+Number(x.purchased_qty)+' '+esc(x.unit)+' · '+Number(x.price_rub).toFixed(2)+' ₽'+(x.store?' · '+esc(x.store):'')+(x.brand?' · '+esc(x.brand):'')+'</div><div class="muted">Осталось: '+Number(x.remaining_qty)+' '+esc(x.unit)+'</div></div>').join(""):'<div class="empty">Закупок пока нет.</div>';}
+document.querySelector("#purchaseForm").onsubmit=async e=>{e.preventDefault();const body=Object.fromEntries(new FormData(e.target));body.ingredient_id=Number(body.ingredient_id);body.quantity=Number(body.quantity);body.price_rub=Number(body.price_rub);const r=await fetch("/api/shop/purchase",{method:"POST",headers:{"content-type":"application/json"},body:JSON.stringify(body)});const d=await r.json();document.querySelector("#msg").textContent=r.ok?"Закупка добавлена ✅":"Ошибка: "+(d.error||"не удалось сохранить");if(r.ok){e.target.reset();await load();}};
+load();
+</script>`, "Магазин");
