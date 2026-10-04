@@ -1168,9 +1168,46 @@ document.querySelector("#todayFilter").onclick=()=>{const d=new Date();const s=d
 })();
 </script>`, "Магазин");
 
-      if (url.pathname === "/bar/orders") return page(`
-<header><h1>🔔 Заказы</h1><div class="sub">Заказы гостей — следующий модуль</div></header>
-<div class="wrap"><div class="row" style="margin-bottom:14px"><a href="/" style="display:inline-block;padding:10px 14px;border:1px solid #333;border-radius:12px;background:#151515">🏠 Главное меню</a></div><div class="card"><h2>Здесь будут заказы</h2><p class="muted">Гость → заказ → принят барменом → приготовлен → выдан.</p><a href="/bar">← Назад</a></div></div>`);
+      if (url.pathname === "/bar/statistics") return page(`<header><h1>📊 Статистика</h1><div class="sub">Смены, заказы и приготовленные коктейли</div></header>
+<div class="wrap">
+<div class="row" style="margin-bottom:14px"><a href="/" style="display:inline-block;padding:10px 14px;border:1px solid #333;border-radius:12px;background:#151515">🏠 Главное меню</a><a href="/bar/recipes" style="display:inline-block;padding:10px 14px;border:1px solid #333;border-radius:12px;background:#151515">🍸 Книга рецептов</a></div>
+<div class="card" id="shiftBox">Загрузка…</div>
+<div style="height:16px"></div>
+<div class="card"><h2>История смен</h2><div id="stats">Загрузка…</div></div>
+</div>
+<script>
+async function loadStats(){
+ const r=await fetch("/api/bar/statistics");
+ const d=await r.json();
+ if(!r.ok){document.querySelector("#stats").textContent=d.error||"Ошибка";return;}
+ const open=(d.shifts||[]).find(x=>x.status==="open");
+ const box=document.querySelector("#shiftBox");
+ box.innerHTML=open?"<h2>Смена №"+open.id+" 🟢</h2><p class=\"muted\">Начало: "+open.started_at+"</p><button id=\"closeShift\" class=\"secondary\">Закрыть смену</button>":"<h2>Смена не открыта</h2><p class=\"muted\">Нажми «＋» у коктейля — смена откроется автоматически.</p><button id=\"openShift\">▶ Открыть смену</button>";
+ if(open){document.querySelector("#closeShift").onclick=async()=>{const x=await fetch("/api/bar/shift",{method:"PUT"});const j=await x.json();if(!x.ok){alert(j.error||"Не удалось закрыть смену");return;}loadStats()};}
+ else{document.querySelector("#openShift").onclick=async()=>{const x=await fetch("/api/bar/shift",{method:"POST"});if(!x.ok){alert("Не удалось открыть смену");return;}loadStats()};}
+ document.querySelector("#stats").innerHTML=(d.shifts||[]).map(x=>"<div style=\"padding:14px 0;border-bottom:1px solid #292929\"><b>Смена №"+x.id+"</b> · "+(x.status==="open"?"🟢 открыта":"закрыта")+"<div class=\"muted\">"+x.started_at+" → "+(x.closed_at||"сейчас")+"</div><div style=\"margin-top:6px\"><b>"+Number(x.orders_count||0)+"</b> заказов · <b>"+Number(x.cocktails_count||0)+"</b> коктейлей · <b>"+Number(x.revenue_rub||0).toFixed(0)+" ₽</b></div></div>").join("")||"<div class=\"empty\">Смен ещё нет.</div>";
+}
+loadStats();
+</script>`, "Статистика");
+
+      if (url.pathname === "/bar/orders") return page(`<header><h1>📋 Текущий заказ</h1><div class="sub">＋ и − меняют заказ. Склад резервируется сразу, окончательное списание — после принятия.</div></header>
+<div class="wrap">
+<div class="row" style="margin-bottom:14px"><a href="/" style="display:inline-block;padding:10px 14px;border:1px solid #333;border-radius:12px;background:#151515">🏠 Главное меню</a><a href="/bar/recipes" style="display:inline-block;padding:10px 14px;border:1px solid #333;border-radius:12px;background:#151515">🍸 Книга рецептов</a></div>
+<div class="card"><div id="order">Загрузка…</div></div>
+</div>
+<script>
+async function loadOrder(){
+ const r=await fetch("/api/bar/order");const d=await r.json();const box=document.querySelector("#order");
+ if(!d.items||!d.items.length){box.innerHTML="<div class=\"empty\">Текущий заказ пуст.<br><a href=\"/bar/recipes\">← Вернуться в книгу рецептов</a></div>";return;}
+ box.innerHTML="<h2>Смена №"+(d.shift?.id||"—")+"</h2>"+d.items.map(i=>"<div class=\"row\" style=\"justify-content:space-between;padding:12px 0;border-bottom:1px solid #292929\"><b>"+i.cocktail_name+"</b><span class=\"row\"><button type=\"button\" class=\"secondary minus\" data-id=\""+i.cocktail_id+"\">−</button><b>"+i.quantity+"</b><button type=\"button\" class=\"plus\" data-id=\""+i.cocktail_id+"\">＋</button></span></div>").join("")+"<p style=\"margin-top:14px\">Коктейлей: <b>"+d.total_cocktails+"</b> · Сумма: <b>"+Number(d.total_price||0).toFixed(0)+" ₽</b></p><div class=\"row\"><button id=\"accept\">✅ Принять заказ</button><button id=\"clear\" class=\"secondary\">Очистить</button></div>";
+ document.querySelectorAll(".minus").forEach(b=>b.onclick=()=>changeOrder(Number(b.dataset.id),-1));
+ document.querySelectorAll(".plus").forEach(b=>b.onclick=()=>changeOrder(Number(b.dataset.id),1));
+ document.querySelector("#accept").onclick=async()=>{const r=await fetch("/api/bar/order/accept",{method:"POST"});const d=await r.json();if(!r.ok){alert(d.error||"Ошибка");return;}alert("Заказ №"+d.order_id+" принят ✅");loadOrder()};
+ document.querySelector("#clear").onclick=async()=>{if(!confirm("Очистить текущий заказ?"))return;await fetch("/api/bar/order",{method:"DELETE"});loadOrder()};
+}
+async function changeOrder(id,delta){const r=await fetch("/api/bar/order",{method:"POST",headers:{"content-type":"application/json"},body:JSON.stringify({cocktail_id:id,delta})});const d=await r.json();if(!r.ok){alert(d.error||"Ошибка");return;}loadOrder()}
+loadOrder();
+</script>`, "Заказы");
 
       return new Response("Не найдено",{status:404});
     } catch (error) {
@@ -1179,3 +1216,4 @@ document.querySelector("#todayFilter").onclick=()=>{const d=new Date();const s=d
     }
   }
 };
+
