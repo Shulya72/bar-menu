@@ -118,6 +118,18 @@ button.secondary{background:#252525;color:#fff}.row{display:flex;gap:10px;align-
 a{color:#c8ff3d;text-decoration:none}.muted{color:#999}.pill{display:inline-block;padding:5px 9px;border-radius:99px;background:#202020;color:#bbb;margin:3px 3px 0 0}
 .recipe-row{display:grid;grid-template-columns:1fr 100px 58px;gap:8px;align-items:end;margin-bottom:10px}
 .recipe-row button{padding:10px}.empty{padding:24px;text-align:center;color:#888}
+.recipe-form-panel{margin-bottom:16px}
+.form-actions{display:flex;gap:10px;align-items:center;flex-wrap:wrap}
+@media(max-width:600px){
+  .wrap{padding:12px}
+  header{padding:14px 12px}
+  h1{font-size:20px}
+  .card{padding:14px;border-radius:15px}
+  .cocktail-grid{grid-template-columns:1fr}
+  .recipe-row{grid-template-columns:minmax(0,1fr) 82px 48px}
+  .recipe-row input{min-width:0}
+  .form-actions button{flex:1}
+}
 .ingredient-picker{position:relative}
 .ingredient-suggestions{position:absolute;left:0;right:0;top:calc(100% + 4px);z-index:10;background:#181818;border:1px solid #333;border-radius:12px;max-height:220px;overflow:auto;box-shadow:0 10px 30px #000}
 .ingredient-suggestion{padding:12px;border-bottom:1px solid #292929;cursor:pointer}
@@ -532,8 +544,12 @@ export default {
 <header><h1>🍸 Книга рецептов</h1><div class="sub">Рецепт здесь — источник для гостевой «Карты бара»</div></header>
 <div class="wrap">
   <div class="row" style="margin-bottom:14px"><a href="/" style="display:inline-block;padding:10px 14px;border:1px solid #333;border-radius:12px;background:#151515">🏠 Главное меню</a></div>
-  <div class="card">
-    <div class="row" style="justify-content:space-between"><h2>Новый коктейль</h2></div>
+  <div class="row" style="margin-bottom:16px">
+    <button type="button" id="newCocktailBtn">＋ Создать коктейль</button>
+  </div>
+
+  <div class="card recipe-form-panel" id="cocktailPanel" hidden>
+    <div class="row" style="justify-content:space-between;margin-bottom:8px"><h2 id="formTitle">Новый коктейль</h2></div>
     <form id="cocktailForm">
       <label>Название *</label><input name="name" required placeholder="Например, Negroni">
       <label>Описание для гостя</label><textarea name="description" placeholder="Короткое описание вкуса"></textarea>
@@ -554,13 +570,15 @@ export default {
       <div id="recipeItems"></div>
       <button type="button" class="secondary" id="addIngredient">＋ Добавить ингредиент</button>
 
-      <div style="margin-top:18px"><button type="submit">💾 Сохранить коктейль</button></div>
+      <div class="form-actions" style="margin-top:18px">
+        <button type="submit">💾 Сохранить коктейль</button>
+        <button type="button" class="secondary" id="cancelCocktail">Отмена</button>
+      </div>
       <p id="msg" class="muted"></p>
     </form>
   </div>
 
-  <div style="height:16px"></div>
-  <div class="card"><h2>Коктейли</h2><div id="list">Загрузка...</div></div>
+  <div class="card"><div class="row" style="justify-content:space-between"><h2>Коктейли</h2><span class="muted" id="cocktailCount"></span></div><div id="list">Загрузка...</div></div>
 </div>
 
 <script>
@@ -569,6 +587,7 @@ let products=[];
 const load=async()=>{
   const [cr,pr]=await Promise.all([fetch("/api/cocktails"),fetch("/api/ingredients")]);
   const cocktails=await cr.json(); products=await pr.json();
+  document.querySelector("#cocktailCount").textContent=cocktails.length ? cocktails.length+" шт." : "";
   document.querySelector("#list").innerHTML=cocktails.length
     ? '<div class="cocktail-grid">'+cocktails.map(c=>'<article class="card cocktail-card">'+
       (c.photo_url?'<img class="cocktail-photo" src="'+esc(c.photo_url)+'" alt="Фото '+esc(c.name)+'">':'<div class="cocktail-photo-placeholder">🍸</div>')+
@@ -584,8 +603,26 @@ const load=async()=>{
   document.querySelectorAll(".edit-cocktail").forEach(btn=>btn.onclick=()=>startEdit(cocktails.find(c=>Number(c.id)===Number(btn.dataset.id))));
   if (!document.querySelector(".recipe-row")) addRow();
 };
+const showPanel=()=>{
+  const panel=document.querySelector("#cocktailPanel");
+  panel.hidden=false;
+  panel.scrollIntoView({behavior:"smooth",block:"start"});
+};
+const resetCocktailForm=()=>{
+  const form=document.querySelector("#cocktailForm");
+  form.reset();
+  delete form.dataset.editId;
+  document.querySelector("#recipeItems").innerHTML="";
+  document.querySelector("#photoUrl").value="";
+  document.querySelector("#photoPreview").innerHTML="";
+  document.querySelector("#msg").textContent="";
+  document.querySelector("#formTitle").textContent="Новый коктейль";
+  form.querySelector('button[type=submit]').textContent="💾 Сохранить коктейль";
+  addRow();
+};
 const startEdit=(c)=>{
   if(!c)return;
+  showPanel();
   const form=document.querySelector("#cocktailForm");
   form.dataset.editId=c.id;
   for(const n of ["name","description","category","strength","glass","ice","method","garnish"]){
@@ -595,8 +632,8 @@ const startEdit=(c)=>{
   document.querySelector("#photoPreview").innerHTML=c.photo_url?'<img src="'+esc(c.photo_url)+'" style="max-width:240px;max-height:240px;border-radius:14px;display:block" alt="Фото">':"";
   document.querySelector("#recipeItems").innerHTML="";
   (c.recipe_items||[]).forEach(item=>addRow(item));
+  document.querySelector("#formTitle").textContent="Редактирование: "+(c.name||"коктейль");
   document.querySelector("#cocktailForm button[type=submit]").textContent="💾 Сохранить изменения";
-  document.querySelector("#cocktailForm").scrollIntoView({behavior:"smooth",block:"start"});
 };
 const addRow=(initial=null)=>{
   const wrap=document.createElement("div"); wrap.className="recipe-row";
@@ -630,6 +667,14 @@ const addRow=(initial=null)=>{
   }
 };
 
+document.querySelector("#newCocktailBtn").onclick=()=>{
+  resetCocktailForm();
+  showPanel();
+};
+document.querySelector("#cancelCocktail").onclick=()=>{
+  document.querySelector("#cocktailPanel").hidden=true;
+  resetCocktailForm();
+};
 document.querySelector("#photoFile").onchange=()=>{
   const file=document.querySelector("#photoFile").files[0], box=document.querySelector("#photoPreview");
   if(!file){box.innerHTML="";return;}
@@ -656,7 +701,11 @@ document.querySelector("#cocktailForm").onsubmit=async e=>{
   const r=await fetch("/api/cocktails",{method:editId?"PUT":"POST",headers:{"content-type":"application/json"},body:JSON.stringify(editId?{...body,id:editId}:body)});
   const data=await r.json();
   document.querySelector("#msg").textContent=r.ok?"Сохранено ✅":"Ошибка: "+(data.error||"не удалось сохранить");
-  if(r.ok){e.target.reset();delete e.target.dataset.editId;document.querySelector("#recipeItems").innerHTML="";document.querySelector("#photoUrl").value="";document.querySelector("#photoPreview").innerHTML="";document.querySelector("#cocktailForm button[type=submit]").textContent="💾 Сохранить коктейль";await load();}
+  if(r.ok){
+    document.querySelector("#cocktailPanel").hidden=true;
+    resetCocktailForm();
+    await load();
+  }
 };
 load();
 </script>`, "Книга рецептов");
