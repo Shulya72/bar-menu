@@ -251,7 +251,7 @@ const load=async()=>{
 };
 const addRow=()=>{
   const wrap=document.createElement("div"); wrap.className="recipe-row";
-  wrap.innerHTML='<select class="prod"><option value="">Ингредиент...</option>'+products.map(p=>'<option value="'+p.id+'">'+esc(p.name)+' ('+p.unit+')</option>').join("")+'</select>'<input class="qty" type="number" min="0.01" step="0.01" placeholder="Количество"><button type="button" class="secondary remove">×</button>';
+  wrap.innerHTML='<select class="prod"><option value="">Ингредиент...</option>'+products.map(p=>'<option value="'+p.id+'">'+esc(p.name)+' ('+p.unit+')</option>').join("")+'</select><input class="qty" type="number" min="0.01" step="0.01" placeholder="Количество"><button type="button" class="secondary remove">×</button>';
   wrap.querySelector(".remove").onclick=()=>wrap.remove();
   document.querySelector("#recipeItems").appendChild(wrap);
 };
@@ -270,6 +270,29 @@ document.querySelector("#cocktailForm").onsubmit=async e=>{
 load();
 </script>`, "Книга рецептов");
 
+
+      if (url.pathname === "/bar/ingredients") return page(`
+<header><h1>🧾 Ингредиенты</h1><div class="sub">Системные ингредиенты для рецептов и склада</div></header>
+<div class="wrap">
+<div class="row" style="margin-bottom:14px"><a href="/" style="display:inline-block;padding:10px 14px;border:1px solid #333;border-radius:12px;background:#151515">🏠 Главное меню</a><a href="/bar/recipes" style="display:inline-block;padding:10px 14px;border:1px solid #333;border-radius:12px;background:#151515">🍸 Книга рецептов</a></div>
+<div class="card">
+<h2>Добавить ингредиент</h2>
+<p class="muted">Название здесь — это стабильное имя ингредиента. Бренд, магазин и конкретная упаковка сюда не записываются.</p>
+<form id="ingredientForm">
+<label>Название *</label><input name="name" required placeholder="Например, Тоник апельсиновый">
+<label>Категория</label><input name="category" value="Пользовательские" placeholder="Тоники">
+<label>Единица</label><select name="unit"><option value="ml">мл</option><option value="g">г</option><option value="pcs">шт.</option></select>
+<div style="margin-top:16px"><button>＋ Добавить</button></div><p id="msg" class="muted"></p>
+</form>
+</div><div style="height:16px"></div>
+<div class="card"><h2>Справочник</h2><div id="list">Загрузка...</div></div>
+</div>
+<script>
+const esc=s=>String(s??"").replace(/[&<>"']/g,c=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[c]));
+async function load(){const r=await fetch("/api/ingredients");const x=await r.json();document.querySelector("#list").innerHTML=x.map(i=>'<div style="padding:10px 0;border-bottom:1px solid #292929"><b>'+esc(i.name)+'</b><span class="muted"> · '+esc(i.category||"")+' · '+i.unit+'</span> <button type="button" class="secondary edit" data-id="'+i.id+'" data-name="'+esc(i.name)+'" data-cat="'+esc(i.category||"")+'" data-unit="'+i.unit+'">Изменить</button></div>').join("")||'<div class="empty">Нет ингредиентов</div>';
+document.querySelectorAll(".edit").forEach(b=>b.onclick=async()=>{const name=prompt("Название ингредиента",b.dataset.name);if(!name)return;const category=prompt("Категория",b.dataset.cat)||"Пользовательские";const unit=prompt("Единица: ml, g или pcs",b.dataset.unit)||b.dataset.unit;const r=await fetch("/api/ingredients",{method:"PUT",headers:{"content-type":"application/json"},body:JSON.stringify({id:Number(b.dataset.id),name,category,unit})});const d=await r.json();if(!r.ok)alert(d.error||"Ошибка");else load()})}
+document.querySelector("#ingredientForm").onsubmit=async e=>{e.preventDefault();const body=Object.fromEntries(new FormData(e.target));const r=await fetch("/api/ingredients",{method:"POST",headers:{"content-type":"application/json"},body:JSON.stringify(body)});const d=await r.json();document.querySelector("#msg").textContent=r.ok?"Ингредиент добавлен ✅":"Ошибка: "+(d.error||"");if(r.ok){e.target.reset();e.target.category.value="Пользовательские";load()}};load();
+</script>`, "Ингредиенты");
       if (url.pathname === "/bar/stock") return page(`
 <header><h1>📦 Склад</h1><div class="sub">Справочник товаров и текущие остатки</div></header>
 <div class="wrap">
