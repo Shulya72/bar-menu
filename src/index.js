@@ -265,7 +265,7 @@ export default {
         if(file.size>8*1024*1024)return json({error:"Фото слишком большое. Максимум 8 МБ"},400);
         const ext=(String(file.name||"").split(".").pop()||"jpg").toLowerCase().replace(/[^a-z0-9]/g,"");
         const key="cocktails/"+crypto.randomUUID()+"."+((ext==="jpeg")?"jpg":ext||"jpg");
-        await env.PHOTOS.put(key,file.stream(),{httpMetadata:{contentType:file.type||"image/jpeg",cacheControl:"public, max-age=31536000"}});
+        await env.PHOTOS.put(key,await file.arrayBuffer(),{httpMetadata:{contentType:file.type||"image/jpeg",cacheControl:"no-store"}});
         return json({ok:true,key,photo_key:key,url:"/api/cocktail-photo?key="+encodeURIComponent(key)});
       }
 
@@ -281,7 +281,8 @@ export default {
         const headers=new Headers();
         object.writeHttpMetadata(headers);
         headers.set("etag",object.httpEtag);
-        headers.set("cache-control","public, max-age=31536000");
+        headers.set("cache-control","no-store");
+        if(!headers.get("content-type")){const ext=key.split(".").pop().toLowerCase();const ct={jpg:"image/jpeg",jpeg:"image/jpeg",png:"image/png",webp:"image/webp",gif:"image/gif"}[ext];if(ct)headers.set("content-type",ct);}
         headers.set("x-content-type-options","nosniff");
         return new Response(object.body,{headers});
       }
