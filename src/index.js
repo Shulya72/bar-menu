@@ -499,15 +499,31 @@ async function load(){const r=await fetch("/api/ingredients");const x=await r.js
 document.querySelectorAll(".ingredient-item .edit").forEach(b=>b.onclick=()=>{const item=b.closest(".ingredient-item"), id=Number(item.dataset.id), current=x.find(v=>Number(v.id)===id);if(!current)return;item.innerHTML='<div class="grid" style="grid-template-columns:1fr 140px;align-items:end"><div><label>Название</label><input class="edit-name" value="'+esc(current.name)+'"></div><div><label>Единица</label><select class="edit-unit"><option value="ml"'+(current.unit==="ml"?" selected":"")+'>мл</option><option value="g"'+(current.unit==="g"?" selected":"")+'>г</option><option value="pcs"'+(current.unit==="pcs"?" selected":"")+'>шт.</option></select></div></div><div class="row" style="margin-top:10px"><button type="button" class="save-edit">💾 Сохранить</button><button type="button" class="secondary cancel-edit">Отмена</button><span class="edit-msg muted"></span></div>';item.querySelector(".cancel-edit").onclick=()=>load();item.querySelector(".save-edit").onclick=async()=>{const name=item.querySelector(".edit-name").value.trim(),unit=item.querySelector(".edit-unit").value,msg=item.querySelector(".edit-msg");if(!name){msg.textContent="Введите название";return}const r=await fetch("/api/ingredients",{method:"PUT",headers:{"content-type":"application/json"},body:JSON.stringify({id,name,unit})});const d=await r.json();if(!r.ok){msg.textContent=d.error||"Ошибка"}else load()}})}
 document.querySelector("#ingredientForm").onsubmit=async e=>{e.preventDefault();const body=Object.fromEntries(new FormData(e.target));const r=await fetch("/api/ingredients",{method:"POST",headers:{"content-type":"application/json"},body:JSON.stringify(body)});const d=await r.json();document.querySelector("#msg").textContent=r.ok?"Ингредиент добавлен ✅":"Ошибка: "+(d.error||"");if(r.ok){e.target.reset();load()}};load();
 </script>`, "Ингредиенты");
-      if (url.pathname === "/bar/stock") return page(`
+      if (url.pathname === "/bar/stock") {
+        // Первичная загрузка склада выполняется на сервере. Это исключает
+        // зависимость открытия страницы от отдельного AJAX-запроса и старого
+        // браузерного кэша: пользователь сразу видит ингредиенты и остатки.
+        let stockIngredients=[], stockItems=[];
+        let stockLoadError="";
+        try{
+          await ensureIngredientSystem(env);
+          const ir=await env.DB.prepare("SELECT id,name,unit FROM ingredients WHERE is_active=1 ORDER BY name").all();
+          stockIngredients=ir.results||[];
+          stockItems=await getProducts(env);
+        }catch(e){
+          stockLoadError=String(e?.message||e);
+        }
+        const initialIngredients=JSON.stringify(stockIngredients).replace(/</g,"\\u003c");
+        const initialStock=JSON.stringify(stockItems).replace(/</g,"\\u003c");
+        return page(`
 <header><h1>📦 Склад</h1><div class="sub">Справочник товаров и текущие остатки</div></header>
 <div class="wrap">
 <div class="row" style="margin-bottom:14px"><a href="/" style="display:inline-block;padding:10px 14px;border:1px solid #333;border-radius:12px;background:#151515">🏠 Главное меню</a></div>
 <div class="card">
 <h2>Новый товар</h2>
 <form id="productForm">
-<label>Ингредиент *</label><select name="ingredient_id" id="ingredientSelect" required><option value="">Загрузка...</option></select>
-<label>Название/описание товара в магазине</label><input name="brand" placeholder="Царская · Перекрёсток">
+<label>Ингредиент *</label><select name="ingredient_id" id="ingredientSelect" required><option value="">Выберите ингредиент...</option>${stockIngredients.map(p=>'<option value="'+p.id+'">'+esc(p.name)+' ('+esc(p.unit)+')</option>').join("")}</select>
+<label>Бренд</label><input name="brand" placeholder="Например, Царская">
 <label>Единица хранения *</label><select name="unit"><option value="ml">мл</option><option value="g">г</option><option value="pcs">шт.</option></select>
 <label>Минимальный остаток</label><input name="min_stock" type="number" min="0" step="0.01" value="0">
 <div style="margin-top:16px"><button>＋ Добавить товар</button></div>
@@ -515,15 +531,50 @@ document.querySelector("#ingredientForm").onsubmit=async e=>{e.preventDefault();
 </form>
 </div>
 <div style="height:16px"></div>
-<div class="card"><h2>Товары</h2><div id="stock">Загрузка...</div></div>
+<div class="card"><h2>Товары</h2><div id="stock">${stockLoadError?'<div class="empty">Ошибка загрузки склада: '+esc(stockLoadError)+'<br><button type="button" onclick="location.reload()">Обновить</button></div>':(stockItems.length?stockItems.map(p=>'<div class="stock-item" data-id="'+p.ingredient_id+'" style="padding:12px 0;border-bottom:1px solid #292929"><div><b>🥃 '+esc(p.ingredient_name)+'</b></div><div class="muted" style="margin-top:5px">Всего: <b>'+Number(p.stock).toFixed(2)+' '+esc(p.unit)+'</b> · Средняя цена: <b>'+Number(p.unit_price).toFixed(4)+' ₽/'+esc(p.unit)+'</b></div><div style="margin-top:9px;padding-left:12px;border-left:2px solid #333">'+(p.details||[]).map(d=>'<div style="padding:5px 0"><b>'+esc(d.brand)+'</b> — '+Number(d.stock).toFixed(2)+' '+esc(p.unit)+' · '+Number(d.unit_price).toFixed(4)+' ₽/'+esc(p.unit)+(d.store?' · '+esc(d.store):'')+'</div>').join("")+'</div><div class="row" style="margin-top:9px"><button type="button" class="secondary edit-stock">✏️ Изменить остаток</button></div></div>').join(""):'<div class="empty">Товаров пока нет.</div>')}</div></div>
 </div>
 <script>
 const esc=s=>String(s??"").replace(/[&<>"']/g,c=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[c]));
-let stockItems=[];
-async function load(){try{const ir=await fetch("/api/ingredients",{cache:"no-store"});const ingredients=await ir.json();if(!ir.ok||!Array.isArray(ingredients))throw new Error(ingredients?.details||ingredients?.error||"Не удалось загрузить ингредиенты");const r=await fetch("/api/products",{cache:"no-store"});const x=await r.json();if(!r.ok||!Array.isArray(x))throw new Error(x?.details||x?.error||"Не удалось загрузить склад");stockItems=x;document.querySelector("#ingredientSelect").innerHTML='<option value="">Выберите ингредиент...</option>'+ingredients.map(p=>'<option value="'+p.id+'">'+esc(p.name)+' ('+p.unit+')</option>').join("");document.querySelector("#stock").innerHTML=x.length?x.map(p=>'<div class="stock-item" data-id="'+p.ingredient_id+'" style="padding:12px 0;border-bottom:1px solid #292929"><div><b>🥃 '+esc(p.ingredient_name)+'</b></div><div class="muted" style="margin-top:5px">Всего: <b>'+Number(p.stock).toFixed(2)+' '+esc(p.unit)+'</b> · Средняя цена: <b>'+Number(p.unit_price).toFixed(4)+' ₽/'+esc(p.unit)+'</b></div><div style="margin-top:9px;padding-left:12px;border-left:2px solid #333">'+(p.details||[]).map(d=>'<div style="padding:5px 0"><b>'+esc(d.brand)+'</b> — '+Number(d.stock).toFixed(2)+' '+esc(p.unit)+' · '+Number(d.unit_price).toFixed(4)+' ₽/'+esc(p.unit)+(d.store?' · '+esc(d.store):'')+'</div>').join("")+'</div><div class="row" style="margin-top:9px"><button type="button" class="secondary edit-stock">✏️ Изменить остаток</button></div></div>).join(""):'<div class="empty">Товаров пока нет.</div>';document.querySelectorAll(".edit-stock").forEach(btn=>btn.onclick=async()=>{const id=Number(btn.closest(".stock-item").dataset.id);const p=stockItems.find(v=>Number(v.ingredient_id)===id);if(!p)return;const value=prompt("Новый остаток, "+p.unit,Number(p.stock));if(value===null)return;const stock=Number(value);if(!Number.isFinite(stock)||stock<0){alert("Введите корректное число");return}const r=await fetch("/api/products",{method:"PUT",headers:{"content-type":"application/json"},body:JSON.stringify({ingredient_id:id,stock})});const d=await r.json();if(!r.ok){alert(d.error||"Ошибка");return}await load()})}}catch(e){document.querySelector("#ingredientSelect").innerHTML="<option value=\"\">Ошибка загрузки ингредиентов</option>";document.querySelector("#stock").innerHTML="<div class=\"empty\">Ошибка загрузки склада: "+esc(e.message||e)+"<br><button type=\"button\" onclick=\"load()\">Повторить</button></div>";}}
-document.querySelector("#productForm").onsubmit=async e=>{e.preventDefault();const body=Object.fromEntries(new FormData(e.target));const selected=body.ingredient_id;body.name="";body.ingredient_id=Number(selected);body.min_stock=Number(body.min_stock||0);body.unit=document.querySelector("#ingredientSelect").selectedOptions[0]?.textContent.match(/\((ml|g|pcs)\)$/)?.[1]||"ml";const r=await fetch("/api/products",{method:"POST",headers:{"content-type":"application/json"},body:JSON.stringify(body)});const d=await r.json();document.querySelector("#msg").textContent=r.ok?"Товар добавлен ✅":"Ошибка: "+(d.error||"");if(r.ok){e.target.reset();await load()}};
-load();
+let stockItems=${initialStock};
+
+function renderStock(){
+  const el=document.querySelector("#stock");
+  if(!stockItems.length){el.innerHTML='<div class="empty">Товаров пока нет.</div>';return}
+  el.innerHTML=stockItems.map(p=>'<div class="stock-item" data-id="'+p.ingredient_id+'" style="padding:12px 0;border-bottom:1px solid #292929"><div><b>🥃 '+esc(p.ingredient_name)+'</b></div><div class="muted" style="margin-top:5px">Всего: <b>'+Number(p.stock).toFixed(2)+' '+esc(p.unit)+'</b> · Средняя цена: <b>'+Number(p.unit_price).toFixed(4)+' ₽/'+esc(p.unit)+'</b></div><div style="margin-top:9px;padding-left:12px;border-left:2px solid #333">'+(p.details||[]).map(d=>'<div style="padding:5px 0"><b>'+esc(d.brand)+'</b> — '+Number(d.stock).toFixed(2)+' '+esc(p.unit)+' · '+Number(d.unit_price).toFixed(4)+' ₽/'+esc(p.unit)+(d.store?' · '+esc(d.store):'')+'</div>').join("")+'</div><div class="row" style="margin-top:9px"><button type="button" class="secondary edit-stock">✏️ Изменить остаток</button></div></div>').join("");
+  bindStockButtons();
+}
+
+function bindStockButtons(){
+  document.querySelectorAll(".edit-stock").forEach(btn=>btn.onclick=async()=>{
+    const id=Number(btn.closest(".stock-item").dataset.id);
+    const p=stockItems.find(v=>Number(v.ingredient_id)===id);
+    if(!p)return;
+    const value=prompt("Новый остаток, "+p.unit,Number(p.stock));
+    if(value===null)return;
+    const stock=Number(value);
+    if(!Number.isFinite(stock)||stock<0){alert("Введите корректное число");return}
+    const r=await fetch("/api/products",{method:"PUT",headers:{"content-type":"application/json"},body:JSON.stringify({ingredient_id:id,stock})});
+    const d=await r.json();
+    if(!r.ok){alert(d.error||"Ошибка");return}
+    location.reload();
+  });
+}
+
+document.querySelector("#productForm").onsubmit=async e=>{
+  e.preventDefault();
+  const body=Object.fromEntries(new FormData(e.target));
+  body.name="";
+  body.ingredient_id=Number(body.ingredient_id);
+  body.min_stock=Number(body.min_stock||0);
+  const r=await fetch("/api/products",{method:"POST",headers:{"content-type":"application/json"},body:JSON.stringify(body)});
+  const d=await r.json();
+  document.querySelector("#msg").textContent=r.ok?"Товар добавлен ✅":"Ошибка: "+(d.error||"");
+  if(r.ok){e.target.reset();location.reload();}
+};
+
+renderStock();
 </script>`, "Склад");
+      }
 
       if (url.pathname === "/menu") return page(`
 <header><h1>🥂 Карта бара</h1><div class="sub">Гостевое меню · без рецептур</div></header>
