@@ -191,7 +191,7 @@ export default {
         const from=url.searchParams.get("date_from")||"";
         const to=url.searchParams.get("date_to")||"";
         const ingredientId=Number(url.searchParams.get("ingredient_id")||0);
-        let sql=`SELECT pb.id,pb.purchased_qty,pb.remaining_qty,pb.price_rub,pb.purchased_at,
+        let sql=`SELECT pb.id,pb.purchased_qty,pb.remaining_qty,pb.price_rub,substr(pb.purchased_at,1,10) purchased_at,
                   p.ingredient_id,COALESCE(i.name,p.name) ingredient_name,COALESCE(i.unit,p.unit) unit,p.brand,p.store
            FROM purchase_batches pb JOIN products p ON p.id=pb.product_id
            LEFT JOIN ingredients i ON i.id=p.ingredient_id WHERE 1=1`;
