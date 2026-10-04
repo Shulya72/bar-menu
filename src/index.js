@@ -137,7 +137,7 @@ export default {
         await ensureIngredientSystem(env);
         const data=await request.json(), name=String(data.name||"").trim(), unit=String(data.unit||"ml");
         if(!name||!["ml","g","pcs"].includes(unit)) return json({error:"Укажите название и единицу"},400);
-        const r=await env.DB.prepare("INSERT INTO ingredients(name,category,unit) VALUES(?,?,?)").bind(name,unit).run();
+        const r=await env.DB.prepare("INSERT INTO ingredients(name,unit) VALUES(?,?)").bind(name,unit).run();
         return json({ok:true,id:r.meta.last_row_id},201);
       }
       if (url.pathname === "/api/ingredients" && request.method === "PUT") {
