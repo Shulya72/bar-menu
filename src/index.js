@@ -74,57 +74,6 @@ const ensureShopSystem=async env=>{
   try{await env.DB.prepare("ALTER TABLE products ADD COLUMN store TEXT DEFAULT ''").run()}catch(e){}
 };
 
-const ensureBarOrderSystem=async env=>{
-  await env.DB.prepare("CREATE TABLE IF NOT EXISTS bar_shifts (id INTEGER PRIMARY KEY AUTOINCREMENT,status TEXT NOT NULL DEFAULT 'open',started_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,closed_at TEXT)").run();
-  await env.DB.prepare("CREATE TABLE IF NOT EXISTS bar_orders (id INTEGER PRIMARY KEY AUTOINCREMENT,shift_id INTEGER NOT NULL REFERENCES bar_shifts(id),status TEXT NOT NULL DEFAULT 'draft',created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,accepted_at TEXT,price_total REAL NOT NULL DEFAULT 0)").run();
-  await env.DB.prepare("CREATE TABLE IF NOT EXISTS bar_order_items (id INTEGER PRIMARY KEY AUTOINCREMENT,order_id INTEGER NOT NULL REFERENCES bar_orders(id) ON DELETE CASCADE,cocktail_id INTEGER NOT NULL REFERENCES cocktails(id),quantity INTEGER NOT NULL CHECK(quantity>0),price_rub REAL NOT NULL DEFAULT 0,UNIQUE(order_id,cocktail_id))").run();
-  await env.DB.prepare("CREATE TABLE IF NOT EXISTS bar_stock_movements (id INTEGER PRIMARY KEY AUTOINCREMENT,order_id INTEGER NOT NULL REFERENCES bar_orders(id),ingredient_id INTEGER NOT NULL REFERENCES ingredients(id),quantity REAL NOT NULL,unit TEXT NOT NULL,created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP)").run();
-};
-
-const getOpenBarShift=async env=>{
-  await ensureBarOrderSystem(env);
-  return await env.DB.prepare("SELECT id,status,started_at,closed_at FROM bar_shifts WHERE status='open' ORDER BY id DESC LIMIT 1").first();
-};
-
-const ensureOpenBarShift=async env=>{
-  await ensureBarOrderSystem(env);
-  let shift=await getOpenBarShift(env);
-  if(shift)return shift;
-  const r=await env.DB.prepare("INSERT INTO bar_shifts(status) VALUES('open')").run();
-  return await env.DB.prepare("SELECT id,status,started_at,closed_at FROM bar_shifts WHERE id=?").bind(Number(r.meta.last_row_id)).first();
-};
-
-const getReservedIngredients=async env=>{
-  await ensureBarOrderSystem(env);
-  const {results}=await env.DB.prepare("SELECT ri.ingredient_id,COALESCE(SUM(ri.quantity*oi.quantity),0) reserved FROM bar_orders o JOIN bar_order_items oi ON oi.order_id=o.id JOIN recipe_ingredients ri ON ri.cocktail_id=oi.cocktail_id WHERE o.status='draft' GROUP BY ri.ingredient_id").all();
-  return new Map((results||[]).map(x=>[Number(x.ingredient_id),Number(x.reserved||0)]));
-};
-
-const getDraftBarOrder=async(env,create=false)=>{
-  await ensureBarOrderSystem(env);
-  let shift=await getOpenBarShift(env);
-  if(!shift&&create)shift=await ensureOpenBarShift(env);
-  if(!shift)return {shift:null,order:null,items:[]};
-  let order=await env.DB.prepare("SELECT id,shift_id,status,created_at,accepted_at,price_total FROM bar_orders WHERE shift_id=? AND status='draft' ORDER BY id DESC LIMIT 1").bind(shift.id).first();
-  if(!order&&create){const r=await env.DB.prepare("INSERT INTO bar_orders(shift_id,status) VALUES(?,'draft')").bind(shift.id).run();order=await env.DB.prepare("SELECT id,shift_id,status,created_at,accepted_at,price_total FROM bar_orders WHERE id=?").bind(Number(r.meta.last_row_id)).first();}
-  if(!order)return {shift,order:null,items:[]};
-  const {results}=await env.DB.prepare("SELECT oi.id,oi.cocktail_id,oi.quantity,oi.price_rub,c.name cocktail_name FROM bar_order_items oi JOIN cocktails c ON c.id=oi.cocktail_id WHERE oi.order_id=? ORDER BY oi.id").bind(order.id).all();
-  const items=results||[];
-  return {shift,order,items,total_cocktails:items.reduce((n,x)=>n+Number(x.quantity||0),0),total_price:items.reduce((n,x)=>n+Number(x.quantity||0)*Number(x.price_rub||0),0)};
-};
-
-const consumeIngredientForBarOrder=async(env,orderId,ingredientId,quantity)=>{
-  let left=Number(quantity||0);
-  const {results}=await env.DB.prepare("SELECT pb.id,pb.remaining_qty FROM purchase_batches pb JOIN products p ON p.id=pb.product_id WHERE p.ingredient_id=? AND p.is_active=1 AND pb.remaining_qty>0 ORDER BY pb.purchased_at ASC,pb.id ASC").bind(ingredientId).all();
-  for(const batch of (results||[])){if(left<=0)break;const take=Math.min(left,Number(batch.remaining_qty||0));if(take>0){await env.DB.prepare("UPDATE purchase_batches SET remaining_qty=remaining_qty-? WHERE id=?").bind(take,batch.id).run();left-=take;}}
-  if(left>0){await ensureStockAdjustmentSystem(env);await env.DB.prepare("INSERT INTO stock_adjustments(ingredient_id,quantity,unit_price,brand,store) VALUES(?,?,?,?,?)").bind(ingredientId,-left,0,"Заказ #"+orderId,"Списание").run();}
-  const ing=await env.DB.prepare("SELECT unit FROM ingredients WHERE id=?").bind(ingredientId).first();
-  await env.DB.prepare("INSERT INTO bar_stock_movements(order_id,ingredient_id,quantity,unit) VALUES(?,?,?,?)").bind(orderId,ingredientId,quantity,ing?.unit||"ml").run();
-};
-
-const formatUnitLabelServer=u=>u==="g"?"гр":u==="ml"?"мл":u==="pcs"?"шт.":String(u||"");
-
-
 const resolveIngredient=async(env,name)=>{
   await ensureIngredientSystem(env);
   const n=String(name||"").trim();
@@ -208,7 +157,7 @@ const refreshCocktailPrice = async (env, cocktailId) => {
   return {cost,price};
 };
 
-const BUILD_VERSION = "2026-10-05-orders-stock-statistics-v1";
+const BUILD_VERSION = "2026-10-05-cocktail-strength-v2";
 
 const calculateCocktailStrength = (recipeItems) => {
   let alcoholMl = 0;
@@ -253,8 +202,6 @@ const getCocktails = async (env) => {
       "SELECT ri.ingredient_id,ri.quantity,i.name ingredient_name,i.unit,i.strength_percent FROM recipe_ingredients ri JOIN ingredients i ON i.id=ri.ingredient_id WHERE ri.cocktail_id=? ORDER BY ri.id"
     ).bind(c.id).all();
     c.recipe_items=r.results||[];
-    const stockRows=await getProducts(env),stockMap=new Map((stockRows||[]).map(x=>[Number(x.ingredient_id),Number(x.stock||0)]));
-    c.recipe_items=c.recipe_items.map(i=>({...i,stock_available:Number(stockMap.get(Number(i.ingredient_id))||0)}));
     const calculated=calculateCocktailStrength(c.recipe_items);
     c.strength=calculated.strength;
     c.strength_abv=Number(calculated.abv.toFixed(2));
@@ -290,7 +237,6 @@ const getProducts = async (env) => {
     COALESCE((SELECT SUM(pb.remaining_qty*(pb.price_rub/NULLIF(pb.purchased_qty,0))) FROM purchase_batches pb JOIN products pp ON pp.id=pb.product_id WHERE pp.ingredient_id=i.id AND pp.is_active=1),0)+${adjustmentValue} stock_value
     FROM ingredients i WHERE i.is_active=1 ORDER BY i.name`;
   const {results}=await env.DB.prepare(q).all();
-  const reservedMap=await getReservedIngredients(env);
 
   for(const x of results){
     const batches=await env.DB.prepare(`
@@ -326,11 +272,11 @@ const getProducts = async (env) => {
     }
   }
 
-  for(const x of results){
-    const reserved=Number(reservedMap.get(Number(x.ingredient_id))||0),baseStock=Number(x.stock||0),baseValue=Number(x.stock_value||0),baseUnitPrice=baseStock>0?baseValue/baseStock:0;
-    x.reserved=reserved;x.stock=Math.max(0,baseStock-reserved);x.stock_value=Math.max(0,baseValue-reserved*baseUnitPrice);
-  }
-  return results.map(x=>({...x,stock:Number(x.stock||0),reserved:Number(x.reserved||0),stock_value:Number(x.stock_value||0),unit_price:Number(x.stock||0)>0?Number(x.stock_value||0)/Number(x.stock):0})).filter(x=>x.stock>0);
+  return results.map(x=>({...x,
+    stock:Number(x.stock||0),
+    stock_value:Number(x.stock_value||0),
+    unit_price:Number(x.stock||0)>0?Number(x.stock_value||0)/Number(x.stock):0
+  })).filter(x=>x.stock>0);
 };
 
 export default {
@@ -448,61 +394,6 @@ export default {
         const pricing=await refreshCocktailPrice(env,id);
         const strength=await refreshCocktailStrength(env,id);
         return json({ok:true,id,pricing,strength},201);
-      }
-
-
-      if (url.pathname === "/api/bar/shift" && request.method === "GET") { return json({shift:await getOpenBarShift(env)}); }
-      if (url.pathname === "/api/bar/shift" && request.method === "POST") { return json({shift:await ensureOpenBarShift(env)}); }
-      if (url.pathname === "/api/bar/shift" && request.method === "PUT") {
-        const shift=await getOpenBarShift(env); if(!shift)return json({error:"Открытой смены нет"},400);
-        const draft=await getDraftBarOrder(env,false); if((draft.items||[]).length)return json({error:"Сначала примите или отмените текущий заказ."},409);
-        await env.DB.prepare("UPDATE bar_shifts SET status='closed',closed_at=CURRENT_TIMESTAMP WHERE id=?").bind(shift.id).run();
-        return json({ok:true,shift_id:shift.id});
-      }
-      if (url.pathname === "/api/bar/order" && request.method === "GET") return json(await getDraftBarOrder(env,false));
-      if (url.pathname === "/api/bar/order" && request.method === "POST") {
-        const data=await request.json(),cocktailId=Number(data.cocktail_id),delta=Number(data.delta);
-        if(!Number.isInteger(cocktailId)||cocktailId<1||!Number.isInteger(delta)||!delta||Math.abs(delta)>1)return json({error:"Некорректное изменение количества"},400);
-        const cocktail=await env.DB.prepare("SELECT id,name,price_rub FROM cocktails WHERE id=? AND is_active=1").bind(cocktailId).first();
-        if(!cocktail)return json({error:"Коктейль не найден"},404);
-        const draft=await getDraftBarOrder(env,true);
-        const item=await env.DB.prepare("SELECT id,quantity FROM bar_order_items WHERE order_id=? AND cocktail_id=?").bind(draft.order.id,cocktailId).first();
-        const next=Number(item?.quantity||0)+delta;if(next<0)return json({error:"Количество не может быть отрицательным"},400);
-        if(delta>0){
-          const recipe=await env.DB.prepare("SELECT ri.ingredient_id,ri.quantity,i.name,i.unit FROM recipe_ingredients ri JOIN ingredients i ON i.id=ri.ingredient_id WHERE ri.cocktail_id=?").bind(cocktailId).all();
-          const stockRows=await getProducts(env),stockMap=new Map((stockRows||[]).map(x=>[Number(x.ingredient_id),Number(x.stock||0)]));
-          const shortages=(recipe.results||[]).filter(r=>Number(stockMap.get(Number(r.ingredient_id))||0)+0.000001<Number(r.quantity||0));
-          if(shortages.length)return json({error:"Не хватает: "+shortages.map(x=>x.name+" — "+Number(x.quantity).toLocaleString("ru-RU")+" "+formatUnitLabelServer(x.unit)).join(", ")},409);
-        }
-        if(next===0){if(item)await env.DB.prepare("DELETE FROM bar_order_items WHERE id=?").bind(item.id).run();}
-        else if(item)await env.DB.prepare("UPDATE bar_order_items SET quantity=? WHERE id=?").bind(next,item.id).run();
-        else await env.DB.prepare("INSERT INTO bar_order_items(order_id,cocktail_id,quantity,price_rub) VALUES(?,?,?,?)").bind(draft.order.id,cocktailId,next,Number(cocktail.price_rub||0)).run();
-        return json(await getDraftBarOrder(env,false));
-      }
-      if (url.pathname === "/api/bar/order" && request.method === "DELETE") {
-        const draft=await getDraftBarOrder(env,false);if(draft.order)await env.DB.prepare("DELETE FROM bar_order_items WHERE order_id=?").bind(draft.order.id).run();return json({ok:true});
-      }
-      if (url.pathname === "/api/bar/order/accept" && request.method === "POST") {
-        const draft=await getDraftBarOrder(env,false);if(!draft.order||!(draft.items||[]).length)return json({error:"В заказе пока ничего нет"},400);
-        const required=new Map();
-        for(const oi of draft.items){
-          const r=await env.DB.prepare("SELECT ingredient_id,quantity FROM recipe_ingredients WHERE cocktail_id=?").bind(oi.cocktail_id).all();
-          for(const row of (r.results||[])){const id=Number(row.ingredient_id);required.set(id,Number(required.get(id)||0)+Number(row.quantity||0)*Number(oi.quantity||0));}
-        }
-        const effective=await getProducts(env),effectiveMap=new Map((effective||[]).map(x=>[Number(x.ingredient_id),Number(x.stock||0)])),shortages=[];
-        for(const [id,qty] of required){
-          const available=Number(effectiveMap.get(id)||0)+Number(qty||0);
-          if(available+0.000001<qty){const ing=await env.DB.prepare("SELECT name,unit FROM ingredients WHERE id=?").bind(id).first();shortages.push((ing?.name||("Ингредиент #"+id))+" — "+Number(available).toLocaleString("ru-RU")+" "+formatUnitLabelServer(ing?.unit));}
-        }
-        if(shortages.length)return json({error:"Недостаточно ингредиентов для принятия заказа: "+shortages.join(", ")},409);
-        for(const [id,qty] of required)await consumeIngredientForBarOrder(env,draft.order.id,id,qty);
-        const totalPrice=Number(draft.total_price||0);
-        await env.DB.prepare("UPDATE bar_orders SET status='accepted',accepted_at=CURRENT_TIMESTAMP,price_total=? WHERE id=?").bind(totalPrice,draft.order.id).run();
-        return json({ok:true,order_id:draft.order.id,total_cocktails:draft.total_cocktails,total_price:totalPrice});
-      }
-      if (url.pathname === "/api/bar/statistics" && request.method === "GET") {
-        const {results}=await env.DB.prepare("SELECT s.id,s.status,s.started_at,s.closed_at,COUNT(DISTINCT CASE WHEN o.status='accepted' THEN o.id END) orders_count,COALESCE(SUM(CASE WHEN o.status='accepted' THEN oi.quantity ELSE 0 END),0) cocktails_count,COALESCE(SUM(CASE WHEN o.status='accepted' THEN oi.quantity*oi.price_rub ELSE 0 END),0) revenue_rub FROM bar_shifts s LEFT JOIN bar_orders o ON o.shift_id=s.id LEFT JOIN bar_order_items oi ON oi.order_id=o.id GROUP BY s.id ORDER BY s.id DESC LIMIT 100").all();
-        return json({shifts:results||[]});
       }
 
       if (url.pathname === "/api/products" && request.method === "GET") {
@@ -737,8 +628,7 @@ export default {
 <a class="card" href="/bar/ingredients"><h2>🧾 Ингредиенты</h2><p class="muted">Ваш справочник ингредиентов</p></a>
 <a class="card" href="/bar/stock"><h2>📦 Склад</h2><p class="muted">Товары и остатки</p></a>
 <a class="card" href="/bar/shop"><h2>🛒 Магазин</h2><p class="muted">Закупки и партии</p></a>
-<a class="card" href="/bar/orders"><h2>📋 Заказы</h2><p class="muted">Текущий заказ бармена</p></a>
-<a class="card" href="/bar/statistics"><h2>📊 Статистика</h2><p class="muted">Смены, заказы и коктейли</p></a>
+<a class="card" href="/bar/orders"><h2>🔔 Заказы</h2><p class="muted">Заказы гостей</p></a>
 </div></div>`);
 
       if (url.pathname === "/bar/recipes") return page(`
@@ -781,14 +671,11 @@ export default {
 
   <div class="card"><div class="row" style="justify-content:space-between"><h2>Коктейли</h2><span class="muted" id="cocktailCount"></span></div><div id="list">Загрузка...</div></div>
 </div>
-<div id="orderSummary"></div>
 
 <script>
 const esc=s=>String(s??"").replace(/[&<>"']/g,c=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[c]));
-const unitLabel=u=>u==="g"?"гр":u==="ml"?"мл":u==="pcs"?"шт.":String(u??"");
-const fmtQty=v=>{const n=Number(v||0);return Number.isInteger(n)?String(n):n.toFixed(2).replace(/0+$/,'').replace(/\.$/,'')};
 let products=[];
-let draft={shift:null,order:null,items:[]};const load=async()=>{
+const load=async()=>{
   const [cr,pr]=await Promise.all([fetch("/api/cocktails"),fetch("/api/ingredients")]);
   const cocktails=await cr.json(); products=await pr.json();
   document.querySelector("#cocktailCount").textContent=cocktails.length ? cocktails.length+" шт." : "";
@@ -798,7 +685,7 @@ let draft={shift:null,order:null,items:[]};const load=async()=>{
       '<div class="cocktail-card-body"><div class="cocktail-card-head"><div><h3>'+esc(c.name)+'</h3><div class="muted">'+esc(c.description||"Без описания")+'</div></div><div class="row" style="gap:6px;flex-wrap:nowrap"><button type="button" class="secondary edit-cocktail" data-id="'+c.id+'">✏️</button><button type="button" class="secondary delete-cocktail" data-id="'+c.id+'" title="Удалить коктейль">🗑️</button></div></div>'+
       '<div class="cocktail-meta">'+(c.category?'<span class="pill">'+esc(c.category)+'</span>':"")+(c.strength?'<span class="pill">'+esc(c.strength)+'</span>':"")+(c.glass?'<span class="pill">'+esc(c.glass)+'</span>':"")+'</div>'+
       '<div class="cocktail-price">'+Number(c.price_rub||0)+' ₽</div>'+
-      '<div class="cocktail-recipe"><b>Состав</b>'+(c.recipe_items?.length?'<ul style="margin:8px 0 0 18px">'+c.recipe_items.map(i=>'<li>'+esc(i.ingredient_name)+' — '+fmtQty(i.quantity)+' '+unitLabel(i.unit)+' <span class="muted">(ост: '+fmtQty(i.stock_available)+' '+unitLabel(i.unit)+')</span></li>').join("")+'</ul>':' <span class="muted">не указан</span>')+'</div>'+
+      '<div class="cocktail-recipe"><b>Состав</b>'+(c.recipe_items?.length?'<ul style="margin:8px 0 0 18px">'+c.recipe_items.map(i=>'<li>'+esc(i.ingredient_name)+' — '+Number(i.quantity).toFixed(2)+' '+esc(i.unit)+'</li>').join("")+'</ul>':' <span class="muted">не указан</span>')+'</div>'+
       (c.ice?'<div class="muted" style="margin-top:10px">🧊 Лёд: '+esc(c.ice)+'</div>':"")+
       (c.method?'<div class="muted">🥄 Метод: '+esc(c.method)+'</div>':"")+
       (c.garnish?'<div class="muted">🍋 Гарнир: '+esc(c.garnish)+'</div>':"")+
@@ -819,14 +706,8 @@ let draft={shift:null,order:null,items:[]};const load=async()=>{
     }
     await load();
   });
-  loadOrderBar();
   if (!document.querySelector(".recipe-row")) addRow();
 };
-async function loadOrderBar(){const r=await fetch("/api/bar/order");if(!r.ok)return;draft=await r.json();enhanceOrderControls();renderOrderSummary()}
-function draftQty(id){return Number((draft.items||[]).find(x=>Number(x.cocktail_id)===Number(id))?.quantity||0)}
-function enhanceOrderControls(){document.querySelectorAll(".order-controls").forEach(x=>x.remove());document.querySelectorAll(".cocktail-card").forEach(card=>{const edit=card.querySelector(".edit-cocktail");if(!edit)return;const id=Number(edit.dataset.id),qty=draftQty(id);const box=document.createElement("div");box.className="row order-controls";box.style.cssText="margin-top:14px;justify-content:center";const minus=document.createElement("button");minus.type="button";minus.className="secondary";minus.textContent="−";minus.style.minWidth="54px";minus.style.fontSize="22px";minus.disabled=qty<=0;minus.onclick=()=>changeOrder(id,-1);const count=document.createElement("span");count.textContent=String(qty);count.style.cssText="min-width:45px;text-align:center;font-size:20px;font-weight:900";const plus=document.createElement("button");plus.type="button";plus.textContent="＋";plus.style.minWidth="54px";plus.style.fontSize="22px";plus.onclick=()=>changeOrder(id,1);box.append(minus,count,plus);card.querySelector(".cocktail-card-body").appendChild(box)})}
-async function changeOrder(id,delta){const r=await fetch("/api/bar/order",{method:"POST",headers:{"content-type":"application/json"},body:JSON.stringify({cocktail_id:id,delta})});const d=await r.json().catch(()=>({}));if(!r.ok){alert(d.error||"Не удалось изменить заказ");return}draft=d;enhanceOrderControls();renderOrderSummary()}
-function renderOrderSummary(){const box=document.querySelector("#orderSummary");if(!box)return;const items=draft.items||[];if(!items.length){box.innerHTML="";return}box.innerHTML="";const card=document.createElement("div");card.className="card";card.style.cssText="margin:14px 0;position:sticky;bottom:10px;z-index:5;box-shadow:0 12px 40px #000";const title=document.createElement("h3");title.textContent="📋 Текущий заказ";card.appendChild(title);const sh=document.createElement("div");sh.className="muted";sh.textContent="Смена №"+(draft.shift?.id||"—");card.appendChild(sh);items.forEach(x=>{const row=document.createElement("div");row.style.padding="5px 0";row.textContent=x.cocktail_name+" × "+x.quantity;card.appendChild(row)});const total=document.createElement("div");total.style.marginTop="6px";total.textContent="Всего коктейлей: "+Number(draft.total_cocktails||0)+" · Сумма: "+Number(draft.total_price||0).toFixed(0)+" ₽";card.appendChild(total);const actions=document.createElement("div");actions.className="row";actions.style.marginTop="10px";const accept=document.createElement("button");accept.textContent="✅ Принять заказ";accept.onclick=async()=>{const r=await fetch("/api/bar/order/accept",{method:"POST"}),d=await r.json().catch(()=>({}));if(!r.ok){alert(d.error||"Не удалось принять заказ");return}alert("Заказ №"+d.order_id+" принят ✅");await load();await loadOrderBar()};const clear=document.createElement("button");clear.className="secondary";clear.textContent="Очистить";clear.onclick=async()=>{if(!confirm("Очистить текущий заказ? Резерв ингредиентов будет снят."))return;await fetch("/api/bar/order",{method:"DELETE"});draft={shift:draft.shift,order:null,items:[]};enhanceOrderControls();renderOrderSummary()};actions.append(accept,clear);card.appendChild(actions);box.appendChild(card)}
 const showPanel=()=>{
   const panel=document.querySelector("#cocktailPanel");
   panel.hidden=false;
@@ -938,7 +819,6 @@ document.querySelector("#cocktailForm").onsubmit=async e=>{
   }
 };
 load();
-loadOrderBar();
 </script>`, "Книга рецептов");
 
 
@@ -1208,3 +1088,13 @@ document.querySelector("#todayFilter").onclick=()=>{const d=new Date();const s=d
 </script>`, "Магазин");
 
       if (url.pathname === "/bar/orders") return page(`
+<header><h1>🔔 Заказы</h1><div class="sub">Заказы гостей — следующий модуль</div></header>
+<div class="wrap"><div class="row" style="margin-bottom:14px"><a href="/" style="display:inline-block;padding:10px 14px;border:1px solid #333;border-radius:12px;background:#151515">🏠 Главное меню</a></div><div class="card"><h2>Здесь будут заказы</h2><p class="muted">Гость → заказ → принят барменом → приготовлен → выдан.</p><a href="/bar">← Назад</a></div></div>`);
+
+      return new Response("Не найдено",{status:404});
+    } catch (error) {
+      console.error(error);
+      return json({error:"Ошибка сервера",details:String(error?.message||error)},500);
+    }
+  }
+};
