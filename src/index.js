@@ -214,6 +214,7 @@ const load=async()=>{
   document.querySelector("#list").innerHTML=cocktails.length
     ? cocktails.map(c=>'<div style="padding:14px 0;border-bottom:1px solid #292929"><h3>'+esc(c.name)+'</h3><div class="muted">'+esc(c.description||"Без описания")+'</div><span class="pill">'+esc(c.category||"Без категории")+'</span><span class="pill">'+esc(c.strength||"")+'</span><span class="pill">'+Number(c.price_rub||0)+' ₽</span></div>').join("")
     : '<div class="empty">Пока коктейлей нет. Создай первый 👇</div>';
+  if (!document.querySelector(".recipe-row")) addRow();
 };
 const addRow=()=>{
   const wrap=document.createElement("div"); wrap.className="recipe-row";
@@ -233,7 +234,7 @@ document.querySelector("#cocktailForm").onsubmit=async e=>{
   document.querySelector("#msg").textContent=r.ok?"Сохранено ✅":"Ошибка: "+(data.error||"не удалось сохранить");
   if(r.ok){e.target.reset();document.querySelector("#recipeItems").innerHTML="";await load();}
 };
-load(); addRow();
+load();
 </script>`, "Книга рецептов");
 
       if (url.pathname === "/bar/stock") return page(`
