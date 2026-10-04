@@ -183,10 +183,12 @@ export default {
         const id=Number(data.id), ingredientId=Number(data.ingredient_id);
         const qty=Number(data.quantity), price=Number(data.price_rub);
         const store=String(data.store||"").trim(), brand=String(data.brand||"").trim();
+        const purchaseDate=String(data.purchased_at||"").trim();
         if(!Number.isInteger(id)||id<1)return json({error:"Некорректная закупка"},400);
         if(!Number.isInteger(ingredientId)||ingredientId<1)return json({error:"Выберите ингредиент"},400);
         if(!(qty>0))return json({error:"Укажите количество"},400);
         if(!(price>=0))return json({error:"Укажите цену закупки"},400);
+        if(!/^\d{4}-\d{2}-\d{2}$/.test(purchaseDate))return json({error:"Укажите дату покупки"},400);
         const batch=await env.DB.prepare("SELECT id,purchased_qty,remaining_qty,product_id FROM purchase_batches WHERE id=?").bind(id).first();
         if(!batch)return json({error:"Закупка не найдена"},404);
         const consumed=Number(batch.purchased_qty)-Number(batch.remaining_qty);
@@ -201,7 +203,7 @@ export default {
           productId=Number(pr.meta.last_row_id);
         }
         const newRemaining=qty-consumed;
-        await env.DB.prepare("UPDATE purchase_batches SET product_id=?,purchased_qty=?,remaining_qty=?,price_rub=? WHERE id=?").bind(productId,qty,newRemaining,price,id).run();
+        await env.DB.prepare("UPDATE purchase_batches SET product_id=?,purchased_qty=?,remaining_qty=?,price_rub=?,purchased_at=? WHERE id=?").bind(productId,qty,newRemaining,price,purchaseDate+" 00:00:00",id).run();
         return json({ok:true});
       }
 
@@ -222,9 +224,11 @@ export default {
         const data=await request.json();
         const ingredientId=Number(data.ingredient_id), qty=Number(data.quantity), price=Number(data.price_rub);
         const store=String(data.store||"").trim(), brand=String(data.brand||"").trim();
+        const purchaseDate=String(data.purchased_at||"").trim();
         if(!Number.isInteger(ingredientId)||ingredientId<1) return json({error:"Выберите ингредиент"},400);
         if(!(qty>0)) return json({error:"Укажите количество"},400);
         if(!(price>=0)) return json({error:"Укажите цену закупки"},400);
+        if(!/^\d{4}-\d{2}-\d{2}$/.test(purchaseDate)) return json({error:"Укажите дату покупки"},400);
         const ing=await env.DB.prepare("SELECT id,name,unit FROM ingredients WHERE id=? AND is_active=1").bind(ingredientId).first();
         if(!ing)return json({error:"Ингредиент не найден"},404);
         let product=await env.DB.prepare("SELECT id FROM products WHERE ingredient_id=? AND brand=? AND store=? AND is_active=1 LIMIT 1").bind(ingredientId,brand,store).first();
@@ -233,7 +237,7 @@ export default {
           const pr=await env.DB.prepare("INSERT INTO products(name,brand,category,unit,min_stock,ingredient_id,store) VALUES(?,?,?,?,0,?,?)").bind(ing.name,brand,"",ing.unit,ingredientId,store).run();
           productId=Number(pr.meta.last_row_id);
         }
-        const batch=await env.DB.prepare("INSERT INTO purchase_batches(product_id,purchased_qty,remaining_qty,price_rub) VALUES(?,?,?,?)").bind(productId,qty,qty,price).run();
+        const batch=await env.DB.prepare("INSERT INTO purchase_batches(product_id,purchased_qty,remaining_qty,price_rub,purchased_at) VALUES(?,?,?,?,?)").bind(productId,qty,qty,price,purchaseDate+" 00:00:00").run();
         return json({ok:true,id:Number(batch.meta.last_row_id),product_id:productId},201);
       }
 
@@ -442,6 +446,7 @@ fetch("/api/cocktails").then(r=>r.json()).then(x=>{document.querySelector("#menu
 <label>Ингредиент *</label><select name="ingredient_id" id="ingredientSelect" required><option value="">Загрузка...</option></select>
 <label>Магазин / поставщик</label><input name="store" placeholder="Например, Перекрёсток">
 <label>Бренд</label><input name="brand" placeholder="Например, Царская">
+<label>Дата покупки *</label><input name="purchased_at" type="date" required>
 <div class="grid"><div><label>Количество *</label><input name="quantity" type="number" min="0.01" step="0.01" required placeholder="1000"></div><div><label>Цена закупки, ₽ *</label><input name="price_rub" type="number" min="0" step="0.01" required placeholder="650"></div></div>
 <div style="margin-top:16px"><button>🛒 Оприходовать закупку</button></div><p id="msg" class="muted"></p>
 </form></div>
@@ -450,6 +455,10 @@ fetch("/api/cocktails").then(r=>r.json()).then(x=>{document.querySelector("#menu
 <script>
 const esc=s=>String(s??"").replace(/[&<>"']/g,c=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[c]));
 let ingredients=[];
+const today=new Date().toISOString().slice(0,10);
+document.querySelector("#purchaseForm [name=purchased_at]").value=today;
+const formatDate=s=>{const m=String(s||"").match(/^(\d{4})-(\d{2})-(\d{2})/);return m?m[3]+"."+m[2]+"."+m[1]:String(s||"")};
+const unitPrice=(price,qty)=>qty>0?(Number(price)/Number(qty)).toFixed(4):"0.0000";
 async function load(){
   const [ir,hr]=await Promise.all([fetch("/api/ingredients"),fetch("/api/shop/purchases")]);
   ingredients=await ir.json();
@@ -473,6 +482,7 @@ function editPurchase(history,id){
     '<div><label>Ингредиент</label><select class="edit-ingredient">'+ingredients.map(i=>'<option value="'+i.id+'"'+(Number(i.id)===Number(item.ingredient_id)?' selected':'')+'>'+esc(i.name)+' ('+esc(i.unit)+')</option>').join("")+'</select></div>'+
     '<div><label>Магазин / поставщик</label><input class="edit-store" value="'+esc(item.store||"")+'"></div>'+
     '<div><label>Бренд</label><input class="edit-brand" value="'+esc(item.brand||"")+'"></div>'+
+    '<div><label>Дата покупки</label><input class="edit-date" type="date" value="'+String(item.purchased_at||"").slice(0,10)+'"></div>'+
     '<div><label>Количество</label><input class="edit-qty" type="number" min="'+Math.max(0.01,consumed).toString()+'" step="0.01" value="'+Number(item.purchased_qty)+'"></div>'+
     '<div><label>Цена закупки, ₽</label><input class="edit-price" type="number" min="0" step="0.01" value="'+Number(item.price_rub)+'"></div>'+
     '</div><p class="muted">Уже списано: '+consumed+' '+esc(item.unit)+'. Количество нельзя уменьшить ниже этого значения.</p>'+
@@ -484,6 +494,7 @@ function editPurchase(history,id){
       ingredient_id:Number(row.querySelector(".edit-ingredient").value),
       store:row.querySelector(".edit-store").value.trim(),
       brand:row.querySelector(".edit-brand").value.trim(),
+      purchased_at:row.querySelector(".edit-date").value,
       quantity:Number(row.querySelector(".edit-qty").value),
       price_rub:Number(row.querySelector(".edit-price").value)
     };
