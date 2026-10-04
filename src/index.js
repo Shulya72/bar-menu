@@ -718,7 +718,11 @@ document.querySelector("#cocktailForm").onsubmit=async e=>{
     const ur=await fetch("/api/cocktail-photo",{method:"POST",body:upload});
     const ud=await ur.json();
     if(!ur.ok){document.querySelector("#msg").textContent="Ошибка фото: "+(ud.error||"не удалось загрузить");return;}
-    document.querySelector("#photoUrl").value=ud.url; document.querySelector("#photoPreview").innerHTML='<img src="'+esc(ud.url)+'" style="max-width:240px;max-height:240px;border-radius:14px;display:block" alt="Фото">';
+    document.querySelector("#photoUrl").value=ud.url;
+    // FormData was created before the async upload, so update it explicitly.
+    // Otherwise the uploaded R2 URL never reaches /api/cocktails.
+    f.set("photo_url", ud.url);
+    document.querySelector("#photoPreview").innerHTML='<img src="'+esc(ud.url)+'" style="max-width:240px;max-height:240px;border-radius:14px;display:block" alt="Фото">';
   }
   const body=Object.fromEntries(f.entries()); body.recipe_items=recipe_items;
   if(body.photo_url) body.photo_url=String(body.photo_url);
