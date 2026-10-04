@@ -1,6 +1,6 @@
 
 const ensureIngredientSystem=async env=>{
-  await env.DB.prepare("CREATE TABLE IF NOT EXISTS ingredients (id INTEGER PRIMARY KEY AUTOINCREMENT, name TEXT NOT NULL UNIQUE, category TEXT DEFAULT '', unit TEXT NOT NULL CHECK(unit IN ('ml','g','pcs')), is_active INTEGER NOT NULL DEFAULT 1, created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP, updated_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP)").run();
+  await env.DB.prepare("CREATE TABLE IF NOT EXISTS ingredients (id INTEGER PRIMARY KEY AUTOINCREMENT, name TEXT NOT NULL UNIQUE, unit TEXT NOT NULL CHECK(unit IN ('ml','g','pcs')), is_active INTEGER NOT NULL DEFAULT 1, created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP, updated_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP)").run();
   await env.DB.prepare("CREATE TABLE IF NOT EXISTS recipe_ingredients (id INTEGER PRIMARY KEY AUTOINCREMENT, cocktail_id INTEGER NOT NULL REFERENCES cocktails(id) ON DELETE CASCADE, ingredient_id INTEGER NOT NULL REFERENCES ingredients(id), quantity REAL NOT NULL CHECK(quantity > 0), UNIQUE(cocktail_id, ingredient_id))").run();
   try{await env.DB.prepare("ALTER TABLE products ADD COLUMN ingredient_id INTEGER").run()}catch(e){}
   const {results: ps}=await env.DB.prepare("SELECT id,name,ingredient_id FROM products WHERE is_active=1").all();
@@ -18,7 +18,7 @@ const resolveIngredient=async(env,name)=>{
   if(!n) return null;
   const hit=await env.DB.prepare("SELECT id FROM ingredients WHERE lower(replace(name,'ё','е'))=lower(replace(?,'ё','е')) AND is_active=1 LIMIT 1").bind(n).first();
   if(hit)return Number(hit.id);
-  const r=await env.DB.prepare("INSERT INTO ingredients(name,category,unit) VALUES(?,?,?)").bind(n,"Пользовательские","ml").run();
+  const r=await env.DB.prepare("INSERT INTO ingredients(name,unit) VALUES(?,?)").bind(n,"ml").run();
   return Number(r.meta.last_row_id);
 };
 
@@ -130,21 +130,21 @@ export default {
 
       if (url.pathname === "/api/ingredients" && request.method === "GET") {
         await ensureIngredientSystem(env);
-        const {results}=await env.DB.prepare("SELECT id,name,category,unit FROM ingredients WHERE is_active=1 ORDER BY name").all();
+        const {results}=await env.DB.prepare("SELECT id,name,unit FROM ingredients WHERE is_active=1 ORDER BY name").all();
         return json(results);
       }
       if (url.pathname === "/api/ingredients" && request.method === "POST") {
         await ensureIngredientSystem(env);
-        const data=await request.json(), name=String(data.name||"").trim(), category=String(data.category||"Пользовательские"), unit=String(data.unit||"ml");
+        const data=await request.json(), name=String(data.name||"").trim(), unit=String(data.unit||"ml");
         if(!name||!["ml","g","pcs"].includes(unit)) return json({error:"Укажите название и единицу"},400);
-        const r=await env.DB.prepare("INSERT INTO ingredients(name,category,unit) VALUES(?,?,?)").bind(name,category,unit).run();
+        const r=await env.DB.prepare("INSERT INTO ingredients(name,category,unit) VALUES(?,?,?)").bind(name,unit).run();
         return json({ok:true,id:r.meta.last_row_id},201);
       }
       if (url.pathname === "/api/ingredients" && request.method === "PUT") {
         await ensureIngredientSystem(env);
-        const data=await request.json(), id=Number(data.id), name=String(data.name||"").trim(), category=String(data.category||"Пользовательские"), unit=String(data.unit||"ml");
+        const data=await request.json(), id=Number(data.id), name=String(data.name||"").trim(), unit=String(data.unit||"ml");
         if(!id||!name||!["ml","g","pcs"].includes(unit)) return json({error:"Некорректные данные"},400);
-        await env.DB.prepare("UPDATE ingredients SET name=?,category=?,unit=?,updated_at=CURRENT_TIMESTAMP WHERE id=?").bind(name,category,unit,id).run();
+        await env.DB.prepare("UPDATE ingredients SET name=?,unit=?,updated_at=CURRENT_TIMESTAMP WHERE id=?").bind(name,unit,id).run();
         return json({ok:true});
       }
       if (url.pathname === "/api/ingredients" && request.method === "DELETE") {
@@ -278,7 +278,6 @@ load();
 <p class="muted">Название здесь — это стабильное имя ингредиента. Бренд, магазин и конкретная упаковка сюда не записываются.</p>
 <form id="ingredientForm">
 <label>Название *</label><input name="name" required placeholder="Например, Тоник апельсиновый">
-<label>Категория</label><input name="category" value="Пользовательские" placeholder="Тоники">
 <label>Единица</label><select name="unit"><option value="ml">мл</option><option value="g">г</option><option value="pcs">шт.</option></select>
 <div style="margin-top:16px"><button>＋ Добавить</button></div><p id="msg" class="muted"></p>
 </form>
@@ -287,9 +286,9 @@ load();
 </div>
 <script>
 const esc=s=>String(s??"").replace(/[&<>"']/g,c=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[c]));
-async function load(){const r=await fetch("/api/ingredients");const x=await r.json();document.querySelector("#list").innerHTML=x.map(i=>'<div style="padding:10px 0;border-bottom:1px solid #292929"><b>#'+i.id+' · '+esc(i.name)+'</b><span class="muted"> · '+esc(i.category||"")+' · '+i.unit+'</span> <button type="button" class="secondary edit" data-id="'+i.id+'" data-name="'+esc(i.name)+'" data-cat="'+esc(i.category||"")+'" data-unit="'+i.unit+'">Изменить</button></div>').join("")||'<div class="empty">Нет ингредиентов</div>';
-document.querySelectorAll(".edit").forEach(b=>b.onclick=async()=>{const name=prompt("Название ингредиента",b.dataset.name);if(!name)return;const category=prompt("Категория",b.dataset.cat)||"Пользовательские";const unit=prompt("Единица: ml, g или pcs",b.dataset.unit)||b.dataset.unit;const r=await fetch("/api/ingredients",{method:"PUT",headers:{"content-type":"application/json"},body:JSON.stringify({id:Number(b.dataset.id),name,category,unit})});const d=await r.json();if(!r.ok)alert(d.error||"Ошибка");else load()})}
-document.querySelector("#ingredientForm").onsubmit=async e=>{e.preventDefault();const body=Object.fromEntries(new FormData(e.target));const r=await fetch("/api/ingredients",{method:"POST",headers:{"content-type":"application/json"},body:JSON.stringify(body)});const d=await r.json();document.querySelector("#msg").textContent=r.ok?"Ингредиент добавлен ✅":"Ошибка: "+(d.error||"");if(r.ok){e.target.reset();e.target.category.value="Пользовательские";load()}};load();
+async function load(){const r=await fetch("/api/ingredients");const x=await r.json();document.querySelector("#list").innerHTML=x.map(i=>'<div style="padding:10px 0;border-bottom:1px solid #292929"><b>#'+i.id+' · '+esc(i.name)+'</b><span class="muted"> · '+i.unit+'</span> <button type="button" class="secondary edit" data-id="'+i.id+'" data-name="'+esc(i.name)+'" data-unit="'+i.unit+'">Изменить</button></div>').join("")||'<div class="empty">Нет ингредиентов</div>';
+document.querySelectorAll(".edit").forEach(b=>b.onclick=async()=>{const name=prompt("Название ингредиента",b.dataset.name);if(!name)return;const unit=prompt("Единица: ml, g или pcs",b.dataset.unit)||b.dataset.unit;const r=await fetch("/api/ingredients",{method:"PUT",headers:{"content-type":"application/json"},body:JSON.stringify({id:Number(b.dataset.id),name,unit})});const d=await r.json();if(!r.ok)alert(d.error||"Ошибка");else load()})}
+document.querySelector("#ingredientForm").onsubmit=async e=>{e.preventDefault();const body=Object.fromEntries(new FormData(e.target));const r=await fetch("/api/ingredients",{method:"POST",headers:{"content-type":"application/json"},body:JSON.stringify(body)});const d=await r.json();document.querySelector("#msg").textContent=r.ok?"Ингредиент добавлен ✅":"Ошибка: "+(d.error||"");if(r.ok){e.target.reset();load()}};load();
 </script>`, "Ингредиенты");
       if (url.pathname === "/bar/stock") return page(`
 <header><h1>📦 Склад</h1><div class="sub">Справочник товаров и текущие остатки</div></header>
