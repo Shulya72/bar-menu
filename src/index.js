@@ -244,7 +244,7 @@ export default {
         const brand=String(data.brand||"").trim();
         const quantity=Number(data.quantity||0);
         const takeAverage=Boolean(data.take_average);
-        let unitPrice=Number(data.price);
+        let bottlePrice=Number(data.price);
 
         if(!Number.isInteger(ingredientId)||ingredientId<1)return json({error:"Выберите ингредиент"},400);
         if(!Number.isFinite(quantity)||quantity<0)return json({error:"Некорректное количество"},400);
@@ -256,9 +256,10 @@ export default {
           const items=await getProducts(env);
           const item=items.find(x=>Number(x.ingredient_id)===ingredientId);
           if(!item||Number(item.stock)<=0)return json({error:"Для этого ингредиента пока нет средней цены. Укажите цену вручную."},400);
-          unitPrice=Number(item.unit_price||0);
+          bottlePrice=Number(item.unit_price||0)*quantity;
         }
-        if(quantity>0&&(!Number.isFinite(unitPrice)||unitPrice<0))return json({error:"Укажите цену или выберите «Взять среднюю»"},400);
+        if(quantity>0&&(!Number.isFinite(bottlePrice)||bottlePrice<0))return json({error:"Укажите цену за бутылку или выберите «Взять среднюю»"},400);
+        const unitPrice=quantity>0?bottlePrice/quantity:0;
 
         let product=await env.DB.prepare("SELECT id FROM products WHERE ingredient_id=? AND brand=? AND is_active=1 LIMIT 1").bind(ingredientId,brand).first();
         let productId;
@@ -276,7 +277,7 @@ export default {
             .bind(ingredientId,quantity,unitPrice).run();
         }
 
-        return json({ok:true,id:productId,unit_price:unitPrice},201);
+        return json({ok:true,id:productId,unit_price:unitPrice,price_rub:bottlePrice},201);
       }
 
       if (url.pathname === "/api/shop/purchases" && request.method === "GET") {
@@ -547,8 +548,8 @@ document.querySelector("#ingredientForm").onsubmit=async e=>{e.preventDefault();
 <form id="productForm">
 <label>Ингредиент *</label><select name="ingredient_id" id="ingredientSelect" required><option value="">Выберите ингредиент...</option>${stockIngredients.map(p=>'<option value="'+p.id+'">'+hEsc(p.name)+' ('+hEsc(p.unit)+')</option>').join("")}</select>
 <label>Бренд</label><input name="brand" placeholder="Например, Царская">
-<label>Количество</label><input name="quantity" type="number" min="0" step="0.01" value="0" placeholder="Например, 1000">
-<label>Цена за единицу, ₽</label><input name="price" id="stockPrice" type="number" min="0" step="0.0001" placeholder="Например, 4">
+<label>Количество ингредиента в бутылке / упаковке</label><input name="quantity" id="quantity" type="number" min="0" step="0.01" value="0" placeholder="Например, 500">
+<label>Цена за бутылку / упаковку, ₽</label><input name="price" id="stockPrice" type="number" min="0" step="0.01" placeholder="Например, 300">
 <label style="display:flex;align-items:center;gap:10px;margin-top:10px"><input name="take_average" id="takeAverage" type="checkbox" style="width:auto"> Взять среднюю цену по ингредиенту</label>
 <div style="margin-top:16px"><button>＋ Добавить товар</button></div>
 <p id="msg" class="muted"></p>
@@ -606,10 +607,11 @@ function updateAveragePrice(){
   if(!checked)return;
   const ingredientId=Number(document.querySelector("#ingredientSelect").value);
   const item=stockItems.find(v=>Number(v.ingredient_id)===ingredientId);
-  price.value=item&&Number(item.stock)>0?Number(item.unit_price).toFixed(4):"";
+  price.value=item&&Number(item.stock)>0?Number(item.unit_price)*Number(document.querySelector("#quantity").value||0)>0?(Number(item.unit_price)*Number(document.querySelector("#quantity").value||0)).toFixed(2):"":"";
 }
 document.querySelector("#takeAverage").onchange=updateAveragePrice;
 document.querySelector("#ingredientSelect").onchange=updateAveragePrice;
+document.querySelector("#quantity").oninput=updateAveragePrice;
 renderStock();
 </script>`, "Склад");
       }
