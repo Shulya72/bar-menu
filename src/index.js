@@ -109,7 +109,7 @@ a{color:#c8ff3d;text-decoration:none}.muted{color:#999}.pill{display:inline-bloc
 .recipe-row button{padding:10px}.empty{padding:24px;text-align:center;color:#888}
 @media(max-width:600px){.recipe-row{grid-template-columns:1fr 90px 58px}}
 </style>
-</head><body>${body}</body></html>`, {headers:{"content-type":"text/html;charset=UTF-8"}});
+</head><body>${body}</body></html>`, {headers:{"content-type":"text/html;charset=UTF-8","cache-control":"no-store"}});
 
 const refreshCocktailPrice = async (env, cocktailId) => {
   await ensureIngredientSystem(env);
@@ -135,14 +135,30 @@ const getCocktails = async (env) => {
 };
 
 const getProducts = async (env) => {
-  await ensureStockAdjustmentSystem(env);
+  // Склад не должен зависеть от миграций магазина. Сначала гарантируем
+  // базовый справочник ингредиентов, затем отдельно пытаемся включить
+  // ручные корректировки остатков.
+  await ensureIngredientSystem(env);
+  let adjustmentsAvailable=true;
+  try{
+    await env.DB.prepare("CREATE TABLE IF NOT EXISTS stock_adjustments (id INTEGER PRIMARY KEY AUTOINCREMENT, ingredient_id INTEGER NOT NULL REFERENCES ingredients(id), quantity REAL NOT NULL, unit_price REAL NOT NULL DEFAULT 0, created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP)").run();
+  }catch(e){
+    adjustmentsAvailable=false;
+  }
+
+  const adjustmentStock=adjustmentsAvailable
+    ? "COALESCE((SELECT SUM(sa.quantity) FROM stock_adjustments sa WHERE sa.ingredient_id=i.id),0)"
+    : "0";
+  const adjustmentValue=adjustmentsAvailable
+    ? "COALESCE((SELECT SUM(sa.quantity*sa.unit_price) FROM stock_adjustments sa WHERE sa.ingredient_id=i.id),0)"
+    : "0";
+
   const q=`SELECT i.id ingredient_id,i.name ingredient_name,i.unit,
-    COALESCE((SELECT SUM(pb.remaining_qty) FROM purchase_batches pb JOIN products pp ON pp.id=pb.product_id WHERE pp.ingredient_id=i.id AND pp.is_active=1),0)+
-    COALESCE((SELECT SUM(sa.quantity) FROM stock_adjustments sa WHERE sa.ingredient_id=i.id),0) stock,
-    COALESCE((SELECT SUM(pb.remaining_qty*(pb.price_rub/NULLIF(pb.purchased_qty,0))) FROM purchase_batches pb JOIN products pp ON pp.id=pb.product_id WHERE pp.ingredient_id=i.id AND pp.is_active=1),0)+
-    COALESCE((SELECT SUM(sa.quantity*sa.unit_price) FROM stock_adjustments sa WHERE sa.ingredient_id=i.id),0) stock_value
+    COALESCE((SELECT SUM(pb.remaining_qty) FROM purchase_batches pb JOIN products pp ON pp.id=pb.product_id WHERE pp.ingredient_id=i.id AND pp.is_active=1),0)+${adjustmentStock} stock,
+    COALESCE((SELECT SUM(pb.remaining_qty*(pb.price_rub/NULLIF(pb.purchased_qty,0))) FROM purchase_batches pb JOIN products pp ON pp.id=pb.product_id WHERE pp.ingredient_id=i.id AND pp.is_active=1),0)+${adjustmentValue} stock_value
     FROM ingredients i WHERE i.is_active=1 ORDER BY i.name`;
   const {results}=await env.DB.prepare(q).all();
+
   for(const x of results){
     const batches=await env.DB.prepare(`
       SELECT COALESCE(NULLIF(p.brand,''),'Без бренда') brand,
@@ -156,23 +172,27 @@ const getProducts = async (env) => {
       HAVING SUM(pb.remaining_qty)>0
       ORDER BY p.brand,p.store
     `).bind(x.ingredient_id).all();
-    const adjustments=await env.DB.prepare(`
-      SELECT SUM(quantity) stock, SUM(quantity*unit_price) stock_value
-      FROM stock_adjustments WHERE ingredient_id=? AND quantity>0
-    `).bind(x.ingredient_id).first();
+
     x.details=(batches.results||[]).map(b=>({
       brand:b.brand,store:b.store,stock:Number(b.stock||0),
       stock_value:Number(b.stock_value||0),
       unit_price:Number(b.stock||0)>0?Number(b.stock_value||0)/Number(b.stock):0
     }));
-    if(Number(adjustments?.stock||0)>0){
-      x.details.push({
-        brand:"Ручная корректировка",store:"",stock:Number(adjustments.stock),
-        stock_value:Number(adjustments.stock_value||0),
-        unit_price:Number(adjustments.stock)>0?Number(adjustments.stock_value||0)/Number(adjustments.stock):0
-      });
+
+    if(adjustmentsAvailable){
+      try{
+        const adjustments=await env.DB.prepare("SELECT SUM(quantity) stock,SUM(quantity*unit_price) stock_value FROM stock_adjustments WHERE ingredient_id=? AND quantity>0").bind(x.ingredient_id).first();
+        if(Number(adjustments?.stock||0)>0){
+          x.details.push({
+            brand:"Ручная корректировка",store:"",stock:Number(adjustments.stock),
+            stock_value:Number(adjustments.stock_value||0),
+            unit_price:Number(adjustments.stock)>0?Number(adjustments.stock_value||0)/Number(adjustments.stock):0
+          });
+        }
+      }catch(e){}
     }
   }
+
   return results.map(x=>({...x,
     stock:Number(x.stock||0),
     stock_value:Number(x.stock_value||0),
@@ -500,7 +520,7 @@ document.querySelector("#ingredientForm").onsubmit=async e=>{e.preventDefault();
 <script>
 const esc=s=>String(s??"").replace(/[&<>"']/g,c=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[c]));
 let stockItems=[];
-async function load(){const ir=await fetch("/api/ingredients");const ingredients=await ir.json();if(!ir.ok||!Array.isArray(ingredients))throw new Error(ingredients?.error||"Не удалось загрузить ингредиенты");const r=await fetch("/api/products");const x=await r.json();if(!r.ok||!Array.isArray(x))throw new Error(x?.error||"Не удалось загрузить склад");stockItems=x;document.querySelector("#ingredientSelect").innerHTML='<option value="">Выберите ингредиент...</option>'+ingredients.map(p=>'<option value="'+p.id+'">'+esc(p.name)+' ('+p.unit+')</option>').join("");document.querySelector("#stock").innerHTML=x.length?x.map(p=>'<div class="stock-item" data-id="'+p.ingredient_id+'" style="padding:12px 0;border-bottom:1px solid #292929"><div><b>🥃 '+esc(p.ingredient_name)+'</b></div><div class="muted" style="margin-top:5px">Всего: <b>'+Number(p.stock).toFixed(2)+' '+esc(p.unit)+'</b> · Средняя цена: <b>'+Number(p.unit_price).toFixed(4)+' ₽/'+esc(p.unit)+'</b></div><div style="margin-top:9px;padding-left:12px;border-left:2px solid #333">'+(p.details||[]).map(d=>'<div style="padding:5px 0"><b>'+esc(d.brand)+'</b> — '+Number(d.stock).toFixed(2)+' '+esc(p.unit)+' · '+Number(d.unit_price).toFixed(4)+' ₽/'+esc(p.unit)+(d.store?' · '+esc(d.store):'')+'</div>').join("")+'</div><div class="row" style="margin-top:9px"><button type="button" class="secondary edit-stock">✏️ Изменить остаток</button></div></div>).join(""):'<div class="empty">Товаров пока нет.</div>';document.querySelectorAll(".edit-stock").forEach(btn=>btn.onclick=async()=>{const id=Number(btn.closest(".stock-item").dataset.id);const p=stockItems.find(v=>Number(v.ingredient_id)===id);if(!p)return;const value=prompt("Новый остаток, "+p.unit,Number(p.stock));if(value===null)return;const stock=Number(value);if(!Number.isFinite(stock)||stock<0){alert("Введите корректное число");return}const r=await fetch("/api/products",{method:"PUT",headers:{"content-type":"application/json"},body:JSON.stringify({ingredient_id:id,stock})});const d=await r.json();if(!r.ok){alert(d.error||"Ошибка");return}await load()})}
+async function load(){try{const ir=await fetch("/api/ingredients",{cache:"no-store"});const ingredients=await ir.json();if(!ir.ok||!Array.isArray(ingredients))throw new Error(ingredients?.details||ingredients?.error||"Не удалось загрузить ингредиенты");const r=await fetch("/api/products",{cache:"no-store"});const x=await r.json();if(!r.ok||!Array.isArray(x))throw new Error(x?.details||x?.error||"Не удалось загрузить склад");stockItems=x;document.querySelector("#ingredientSelect").innerHTML='<option value="">Выберите ингредиент...</option>'+ingredients.map(p=>'<option value="'+p.id+'">'+esc(p.name)+' ('+p.unit+')</option>').join("");document.querySelector("#stock").innerHTML=x.length?x.map(p=>'<div class="stock-item" data-id="'+p.ingredient_id+'" style="padding:12px 0;border-bottom:1px solid #292929"><div><b>🥃 '+esc(p.ingredient_name)+'</b></div><div class="muted" style="margin-top:5px">Всего: <b>'+Number(p.stock).toFixed(2)+' '+esc(p.unit)+'</b> · Средняя цена: <b>'+Number(p.unit_price).toFixed(4)+' ₽/'+esc(p.unit)+'</b></div><div style="margin-top:9px;padding-left:12px;border-left:2px solid #333">'+(p.details||[]).map(d=>'<div style="padding:5px 0"><b>'+esc(d.brand)+'</b> — '+Number(d.stock).toFixed(2)+' '+esc(p.unit)+' · '+Number(d.unit_price).toFixed(4)+' ₽/'+esc(p.unit)+(d.store?' · '+esc(d.store):'')+'</div>').join("")+'</div><div class="row" style="margin-top:9px"><button type="button" class="secondary edit-stock">✏️ Изменить остаток</button></div></div>).join(""):'<div class="empty">Товаров пока нет.</div>';document.querySelectorAll(".edit-stock").forEach(btn=>btn.onclick=async()=>{const id=Number(btn.closest(".stock-item").dataset.id);const p=stockItems.find(v=>Number(v.ingredient_id)===id);if(!p)return;const value=prompt("Новый остаток, "+p.unit,Number(p.stock));if(value===null)return;const stock=Number(value);if(!Number.isFinite(stock)||stock<0){alert("Введите корректное число");return}const r=await fetch("/api/products",{method:"PUT",headers:{"content-type":"application/json"},body:JSON.stringify({ingredient_id:id,stock})});const d=await r.json();if(!r.ok){alert(d.error||"Ошибка");return}await load()})}}catch(e){document.querySelector("#ingredientSelect").innerHTML="<option value=\"\">Ошибка загрузки ингредиентов</option>";document.querySelector("#stock").innerHTML="<div class=\"empty\">Ошибка загрузки склада: "+esc(e.message||e)+"<br><button type=\"button\" onclick=\"load()\">Повторить</button></div>";}}
 document.querySelector("#productForm").onsubmit=async e=>{e.preventDefault();const body=Object.fromEntries(new FormData(e.target));const selected=body.ingredient_id;body.name="";body.ingredient_id=Number(selected);body.min_stock=Number(body.min_stock||0);body.unit=document.querySelector("#ingredientSelect").selectedOptions[0]?.textContent.match(/\((ml|g|pcs)\)$/)?.[1]||"ml";const r=await fetch("/api/products",{method:"POST",headers:{"content-type":"application/json"},body:JSON.stringify(body)});const d=await r.json();document.querySelector("#msg").textContent=r.ok?"Товар добавлен ✅":"Ошибка: "+(d.error||"");if(r.ok){e.target.reset();await load()}};
 load();
 </script>`, "Склад");
