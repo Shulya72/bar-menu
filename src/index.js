@@ -231,7 +231,7 @@ load();
 
       if (url.pathname === "/menu") return page(`
 <header><h1>🥂 Карта бара</h1><div class="sub">Гостевое меню · без рецептур</div></header>
-<div class="wrap"><div id="menu" class="grid"><div class="card">Загрузка...</div></div></div>
+<div class="wrap"><div class="row" style="margin-bottom:14px"><a href="/" style="display:inline-block;padding:10px 14px;border:1px solid #333;border-radius:12px;background:#151515">🏠 Главное меню</a></div><div id="menu" class="grid"><div class="card">Загрузка...</div></div></div>
 <script>
 const esc=s=>String(s??"").replace(/[&<>"']/g,c=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[c]));
 fetch("/api/cocktails").then(r=>r.json()).then(x=>{document.querySelector("#menu").innerHTML=x.length?x.map(c=>'<div class="card">'+(c.photo_url?'<img src="'+esc(c.photo_url)+'" style="width:100%;aspect-ratio:4/3;object-fit:cover;border-radius:12px;margin-bottom:12px">':"")+'<h2>'+esc(c.name)+'</h2><p class="muted">'+esc(c.description)+'</p><span class="pill">'+esc(c.strength||"")+'</span><span class="pill">'+Number(c.price_rub||0)+' ₽</span></div>').join(""):'<div class="card">Пока коктейлей нет.</div>'});
@@ -239,11 +239,11 @@ fetch("/api/cocktails").then(r=>r.json()).then(x=>{document.querySelector("#menu
 
       if (url.pathname === "/bar/shop") return page(`
 <header><h1>🛒 Магазин</h1><div class="sub">Закупки — следующий модуль</div></header>
-<div class="wrap"><div class="card"><h2>Здесь будет учёт закупок</h2><p class="muted">Партии товара, цена закупки, остаток партии и журнал движений.</p><a href="/bar">← Назад</a></div></div>`);
+<div class="wrap"><div class="row" style="margin-bottom:14px"><a href="/" style="display:inline-block;padding:10px 14px;border:1px solid #333;border-radius:12px;background:#151515">🏠 Главное меню</a></div><div class="card"><h2>Здесь будет учёт закупок</h2><p class="muted">Партии товара, цена закупки, остаток партии и журнал движений.</p><a href="/bar">← Назад</a></div></div>`);
 
       if (url.pathname === "/bar/orders") return page(`
 <header><h1>🔔 Заказы</h1><div class="sub">Заказы гостей — следующий модуль</div></header>
-<div class="wrap"><div class="card"><h2>Здесь будут заказы</h2><p class="muted">Гость → заказ → принят барменом → приготовлен → выдан.</p><a href="/bar">← Назад</a></div></div>`);
+<div class="wrap"><div class="row" style="margin-bottom:14px"><a href="/" style="display:inline-block;padding:10px 14px;border:1px solid #333;border-radius:12px;background:#151515">🏠 Главное меню</a></div><div class="card"><h2>Здесь будут заказы</h2><p class="muted">Гость → заказ → принят барменом → приготовлен → выдан.</p><a href="/bar">← Назад</a></div></div>`);
 
       return new Response("Не найдено",{status:404});
     } catch (error) {
