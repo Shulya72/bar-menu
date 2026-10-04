@@ -64,7 +64,7 @@ const ensureIngredientSystem=async env=>{
   }catch(e){}
 };
 
-const ensureShopSystem=async env=>{
+const ensureStockAdjustmentSystem=async env=>{ await ensureShopSystem(env); try{await env.DB.prepare("CREATE TABLE IF NOT EXISTS stock_adjustments (id INTEGER PRIMARY KEY AUTOINCREMENT, ingredient_id INTEGER NOT NULL REFERENCES ingredients(id), quantity REAL NOT NULL, unit_price REAL NOT NULL DEFAULT 0, created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP)").run()}catch(e){} };\n\nconst ensureShopSystem=async env=>{
   await ensureIngredientSystem(env);
   // Kept as a separate guarded migration for old installations.
   try{await env.DB.prepare("ALTER TABLE products ADD COLUMN store TEXT DEFAULT ''").run()}catch(e){}
@@ -165,7 +165,7 @@ export default {
         return json(await getProducts(env));
       }
 
-      if (url.pathname === "/api/products" && request.method === "POST") {
+      if (url.pathname === "/api/products" && request.method === "PUT") {\n        await ensureStockAdjustmentSystem(env);\n        const data=await request.json();\n        const ingredientId=Number(data.ingredient_id), target=Number(data.stock);\n        if(!Number.isInteger(ingredientId)||ingredientId<1||!Number.isFinite(target)||target<0)return json({error:"Некорректный остаток"},400);\n        const items=await getProducts(env); const item=items.find(x=>Number(x.ingredient_id)===ingredientId);\n        if(!item)return json({error:"Ингредиент не найден на складе"},404);\n        const delta=target-Number(item.stock); if(Math.abs(delta)<0.000001)return json({ok:true});\n        await env.DB.prepare("INSERT INTO stock_adjustments(ingredient_id,quantity,unit_price) VALUES(?,?,?)").bind(ingredientId,delta,Number(item.unit_price||0)).run();\n        return json({ok:true,stock:target});\n      }\n\n      if (url.pathname === "/api/products" && request.method === "POST") {
         const data=await request.json(), name=String(data.name||"").trim(), unit=String(data.unit||"");
         await ensureIngredientSystem(env);
         let id=Number(data.ingredient_id);
