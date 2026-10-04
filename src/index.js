@@ -142,7 +142,11 @@ const getProducts = async (env) => {
   await ensureIngredientSystem(env);
   let adjustmentsAvailable=true;
   try{
-    await env.DB.prepare("CREATE TABLE IF NOT EXISTS stock_adjustments (id INTEGER PRIMARY KEY AUTOINCREMENT, ingredient_id INTEGER NOT NULL REFERENCES ingredients(id), quantity REAL NOT NULL, unit_price REAL NOT NULL DEFAULT 0, created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP)").run();
+    await env.DB.prepare("CREATE TABLE IF NOT EXISTS stock_adjustments (id INTEGER PRIMARY KEY AUTOINCREMENT, ingredient_id INTEGER NOT NULL REFERENCES ingredients(id), quantity REAL NOT NULL, unit_price REAL NOT NULL DEFAULT 0, brand TEXT DEFAULT '', store TEXT DEFAULT '', created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP)").run();
+    try{await env.DB.prepare("ALTER TABLE stock_adjustments ADD COLUMN brand TEXT DEFAULT ''").run()}catch(e){}
+    try{await env.DB.prepare("ALTER TABLE stock_adjustments ADD COLUMN store TEXT DEFAULT ''").run()}catch(e){}
+    // Удаляем старые записи, которые были созданы прежней логикой общего остатка.
+    try{await env.DB.prepare("DELETE FROM stock_adjustments WHERE brand='Ручная корректировка' OR (COALESCE(brand,'')='' AND COALESCE(store,'')='')").run()}catch(e){}
   }catch(e){
     adjustmentsAvailable=false;
   }
@@ -257,10 +261,6 @@ export default {
         const brand=String(data.brand||"").trim();
         const store=String(data.store||"").trim();
         if(!Number.isInteger(ingredientId)||ingredientId<1||!brand)return json({error:"Не указан товар"},400);
-        if(store==="Ручной ввод"){
-          const r=await env.DB.prepare("DELETE FROM stock_adjustments WHERE ingredient_id=? AND brand=? AND COALESCE(store,'')=?").bind(ingredientId,brand,store).run();
-          return json({ok:true,deleted:Number(r.meta.changes||0)});
-        }
         if(store==="Ручной ввод" || brand==="Ручная корректировка"){
           const r=await env.DB.prepare("DELETE FROM stock_adjustments WHERE ingredient_id=? AND (brand=? OR brand='Ручная корректировка')").bind(ingredientId,brand).run();
           return json({ok:true,deleted:Number(r.meta.changes||0)});
