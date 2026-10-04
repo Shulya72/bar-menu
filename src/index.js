@@ -32,8 +32,6 @@ const resetAutoIncrementSequencesOnce=async env=>{
 };
 
 const ensureIngredientSystem=async env=>{
-  await resetLegacyDataOnce(env);
-  await resetAutoIncrementSequencesOnce(env);
   await env.DB.prepare("CREATE TABLE IF NOT EXISTS ingredients (id INTEGER PRIMARY KEY AUTOINCREMENT, name TEXT NOT NULL UNIQUE, unit TEXT NOT NULL CHECK(unit IN ('ml','g','pcs')), is_active INTEGER NOT NULL DEFAULT 1, created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP, updated_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP)").run();
   await env.DB.prepare("CREATE TABLE IF NOT EXISTS recipe_ingredients (id INTEGER PRIMARY KEY AUTOINCREMENT, cocktail_id INTEGER NOT NULL REFERENCES cocktails(id) ON DELETE CASCADE, ingredient_id INTEGER NOT NULL REFERENCES ingredients(id), quantity REAL NOT NULL CHECK(quantity > 0), UNIQUE(cocktail_id, ingredient_id))").run();
   try{
@@ -177,13 +175,13 @@ export default {
         const to=url.searchParams.get("date_to")||"";
         const ingredientId=Number(url.searchParams.get("ingredient_id")||0);
         let sql=`SELECT pb.id,pb.purchased_qty,pb.remaining_qty,pb.price_rub,pb.purchased_at,
-                  i.id ingredient_id,i.name ingredient_name,i.unit,p.brand,p.store
+                  p.ingredient_id,COALESCE(i.name,p.name) ingredient_name,COALESCE(i.unit,p.unit) unit,p.brand,p.store
            FROM purchase_batches pb JOIN products p ON p.id=pb.product_id
-           JOIN ingredients i ON i.id=p.ingredient_id WHERE 1=1`;
+           LEFT JOIN ingredients i ON i.id=p.ingredient_id WHERE 1=1`;
         const binds=[];
         if(/^\d{4}-\d{2}-\d{2}$/.test(from)){sql+=" AND pb.purchased_at >= ?";binds.push(from+" 00:00:00")}
         if(/^\d{4}-\d{2}-\d{2}$/.test(to)){sql+=" AND pb.purchased_at < datetime(?, '+1 day')";binds.push(to+" 00:00:00")}
-        if(Number.isInteger(ingredientId)&&ingredientId>0){sql+=" AND i.id=?";binds.push(ingredientId)}
+        if(Number.isInteger(ingredientId)&&ingredientId>0){sql+=" AND p.ingredient_id=?";binds.push(ingredientId)}
         sql+=" ORDER BY pb.purchased_at DESC,pb.id DESC LIMIT 500";
         const {results}=await env.DB.prepare(sql).bind(...binds).all();
         return json(results);
