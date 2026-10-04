@@ -3,39 +3,39 @@ const ingredientTemplates = [
 ["Водка","Спиртное","ml",["водка","vodka"]],["Джин","Спиртное","ml",["джин","gin"]],["Ром белый","Спиртное","ml",["ром белый","белый ром","white rum"]],["Ром тёмный","Спиртное","ml",["ром тёмный","тёмный ром","dark rum"]],["Текила","Спиртное","ml",["текила","tequila"]],["Виски","Спиртное","ml",["виски","whiskey","whisky"]],["Бурбон","Спиртное","ml",["бурбон","bourbon"]],["Коньяк","Спиртное","ml",["коньяк","бренди","cognac","brandy"]],["Вермут сладкий","Вермут","ml",["сладкий вермут","sweet vermouth"]],["Вермут сухой","Вермут","ml",["сухой вермут","dry vermouth"]],["Ликер Triple Sec","Ликеры","ml",["трипл сек","triple sec","triple-sec"]],["Ликер Blue Curacao","Ликеры","ml",["blue curacao","блю кюрасао","блю курасао"]],["Ликер кофейный","Ликеры","ml",["кофейный ликер","coffee liqueur"]],["Ликер дынный","Ликеры","ml",["дынный ликер","ликер дынный","midori"]],["Абсент","Ликеры","ml",["абсент","absinthe"]],["Апероль","Аперитивы","ml",["апероль","aperol"]],["Кампари","Аперитивы","ml",["кампари","campari"]],["Лимонный сок","Соки","ml",["лимонный сок","сок лимона","lemon juice"]],["Лаймовый сок","Соки","ml",["лаймовый сок","сок лайма","lime juice"]],["Апельсиновый сок","Соки","ml",["апельсиновый сок","сок апельсина","orange juice"]],["Вишневый сок","Соки","ml",["вишневый сок","сок вишневый","cherry juice"]],["Ананасовый сок","Соки","ml",["ананасовый сок","сок ананаса","pineapple juice"]],["Клюквенный сок","Соки","ml",["клюквенный сок","сок клюквы","cranberry juice"]],["Кола","Безалкогольные","ml",["кола","cola","coca cola","coca-cola"]],["Спрайт","Безалкогольные","ml",["спрайт","sprite","7up","7-up"]],["Тоник","Тоники","ml",["тоник","tonic","tonic water"]],["Содовая","Безалкогольные","ml",["содовая","содовая вода","soda water","club soda"]],["Имбирный эль","Безалкогольные","ml",["имбирный эль","ginger ale"]],["Имбирное пиво","Безалкогольные","ml",["имбирное пиво","ginger beer"]],["Энергетик","Безалкогольные","ml",["энергетик","energy drink"]],["Гренадин","Сиропы","ml",["гренадин","сироп гренадин","grenadine"]],["Сироп простой","Сиропы","ml",["простой сироп","сахарный сироп","simple syrup"]],["Сироп кокосовый","Сиропы","ml",["кокосовый сироп","сироп кокосовый","coconut syrup"]],["Сироп зеленое яблоко","Сиропы","ml",["сироп зеленое яблоко","яблочный сироп"]],["Сироп Blue Curacao","Сиропы","ml",["сироп blue curacao","сироп блю кюрасао"]],["Лед","Лёд","g",["лед","лёд","ice"]],["Соль","Специи","g",["соль","salt"]],["Сахар","Специи","g",["сахар","sugar"]],["Лимон","Гарниры","pcs",["лимон","lemon"]],["Лайм","Гарниры","pcs",["лайм","lime"]],["Апельсин","Гарниры","pcs",["апельсин","orange"]],["Мята","Гарниры","g",["мята","mint"]]
 ];
 const ingredientKey=v=>String(v||"").toLowerCase().replace(/ё/g,"е").trim().replace(/[^a-zа-я0-9]+/gi," ");
-const ensureIngredientTables=async env=>{await env.DB.prepare("CREATE TABLE IF NOT EXISTS product_aliases (alias_key TEXT PRIMARY KEY, product_id INTEGER NOT NULL REFERENCES products(id) ON DELETE CASCADE, created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP)").run();};
-const ensureIngredient=async(env,name,category="Пользовательские",unit="ml",brand="")=>{
- await ensureIngredientTables(env); const key=ingredientKey(name);
- const hit=await env.DB.prepare("SELECT product_id FROM product_aliases WHERE alias_key=?").bind(key).first(); if(hit)return Number(hit.product_id);
- const same=await env.DB.prepare("SELECT id FROM products WHERE lower(replace(name,'ё','е'))=lower(replace(?,'ё','е')) ORDER BY id LIMIT 1").bind(name).first();
- let id=same?.id; if(!id){const r=await env.DB.prepare("INSERT INTO products(name,brand,category,unit,min_stock) VALUES(?,?,?,?,0)").bind(name,brand,category,unit).run();id=r.meta.last_row_id;}
- await env.DB.prepare("INSERT OR IGNORE INTO product_aliases(alias_key,product_id) VALUES(?,?)").bind(key,id).run(); return Number(id);
-};
-const seedIngredientCatalog=async env=>{for(const [name,cat,unit,aliases] of ingredientTemplates){
-  let id=await ensureIngredient(env,name,cat,unit);
-  // Canonical ingredient identity: recipe/stock logic uses only the generic name.
-  // If an older row was entered as e.g. "Водка Царская Перекресток",
-  // fold it into the canonical "Водка" product so the recipe never depends on a brand/store name.
-  const nk=ingredientKey(name);
-  const {results: specific}=await env.DB.prepare(
-    "SELECT id,name,brand FROM products WHERE is_active=1 AND unit=? AND id<>? AND (lower(replace(name,'ё','е')) LIKE lower(replace(?,'ё','е')) || ' %')"
-  ).bind(unit,id,name).all();
-  for(const p of specific){
-    const oldName=String(p.name||"").trim();
-    const oldBrand=String(p.brand||"").trim();
-    const preserved=[oldBrand,oldName.slice(name.length).trim()].filter(Boolean).join(" · ");
-    if(preserved && !oldBrand) await env.DB.prepare("UPDATE products SET brand=? WHERE id=?").bind(preserved,p.id).run();
-    await env.DB.prepare("UPDATE recipe_items SET product_id=? WHERE product_id=?").bind(id,p.id).run();
-    await env.DB.prepare("UPDATE purchase_batches SET product_id=? WHERE product_id=?").bind(id,p.id).run();
-    await env.DB.prepare("UPDATE stock_movements SET product_id=? WHERE product_id=?").bind(id,p.id).run();
-    await env.DB.prepare("DELETE FROM product_aliases WHERE product_id=?").bind(p.id).run();
-    await env.DB.prepare("UPDATE products SET is_active=0 WHERE id=?").bind(p.id).run();
-  }
-  for(const a of aliases)await env.DB.prepare("INSERT OR IGNORE INTO product_aliases(alias_key,product_id) VALUES(?,?)").bind(ingredientKey(a),id).run();
-  await env.DB.prepare("INSERT OR IGNORE INTO product_aliases(alias_key,product_id) VALUES(?,?)").bind(nk,id).run();
-}};
-const resolveIngredient=async(env,name)=>{await seedIngredientCatalog(env);return ensureIngredient(env,String(name).trim());};
+const ingredientKey=v=>String(v||"").toLowerCase().replace(/ё/g,"е").trim().replace(/[^a-zа-я0-9]+/gi," ");
 
+const ensureIngredientSystem=async env=>{
+  await env.DB.prepare("CREATE TABLE IF NOT EXISTS ingredients (id INTEGER PRIMARY KEY AUTOINCREMENT, name TEXT NOT NULL UNIQUE, category TEXT DEFAULT '', unit TEXT NOT NULL CHECK(unit IN ('ml','g','pcs')), is_active INTEGER NOT NULL DEFAULT 1, created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP, updated_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP)").run();
+  try{await env.DB.prepare("ALTER TABLE products ADD COLUMN ingredient_id INTEGER").run()}catch(e){}
+  try{await env.DB.prepare("ALTER TABLE recipe_items ADD COLUMN ingredient_id INTEGER").run()}catch(e){}
+  for(const [name,cat,unit] of ingredientTemplates){
+    await env.DB.prepare("INSERT OR IGNORE INTO ingredients(name,category,unit) VALUES(?,?,?)").bind(name,cat,unit).run();
+  }
+  const {results: ps}=await env.DB.prepare("SELECT id,name,category,unit,ingredient_id FROM products WHERE is_active=1").all();
+  for(const p of ps){
+    if(p.ingredient_id) continue;
+    let ing=await env.DB.prepare("SELECT id FROM ingredients WHERE lower(replace(name,'ё','е'))=lower(replace(?,'ё','е')) LIMIT 1").bind(p.name).first();
+    if(!ing){
+      for(const [name,cat,unit,aliases] of ingredientTemplates){
+        const k=ingredientKey(p.name), nk=ingredientKey(name);
+        if(k===nk || aliases.some(a=>ingredientKey(a)===k)){ ing=await env.DB.prepare("SELECT id FROM ingredients WHERE name=?").bind(name).first(); break; }
+      }
+    }
+    if(ing) await env.DB.prepare("UPDATE products SET ingredient_id=? WHERE id=?").bind(ing.id,p.id).run();
+  }
+  await env.DB.prepare("UPDATE recipe_items SET ingredient_id=(SELECT ingredient_id FROM products WHERE products.id=recipe_items.product_id) WHERE ingredient_id IS NULL").run();
+};
+
+const seedIngredientCatalog=async env=>{
+  await ensureIngredientSystem(env);
+  for(const [name,cat,unit,aliases] of ingredientTemplates){
+    const ing=await env.DB.prepare("SELECT id FROM ingredients WHERE name=?").bind(name).first();
+    if(!ing) continue;
+    for(const a of [name,...aliases]) await env.DB.prepare("INSERT OR IGNORE INTO product_aliases(alias_key,product_id) SELECT ?,id FROM products WHERE ingredient_id=? ORDER BY id LIMIT 1").bind(ingredientKey(a),ing.id).run();
+  }
+};
+const resolveIngredient=async(env,name)=>{await ensureIngredientSystem(env);const n=String(name||"").trim();const hit=await env.DB.prepare("SELECT id FROM ingredients WHERE lower(replace(name,'ё','е'))=lower(replace(?,'ё','е')) LIMIT 1").bind(n).first();if(hit)return Number(hit.id);const key=ingredientKey(n);for(const [cn,cat,unit,aliases] of ingredientTemplates){if(aliases.some(a=>ingredientKey(a)===key)){const x=await env.DB.prepare("SELECT id FROM ingredients WHERE name=?").bind(cn).first();if(x)return Number(x.id)}}const r=await env.DB.prepare("INSERT INTO ingredients(name,category,unit) VALUES(?,?,?)").bind(n,"Пользовательские","ml").run();return Number(r.meta.last_row_id);};
 const json = (data, status = 200) =>
   Response.json(data, { status, headers: { "cache-control": "no-store" } });
 
@@ -69,8 +69,8 @@ const refreshCocktailPrice = async (env, cocktailId) => {
   const { results } = await env.DB.prepare(`
     SELECT ri.quantity,
       COALESCE((SELECT pb.price_rub / NULLIF(pb.purchased_qty,0)
-        FROM purchase_batches pb
-        WHERE pb.product_id=ri.product_id AND pb.remaining_qty>0
+        FROM purchase_batches pb JOIN products pp ON pp.id=pb.product_id
+        WHERE pp.ingredient_id=ri.ingredient_id AND pb.remaining_qty>0
         ORDER BY pb.purchased_at DESC, pb.id DESC LIMIT 1),0) unit_cost
     FROM recipe_items ri WHERE ri.cocktail_id=?
   `).bind(cocktailId).all();
@@ -88,9 +88,9 @@ const getCocktails = async (env) => {
 };
 
 const getProducts = async (env) => {
-  await seedIngredientCatalog(env);
+  await ensureIngredientSystem(env);
   const { results } = await env.DB.prepare(
-    "SELECT p.id,p.name,p.brand,p.category,p.unit,p.min_stock,COALESCE(SUM(b.remaining_qty),0) stock FROM products p LEFT JOIN purchase_batches b ON b.product_id=p.id WHERE p.is_active=1 GROUP BY p.id ORDER BY p.name"
+    "SELECT p.id,p.ingredient_id,i.name ingredient_name,p.brand,p.category,p.unit,p.min_stock,COALESCE(SUM(b.remaining_qty),0) stock FROM products p JOIN ingredients i ON i.id=p.ingredient_id LEFT JOIN purchase_batches b ON b.product_id=p.id WHERE p.is_active=1 GROUP BY p.id ORDER BY i.name,p.brand"
   ).all();
   return results;
 };
@@ -111,7 +111,8 @@ export default {
         if(!name)return json({error:"Название коктейля обязательно"},400);
         const r=await env.DB.prepare(`INSERT INTO cocktails(name,description,category,strength,price_rub,photo_url,glass,ice,method,garnish) VALUES(?,?,?,?,0,?,?,?,?,?)`).bind(name,String(data.description||""),String(data.category||""),String(data.strength||""),String(data.photo_url||""),String(data.glass||""),String(data.ice||""),String(data.method||""),String(data.garnish||"")).run();
         const id=r.meta.last_row_id;
-        for(const item of (Array.isArray(data.recipe_items)?data.recipe_items:[])){let pid=Number(item.product_id);if(!Number.isInteger(pid)&&item.name)pid=await resolveIngredient(env,item.name);const q=Number(item.quantity);if(Number.isInteger(pid)&&q>0)await env.DB.prepare("INSERT OR REPLACE INTO recipe_items(cocktail_id,product_id,quantity) VALUES(?,?,?)").bind(id,pid,q).run();}
+        await ensureIngredientSystem(env);
+        for(const item of (Array.isArray(data.recipe_items)?data.recipe_items:[])){let iid=Number(item.ingredient_id);if(!Number.isInteger(iid)&&item.name)iid=await resolveIngredient(env,item.name);const q=Number(item.quantity);if(Number.isInteger(iid)&&q>0)await env.DB.prepare("INSERT OR REPLACE INTO recipe_items(cocktail_id,ingredient_id,product_id,quantity) VALUES(?,?,NULL,?)").bind(id,iid,q).run();}
         const pricing=await refreshCocktailPrice(env,id); return json({ok:true,id,pricing},201);
       }
 
@@ -121,20 +122,52 @@ export default {
 
       if (url.pathname === "/api/products" && request.method === "POST") {
         const data=await request.json(), name=String(data.name||"").trim(), unit=String(data.unit||"");
+        await ensureIngredientSystem(env);
         let id=Number(data.ingredient_id);
         if(Number.isInteger(id)&&id>0){
-          const found=await env.DB.prepare("SELECT id FROM products WHERE id=? AND is_active=1").bind(id).first();
+          const found=await env.DB.prepare("SELECT id FROM ingredients WHERE id=? AND is_active=1").bind(id).first();
           if(!found)return json({error:"Ингредиент не найден"},404);
+          const existing=await env.DB.prepare("SELECT id FROM products WHERE ingredient_id=? AND brand=? AND is_active=1 LIMIT 1").bind(id,String(data.brand||"")).first();
+          if(existing) id=Number(existing.id);
+          else { const pr=await env.DB.prepare("INSERT INTO products(name,brand,category,unit,min_stock,ingredient_id) VALUES(?,?,?,?,0,?)").bind((await env.DB.prepare("SELECT name FROM ingredients WHERE id=?").bind(id).first()).name,String(data.brand||""),String(data.category||""),unit||"ml",id).run(); id=Number(pr.meta.last_row_id); }
         } else {
           if(!name||!["ml","g","pcs"].includes(unit))return json({error:"Выберите ингредиент"},400);
-          id=await resolveIngredient(env,name);
+          const iid=await resolveIngredient(env,name);
+          const pr=await env.DB.prepare("INSERT INTO products(name,brand,category,unit,min_stock,ingredient_id) VALUES(?,?,?,?,0,?)").bind(name,String(data.brand||""),String(data.category||""),unit,iid).run();
+          id=Number(pr.meta.last_row_id);
         }
-        if(data.brand)await env.DB.prepare("UPDATE products SET brand=? WHERE id=? AND (brand='' OR brand IS NULL)").bind(String(data.brand),id).run();
+        if(data.brand)await env.DB.prepare("UPDATE products SET brand=? WHERE id=?").bind(String(data.brand),id).run();
         if(Number(data.purchase_qty)>0&&Number(data.purchase_price)>=0)await env.DB.prepare("INSERT INTO purchase_batches(product_id,purchased_qty,remaining_qty,price_rub) VALUES(?,?,?,?)").bind(id,Number(data.purchase_qty),Number(data.purchase_qty),Number(data.purchase_price)).run();
         return json({ok:true,id,existing:true},201);
       }
 
-      if (url.pathname === "/api/ingredients" && request.method === "GET") { await seedIngredientCatalog(env); return json(await getProducts(env)); }
+      if (url.pathname === "/api/ingredients" && request.method === "GET") {
+        await ensureIngredientSystem(env);
+        const {results}=await env.DB.prepare("SELECT id,name,category,unit FROM ingredients WHERE is_active=1 ORDER BY name").all();
+        return json(results);
+      }
+      if (url.pathname === "/api/ingredients" && request.method === "POST") {
+        await ensureIngredientSystem(env);
+        const data=await request.json(), name=String(data.name||"").trim(), category=String(data.category||"Пользовательские"), unit=String(data.unit||"ml");
+        if(!name||!["ml","g","pcs"].includes(unit)) return json({error:"Укажите название и единицу"},400);
+        const r=await env.DB.prepare("INSERT INTO ingredients(name,category,unit) VALUES(?,?,?)").bind(name,category,unit).run();
+        return json({ok:true,id:r.meta.last_row_id},201);
+      }
+      if (url.pathname === "/api/ingredients" && request.method === "PUT") {
+        await ensureIngredientSystem(env);
+        const data=await request.json(), id=Number(data.id), name=String(data.name||"").trim(), category=String(data.category||"Пользовательские"), unit=String(data.unit||"ml");
+        if(!id||!name||!["ml","g","pcs"].includes(unit)) return json({error:"Некорректные данные"},400);
+        await env.DB.prepare("UPDATE ingredients SET name=?,category=?,unit=?,updated_at=CURRENT_TIMESTAMP WHERE id=?").bind(name,category,unit,id).run();
+        return json({ok:true});
+      }
+      if (url.pathname === "/api/ingredients" && request.method === "DELETE") {
+        await ensureIngredientSystem(env);
+        const id=Number(url.searchParams.get("id"));
+        const used=await env.DB.prepare("SELECT COUNT(*) n FROM recipe_items WHERE ingredient_id=?").bind(id).first();
+        if(Number(used?.n)>0)return json({error:"Ингредиент уже используется в рецептах"},409);
+        await env.DB.prepare("UPDATE ingredients SET is_active=0 WHERE id=?").bind(id).run();
+        return json({ok:true});
+      }
 
       if (url.pathname === "/api/cocktail" && request.method === "GET") {
         const id = Number(url.searchParams.get("id"));
@@ -142,8 +175,8 @@ export default {
         const cocktail = await env.DB.prepare("SELECT * FROM cocktails WHERE id=?").bind(id).first();
         if (!cocktail) return json({error:"Коктейль не найден"},404);
         const {results} = await env.DB.prepare(
-          `SELECT ri.product_id,ri.quantity,p.name,p.brand,p.unit
-           FROM recipe_items ri JOIN products p ON p.id=ri.product_id
+          `SELECT ri.ingredient_id,ri.quantity,i.name,i.category,i.unit
+           FROM recipe_items ri JOIN ingredients i ON i.id=ri.ingredient_id
            WHERE ri.cocktail_id=? ORDER BY ri.id`
         ).bind(id).all();
         return json({...cocktail,recipe_items:results});
@@ -218,7 +251,7 @@ const load=async()=>{
 };
 const addRow=()=>{
   const wrap=document.createElement("div"); wrap.className="recipe-row";
-  wrap.innerHTML='<select class="prod"><option value="">Ингредиент...</option>'+products.map(p=>'<option value="'+p.id+'">'+esc(p.name)+(p.brand?' — '+esc(p.brand):"")+' ('+p.unit+')</option>').join("")+'</select><input class="qty" type="number" min="0.01" step="0.01" placeholder="Количество"><button type="button" class="secondary remove">×</button>';
+  wrap.innerHTML='<select class="prod"><option value="">Ингредиент...</option>'+products.map(p=>'<option value="'+p.id+'">'+esc(p.name)+' ('+p.unit+')</option>').join("")+'</select>'<input class="qty" type="number" min="0.01" step="0.01" placeholder="Количество"><button type="button" class="secondary remove">×</button>';
   wrap.querySelector(".remove").onclick=()=>wrap.remove();
   document.querySelector("#recipeItems").appendChild(wrap);
 };
@@ -227,7 +260,7 @@ document.querySelector("#addIngredient").onclick=addRow;
 document.querySelector("#cocktailForm").onsubmit=async e=>{
   e.preventDefault();
   const f=new FormData(e.target);
-  const recipe_items=[...document.querySelectorAll(".recipe-row")].map(r=>({product_id:Number(r.querySelector(".prod").value),quantity:Number(r.querySelector(".qty").value)})).filter(x=>x.product_id&&x.quantity>0);
+  const recipe_items=[...document.querySelectorAll(".recipe-row")].map(r=>({ingredient_id:Number(r.querySelector(".prod").value),quantity:Number(r.querySelector(".qty").value)})).filter(x=>x.product_id&&x.quantity>0);
   const body=Object.fromEntries(f.entries()); body.recipe_items=recipe_items;
   const r=await fetch("/api/cocktails",{method:"POST",headers:{"content-type":"application/json"},body:JSON.stringify(body)});
   const data=await r.json();
