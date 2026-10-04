@@ -227,6 +227,18 @@ export default {
       if (url.pathname === "/api/products" && request.method === "PUT") {
         await ensureStockAdjustmentSystem(env);
         const data=await request.json();
+        if(data.source_edit){
+          const ingredientId=Number(data.ingredient_id);
+          const oldBrand=String(data.old_brand||"").trim();
+          const oldStore=String(data.old_store||"").trim();
+          const brand=String(data.brand||"").trim();
+          const quantity=Number(data.quantity), unitPrice=Number(data.unit_price);
+          if(!Number.isInteger(ingredientId)||ingredientId<1||!oldBrand||!brand||!Number.isFinite(quantity)||quantity<=0||!Number.isFinite(unitPrice)||unitPrice<0)return json({error:"Некорректные данные товара"},400);
+          await env.DB.prepare("DELETE FROM stock_adjustments WHERE ingredient_id=? AND brand=? AND COALESCE(store,'')=?").bind(ingredientId,oldBrand,oldStore).run();
+          await env.DB.prepare("INSERT INTO stock_adjustments(ingredient_id,quantity,unit_price,brand,store) VALUES(?,?,?,?,?)").bind(ingredientId,quantity,unitPrice,brand,"Ручной ввод").run();
+          return json({ok:true});
+        }
+
         const ingredientId=Number(data.ingredient_id), target=Number(data.stock);
         if(!Number.isInteger(ingredientId)||ingredientId<1||!Number.isFinite(target)||target<0)return json({error:"Некорректный остаток"},400);
         const items=await getProducts(env); const item=items.find(x=>Number(x.ingredient_id)===ingredientId);
@@ -234,6 +246,21 @@ export default {
         const delta=target-Number(item.stock); if(Math.abs(delta)<0.000001)return json({ok:true});
         await env.DB.prepare("INSERT INTO stock_adjustments(ingredient_id,quantity,unit_price,brand,store) VALUES(?,?,?,?,?)").bind(ingredientId,delta,Number(item.unit_price||0),"Ручная корректировка","Ручной ввод").run();
         return json({ok:true,stock:target});
+      }
+
+      if (url.pathname === "/api/products" && request.method === "DELETE") {
+        await ensureStockAdjustmentSystem(env);
+        const data=await request.json();
+        const ingredientId=Number(data.ingredient_id);
+        const brand=String(data.brand||"").trim();
+        const store=String(data.store||"").trim();
+        if(!Number.isInteger(ingredientId)||ingredientId<1||!brand)return json({error:"Не указан товар"},400);
+        if(store==="Ручной ввод"){
+          const r=await env.DB.prepare("DELETE FROM stock_adjustments WHERE ingredient_id=? AND brand=? AND COALESCE(store,'')=?").bind(ingredientId,brand,store).run();
+          return json({ok:true,deleted:Number(r.meta.changes||0)});
+        }
+        const r=await env.DB.prepare("UPDATE purchase_batches SET remaining_qty=0 WHERE product_id IN (SELECT p.id FROM products p WHERE p.ingredient_id=? AND p.brand=? AND p.store=? AND p.is_active=1) AND remaining_qty>0").bind(ingredientId,brand,store).run();
+        return json({ok:true,deleted:Number(r.meta.changes||0)});
       }
 
       if (url.pathname === "/api/products" && request.method === "POST") {
@@ -564,7 +591,7 @@ let stockItems=${initialStock};
 function renderStock(){
   const el=document.querySelector("#stock");
   if(!stockItems.length){el.innerHTML='<div class="empty">Товаров пока нет.</div>';return}
-  el.innerHTML=stockItems.map(p=>'<div class="stock-item" data-id="'+p.ingredient_id+'" style="padding:12px 0;border-bottom:1px solid #292929"><div><b>🥃 '+esc(p.ingredient_name)+'</b></div><div class="muted" style="margin-top:5px">Всего: <b>'+Number(p.stock).toFixed(2)+' '+esc(p.unit)+'</b> · Средняя цена: <b>'+Number(p.unit_price).toFixed(4)+' ₽/'+esc(p.unit)+'</b></div><div style="margin-top:9px;padding-left:12px;border-left:2px solid #333">'+(p.details||[]).map(d=>'<div style="padding:5px 0"><b>'+esc(d.brand)+'</b> — '+Number(d.stock).toFixed(2)+' '+esc(p.unit)+' · '+Number(d.unit_price).toFixed(4)+' ₽/'+esc(p.unit)+(d.store?' · '+esc(d.store):'')+'</div>').join("")+'</div><div class="row" style="margin-top:9px"><button type="button" class="secondary edit-stock">✏️ Изменить остаток</button></div></div>').join("");
+  el.innerHTML=stockItems.map(p=>'<div class="stock-item" data-id="'+p.ingredient_id+'" style="padding:12px 0;border-bottom:1px solid #292929"><div><b>🥃 '+esc(p.ingredient_name)+'</b></div><div class="muted" style="margin-top:5px">Всего: <b>'+Number(p.stock).toFixed(2)+' '+esc(p.unit)+'</b> · Средняя цена: <b>'+Number(p.unit_price).toFixed(4)+' ₽/'+esc(p.unit)+'</b></div><div style="margin-top:9px;padding-left:12px;border-left:2px solid #333">'+(p.details||[]).map((d,di)=>'<div class="stock-detail" style="padding:8px 0;border-bottom:1px solid #222"><div><b>'+esc(d.brand)+'</b> — '+Number(d.stock).toFixed(2)+' '+esc(p.unit)+' · '+Number(d.unit_price).toFixed(4)+' ₽/'+esc(p.unit)+(d.store?' · '+esc(d.store):'')+'</div><div class="row" style="margin-top:6px;gap:8px"><button type="button" class="secondary edit-source" data-i="'+di+'" style="padding:6px 10px;font-size:13px">✏️ Изменить</button><button type="button" class="secondary delete-source" data-i="'+di+'" style="padding:6px 10px;font-size:13px">🗑️ Удалить</button></div></div>').join("")+'</div><div class="row" style="margin-top:9px"><button type="button" class="secondary edit-stock">✏️ Изменить остаток</button></div></div>').join("");
   bindStockButtons();
 }
 
@@ -573,13 +600,51 @@ function bindStockButtons(){
     const id=Number(btn.closest(".stock-item").dataset.id);
     const p=stockItems.find(v=>Number(v.ingredient_id)===id);
     if(!p)return;
-    const value=prompt("Новый остаток, "+p.unit,Number(p.stock));
+    const value=prompt("Новый общий остаток, "+p.unit,Number(p.stock));
     if(value===null)return;
     const stock=Number(value);
     if(!Number.isFinite(stock)||stock<0){alert("Введите корректное число");return}
     const r=await fetch("/api/products",{method:"PUT",headers:{"content-type":"application/json"},body:JSON.stringify({ingredient_id:id,stock})});
     const d=await r.json();
     if(!r.ok){alert(d.error||"Ошибка");return}
+    location.reload();
+  });
+
+  document.querySelectorAll(".delete-source").forEach(btn=>btn.onclick=async()=>{
+    const row=btn.closest(".stock-item");
+    const p=stockItems.find(v=>Number(v.ingredient_id)===Number(row.dataset.id));
+    const d=p?.details?.[Number(btn.dataset.i)];
+    if(!p||!d)return;
+    if(!confirm("Удалить «"+d.brand+"» из склада?"+(d.store&&d.store!=="Ручной ввод"?" Остаток закупки будет обнулён, история покупки сохранится.":"")))return;
+    const r=await fetch("/api/products",{method:"DELETE",headers:{"content-type":"application/json"},body:JSON.stringify({ingredient_id:p.ingredient_id,brand:d.brand,store:d.store||""})});
+    const x=await r.json();
+    if(!r.ok){alert(x.error||"Ошибка");return}
+    location.reload();
+  });
+
+  document.querySelectorAll(".edit-source").forEach(btn=>btn.onclick=async()=>{
+    const row=btn.closest(".stock-item");
+    const p=stockItems.find(v=>Number(v.ingredient_id)===Number(row.dataset.id));
+    const d=p?.details?.[Number(btn.dataset.i)];
+    if(!p||!d)return;
+    if(d.source_type!=="manual"){
+      alert("Закупленный товар редактируется в разделе «Магазин».");
+      return;
+    }
+    const brand=prompt("Название / бренд",d.brand);
+    if(brand===null)return;
+    const qty=prompt("Количество, "+p.unit,Number(d.stock));
+    if(qty===null)return;
+    const pricePerUnit=prompt("Цена за "+p.unit+" ₽",Number(d.unit_price).toFixed(4));
+    if(pricePerUnit===null)return;
+    const quantity=Number(qty), unitPrice=Number(pricePerUnit);
+    if(!brand.trim()||!Number.isFinite(quantity)||quantity<=0||!Number.isFinite(unitPrice)||unitPrice<0){
+      alert("Проверьте название, количество и цену.");
+      return;
+    }
+    const r=await fetch("/api/products",{method:"PUT",headers:{"content-type":"application/json"},body:JSON.stringify({source_edit:true,ingredient_id:p.ingredient_id,old_brand:d.brand,old_store:d.store||"Ручной ввод",brand:brand.trim(),store:"Ручной ввод",quantity,unit_price:unitPrice})});
+    const x=await r.json();
+    if(!r.ok){alert(x.error||"Ошибка");return}
     location.reload();
   });
 }
