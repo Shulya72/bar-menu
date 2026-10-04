@@ -224,6 +224,31 @@ export default {
     try {
       if (url.pathname === "/api/health") return json({ok:true,service:"bar-menu",database:"bar-menu-db"});
 
+      if (url.pathname === "/api/cocktail-photo" && request.method === "POST") {
+        if(!env.PHOTOS)return json({error:"Хранилище фотографий R2 ещё не подключено"},503);
+        const form=await request.formData();
+        const file=form.get("file");
+        if(!(file instanceof File))return json({error:"Файл не выбран"},400);
+        if(!String(file.type||"").startsWith("image/"))return json({error:"Можно загружать только изображения"},400);
+        if(file.size>8*1024*1024)return json({error:"Фото слишком большое. Максимум 8 МБ"},400);
+        const ext=(String(file.name||"").split(".").pop()||"jpg").toLowerCase().replace(/[^a-z0-9]/g,"");
+        const key="cocktails/"+crypto.randomUUID()+"."+((ext==="jpeg")?"jpg":ext||"jpg");
+        await env.PHOTOS.put(key,file.stream(),{httpMetadata:{contentType:file.type||"image/jpeg",cacheControl:"public, max-age=31536000"}});
+        return json({ok:true,key,url:"/api/cocktail-photo/"+encodeURIComponent(key)});
+      }
+
+      if (url.pathname.startsWith("/api/cocktail-photo/") && request.method === "GET") {
+        if(!env.PHOTOS)return new Response("R2 не подключено",{status:503});
+        const key=decodeURIComponent(url.pathname.slice("/api/cocktail-photo/".length));
+        if(!key.startsWith("cocktails/"))return new Response("Not found",{status:404});
+        const object=await env.PHOTOS.get(key);
+        if(!object)return new Response("Not found",{status:404});
+        const headers=new Headers();
+        object.writeHttpMetadata(headers);
+        headers.set("etag",object.httpEtag);
+        return new Response(object.body,{headers});
+      }
+
       if (url.pathname === "/api/cocktails" && request.method === "GET") {
         return json(await getCocktails(env));
       }
@@ -488,7 +513,10 @@ export default {
       <label>Лёд</label><input name="ice" placeholder="Крупный куб">
       <label>Метод приготовления</label><textarea name="method" placeholder="Stir / Shake / Build..."></textarea>
       <label>Гарнир</label><input name="garnish" placeholder="Апельсиновая цедра">
-      <label>Фото URL (пока временно)</label><input name="photo_url" placeholder="Позже подключим загрузку в R2">
+      <label>Фото коктейля</label>
+      <input id="photoFile" type="file" accept="image/*" style="padding:10px">
+      <div id="photoPreview" style="margin-top:10px"></div>
+      <input name="photo_url" id="photoUrl" type="hidden">
 
       <h3 style="margin-top:22px">Состав</h3>
       <div id="recipeItems"></div>
@@ -541,12 +569,27 @@ const addRow=()=>{
   document.querySelector("#recipeItems").appendChild(wrap);
 };
 
+document.querySelector("#photoFile").onchange=()=>{
+  const file=document.querySelector("#photoFile").files[0], box=document.querySelector("#photoPreview");
+  if(!file){box.innerHTML="";return;}
+  const url=URL.createObjectURL(file);
+  box.innerHTML='<img src="'+url+'" style="max-width:240px;max-height:240px;border-radius:14px;display:block" alt="Превью">';
+};
 document.querySelector("#addIngredient").onclick=addRow;
 document.querySelector("#cocktailForm").onsubmit=async e=>{
   e.preventDefault();
   const f=new FormData(e.target);
   const recipe_items=[...document.querySelectorAll(".recipe-row")].map(r=>({ingredient_id:Number(r.querySelector(".prod").value),quantity:Number(r.querySelector(".qty").value)})).filter(x=>x.ingredient_id>0&&x.quantity>0);
   if(!recipe_items.length && document.querySelector(".recipe-row")){document.querySelector("#msg").textContent="Выберите ингредиент из списка";return;}
+  const file=document.querySelector("#photoFile").files[0];
+  if(file){
+    document.querySelector("#msg").textContent="Загрузка фотографии…";
+    const upload=new FormData(); upload.append("file",file);
+    const ur=await fetch("/api/cocktail-photo",{method:"POST",body:upload});
+    const ud=await ur.json();
+    if(!ur.ok){document.querySelector("#msg").textContent="Ошибка фото: "+(ud.error||"не удалось загрузить");return;}
+    document.querySelector("#photoUrl").value=ud.url;
+  }
   const body=Object.fromEntries(f.entries()); body.recipe_items=recipe_items;
   const r=await fetch("/api/cocktails",{method:"POST",headers:{"content-type":"application/json"},body:JSON.stringify(body)});
   const data=await r.json();
