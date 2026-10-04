@@ -36,6 +36,7 @@ const ensureIngredientSystem=async env=>{
   // SQLite/D1 does not allow ADD COLUMN with a non-constant DEFAULT.
   await env.DB.prepare("CREATE TABLE IF NOT EXISTS ingredients (id INTEGER PRIMARY KEY AUTOINCREMENT, name TEXT NOT NULL UNIQUE, unit TEXT NOT NULL DEFAULT 'ml' CHECK(unit IN ('ml','g','pcs')), is_active INTEGER NOT NULL DEFAULT 1, created_at TEXT DEFAULT NULL, updated_at TEXT DEFAULT NULL)").run();
   try{ await env.DB.prepare("ALTER TABLE ingredients ADD COLUMN unit TEXT NOT NULL DEFAULT 'ml'").run(); }catch(e){}
+  try{ await env.DB.prepare("ALTER TABLE ingredients ADD COLUMN strength_percent REAL NOT NULL DEFAULT 0").run(); }catch(e){}
   try{ await env.DB.prepare("ALTER TABLE ingredients ADD COLUMN is_active INTEGER NOT NULL DEFAULT 1").run(); }catch(e){}
   try{ await env.DB.prepare("ALTER TABLE ingredients ADD COLUMN created_at TEXT DEFAULT NULL").run(); }catch(e){}
   try{ await env.DB.prepare("ALTER TABLE ingredients ADD COLUMN updated_at TEXT DEFAULT NULL").run(); }catch(e){}
@@ -156,7 +157,33 @@ const refreshCocktailPrice = async (env, cocktailId) => {
   return {cost,price};
 };
 
-const BUILD_VERSION = "2026-10-05-cocktail-delete-r2";
+const BUILD_VERSION = "2026-10-05-cocktail-strength-v1";
+
+const calculateCocktailStrength = (recipeItems) => {
+  let alcoholMl = 0;
+  let totalMl = 0;
+  for (const item of (Array.isArray(recipeItems) ? recipeItems : [])) {
+    const q = Number(item.quantity);
+    const unit = String(item.unit || "");
+    const pct = Number(item.strength_percent);
+    if (!(q > 0) || unit !== "ml") continue;
+    totalMl += q;
+    if (Number.isFinite(pct) && pct > 0) alcoholMl += q * Math.min(100, Math.max(0, pct)) / 100;
+  }
+  const abv = totalMl > 0 ? alcoholMl / totalMl * 100 : 0;
+  const strength = abv <= 0 ? "Безалкогольный" : abv <= 8 ? "Лёгкий" : abv <= 20 ? "Средний" : "Крепкий";
+  return {abv, strength};
+};
+
+const refreshCocktailStrength = async (env, cocktailId) => {
+  await ensureIngredientSystem(env);
+  const {results} = await env.DB.prepare(
+    "SELECT ri.quantity,i.unit,i.strength_percent FROM recipe_ingredients ri JOIN ingredients i ON i.id=ri.ingredient_id WHERE ri.cocktail_id=?"
+  ).bind(cocktailId).all();
+  const calculated = calculateCocktailStrength(results);
+  await env.DB.prepare("UPDATE cocktails SET strength=?,updated_at=CURRENT_TIMESTAMP WHERE id=?").bind(calculated.strength,cocktailId).run();
+  return calculated;
+};
 
 const getCocktails = async (env) => {
   const { results } = await env.DB.prepare(
@@ -172,7 +199,7 @@ const getCocktails = async (env) => {
       }catch(e){}
     }
     const r=await env.DB.prepare(
-      "SELECT ri.ingredient_id,ri.quantity,i.name ingredient_name,i.unit FROM recipe_ingredients ri JOIN ingredients i ON i.id=ri.ingredient_id WHERE ri.cocktail_id=? ORDER BY ri.id"
+      "SELECT ri.ingredient_id,ri.quantity,i.name ingredient_name,i.unit,i.strength_percent FROM recipe_ingredients ri JOIN ingredients i ON i.id=ri.ingredient_id WHERE ri.cocktail_id=? ORDER BY ri.id"
     ).bind(c.id).all();
     c.recipe_items=r.results||[];
   }
@@ -310,7 +337,7 @@ export default {
         const existing=await env.DB.prepare("SELECT id FROM cocktails WHERE id=?").bind(id).first();
         if(!existing)return json({error:"Коктейль не найден"},404);
         await env.DB.prepare("UPDATE cocktails SET name=?,description=?,category=?,strength=?,photo_url=?,glass=?,ice=?,method=?,garnish=?,updated_at=CURRENT_TIMESTAMP WHERE id=?")
-          .bind(name,String(data.description||""),String(data.category||""),String(data.strength||""),String(data.photo_url||""),String(data.glass||""),String(data.ice||""),String(data.method||""),String(data.garnish||""),id).run();
+          .bind(name,String(data.description||""),String(data.category||""),"",String(data.photo_url||""),String(data.glass||""),String(data.ice||""),String(data.method||""),String(data.garnish||""),id).run();
         await ensureIngredientSystem(env);
         await env.DB.prepare("DELETE FROM recipe_ingredients WHERE cocktail_id=?").bind(id).run();
         for(const item of (Array.isArray(data.recipe_items)?data.recipe_items:[])){
@@ -318,7 +345,8 @@ export default {
           if(Number.isInteger(iid)&&iid>0&&q>0)await env.DB.prepare("INSERT INTO recipe_ingredients(cocktail_id,ingredient_id,quantity) VALUES(?,?,?)").bind(id,iid,q).run();
         }
         const pricing=await refreshCocktailPrice(env,id);
-        return json({ok:true,id,pricing});
+        const strength=await refreshCocktailStrength(env,id);
+        return json({ok:true,id,pricing,strength});
       }
 
       if (url.pathname === "/api/cocktails" && request.method === "DELETE") {
@@ -356,11 +384,13 @@ export default {
       if (url.pathname === "/api/cocktails" && request.method === "POST") {
         const data=await request.json(), name=String(data.name||"").trim();
         if(!name)return json({error:"Название коктейля обязательно"},400);
-        const r=await env.DB.prepare(`INSERT INTO cocktails(name,description,category,strength,price_rub,photo_url,glass,ice,method,garnish) VALUES(?,?,?,?,0,?,?,?,?,?)`).bind(name,String(data.description||""),String(data.category||""),String(data.strength||""),String(data.photo_url||""),String(data.glass||""),String(data.ice||""),String(data.method||""),String(data.garnish||"")).run();
+        const r=await env.DB.prepare(`INSERT INTO cocktails(name,description,category,strength,price_rub,photo_url,glass,ice,method,garnish) VALUES(?,?,?,?,0,?,?,?,?,?)`).bind(name,String(data.description||""),String(data.category||""),"",String(data.photo_url||""),String(data.glass||""),String(data.ice||""),String(data.method||""),String(data.garnish||"")).run();
         const id=r.meta.last_row_id;
         await ensureIngredientSystem(env);
         for(const item of (Array.isArray(data.recipe_items)?data.recipe_items:[])){let iid=Number(item.ingredient_id);if(!Number.isInteger(iid)&&item.name)iid=await resolveIngredient(env,item.name);const q=Number(item.quantity);if(Number.isInteger(iid)&&q>0)await env.DB.prepare("INSERT OR REPLACE INTO recipe_ingredients(cocktail_id,ingredient_id,quantity) VALUES(?,?,?)").bind(id,iid,q).run();}
-        const pricing=await refreshCocktailPrice(env,id); return json({ok:true,id,pricing},201);
+        const pricing=await refreshCocktailPrice(env,id);
+        const strength=await refreshCocktailStrength(env,id);
+        return json({ok:true,id,pricing,strength},201);
       }
 
       if (url.pathname === "/api/products" && request.method === "GET") {
@@ -532,21 +562,21 @@ export default {
 
       if (url.pathname === "/api/ingredients" && request.method === "GET") {
         await ensureIngredientSystem(env);
-        const {results}=await env.DB.prepare("SELECT id,name,unit FROM ingredients WHERE is_active=1 ORDER BY name").all();
+        const {results}=await env.DB.prepare("SELECT id,name,unit,strength_percent FROM ingredients WHERE is_active=1 ORDER BY name").all();
         return json(results);
       }
       if (url.pathname === "/api/ingredients" && request.method === "POST") {
         await ensureIngredientSystem(env);
-        const data=await request.json(), name=String(data.name||"").trim(), unit=String(data.unit||"ml");
-        if(!name||!["ml","g","pcs"].includes(unit)) return json({error:"Укажите название и единицу"},400);
-        const r=await env.DB.prepare("INSERT INTO ingredients(name,unit) VALUES(?,?)").bind(name,unit).run();
+        const data=await request.json(), name=String(data.name||"").trim(), unit=String(data.unit||"ml"), strength=Number(data.strength_percent||0);
+        if(!name||!["ml","g","pcs"].includes(unit)||!Number.isFinite(strength)||strength<0||strength>100) return json({error:"Укажите название, единицу и крепость от 0 до 100%"},400);
+        const r=await env.DB.prepare("INSERT INTO ingredients(name,unit,strength_percent) VALUES(?,?,?)").bind(name,unit,strength).run();
         return json({ok:true,id:r.meta.last_row_id},201);
       }
       if (url.pathname === "/api/ingredients" && request.method === "PUT") {
         await ensureIngredientSystem(env);
-        const data=await request.json(), id=Number(data.id), name=String(data.name||"").trim(), unit=String(data.unit||"ml");
-        if(!id||!name||!["ml","g","pcs"].includes(unit)) return json({error:"Некорректные данные"},400);
-        await env.DB.prepare("UPDATE ingredients SET name=?,unit=?,updated_at=CURRENT_TIMESTAMP WHERE id=?").bind(name,unit,id).run();
+        const data=await request.json(), id=Number(data.id), name=String(data.name||"").trim(), unit=String(data.unit||"ml"), strength=Number(data.strength_percent||0);
+        if(!id||!name||!["ml","g","pcs"].includes(unit)||!Number.isFinite(strength)||strength<0||strength>100) return json({error:"Некорректные данные: крепость должна быть от 0 до 100%"},400);
+        await env.DB.prepare("UPDATE ingredients SET name=?,unit=?,strength_percent=?,updated_at=CURRENT_TIMESTAMP WHERE id=?").bind(name,unit,strength,id).run();
         return json({ok:true});
       }
       if (url.pathname === "/api/ingredients" && request.method === "DELETE") {
@@ -611,7 +641,7 @@ export default {
       <label>Описание для гостя</label><textarea name="description" placeholder="Короткое описание вкуса"></textarea>
       <div class="grid">
         <div><div><label>Категория</label><input name="category" placeholder="Классика"></div></div>
-        <div><div><label>Крепость</label><input name="strength" placeholder="Крепкий"></div></div>
+        <div><div><label>Крепость</label><input name="strength" readonly placeholder="Рассчитывается автоматически"></div></div>
                 <div><div><label>Бокал</label><input name="glass" placeholder="Rocks"></div></div>
       </div>
       <label>Лёд</label><input name="ice" placeholder="Крупный куб">
@@ -695,13 +725,14 @@ const startEdit=(c)=>{
   showPanel();
   const form=document.querySelector("#cocktailForm");
   form.dataset.editId=c.id;
-  for(const n of ["name","description","category","strength","glass","ice","method","garnish"]){
+  for(const n of ["name","description","category","glass","ice","method","garnish"]){
     const el=form.elements[n]; if(el)el.value=c[n]||"";
   }
   document.querySelector("#photoUrl").value=c.photo_url||"";
   document.querySelector("#photoPreview").innerHTML=c.photo_url?'<img src="'+esc(c.photo_url)+'" style="max-width:240px;max-height:240px;border-radius:14px;display:block" alt="Фото">':"";
   document.querySelector("#recipeItems").innerHTML="";
   (c.recipe_items||[]).forEach(item=>addRow(item));
+  form.elements.strength.value=c.strength||"";
   document.querySelector("#formTitle").textContent="Редактирование: "+(c.name||"коктейль");
   document.querySelector("#cocktailForm button[type=submit]").textContent="💾 Сохранить изменения";
 };
@@ -796,6 +827,7 @@ load();
 <form id="ingredientForm">
 <label>Название *</label><input name="name" required placeholder="Например, Тоник апельсиновый">
 <label>Единица</label><select name="unit"><option value="ml">мл</option><option value="g">г</option><option value="pcs">шт.</option></select>
+<label>Крепость алкоголя, %</label><input name="strength_percent" type="number" min="0" max="100" step="0.1" value="0" placeholder="Например, 40"><p class="muted">Для водки 40%, ликёра 20%, сока/газировки — 0%.</p>
 <div style="margin-top:16px"><button>＋ Добавить</button></div><p id="msg" class="muted"></p>
 </form>
 </div><div style="height:16px"></div>
@@ -804,7 +836,7 @@ load();
 <script>
 const esc=s=>String(s??"").replace(/[&<>"']/g,c=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[c]));
 async function load(){const r=await fetch("/api/ingredients");const x=await r.json();document.querySelector("#list").innerHTML=x.map(i=>'<div class="ingredient-item" data-id="'+i.id+'" style="padding:12px 0;border-bottom:1px solid #292929"><div class="ingredient-view"><b>#'+i.id+' · '+esc(i.name)+'</b><span class="muted"> · '+i.unit+'</span> <button type="button" class="secondary edit">Изменить</button></div></div>').join("")||'<div class="empty">Нет ингредиентов</div>';
-document.querySelectorAll(".ingredient-item .edit").forEach(b=>b.onclick=()=>{const item=b.closest(".ingredient-item"), id=Number(item.dataset.id), current=x.find(v=>Number(v.id)===id);if(!current)return;item.innerHTML='<div class="grid" style="grid-template-columns:1fr 140px;align-items:end"><div><label>Название</label><input class="edit-name" value="'+esc(current.name)+'"></div><div><label>Единица</label><select class="edit-unit"><option value="ml"'+(current.unit==="ml"?" selected":"")+'>мл</option><option value="g"'+(current.unit==="g"?" selected":"")+'>г</option><option value="pcs"'+(current.unit==="pcs"?" selected":"")+'>шт.</option></select></div></div><div class="row" style="margin-top:10px"><button type="button" class="save-edit">💾 Сохранить</button><button type="button" class="secondary cancel-edit">Отмена</button><span class="edit-msg muted"></span></div>';item.querySelector(".cancel-edit").onclick=()=>load();item.querySelector(".save-edit").onclick=async()=>{const name=item.querySelector(".edit-name").value.trim(),unit=item.querySelector(".edit-unit").value,msg=item.querySelector(".edit-msg");if(!name){msg.textContent="Введите название";return}const r=await fetch("/api/ingredients",{method:"PUT",headers:{"content-type":"application/json"},body:JSON.stringify({id,name,unit})});const d=await r.json();if(!r.ok){msg.textContent=d.error||"Ошибка"}else load()}})}
+document.querySelectorAll(".ingredient-item .edit").forEach(b=>b.onclick=()=>{const item=b.closest(".ingredient-item"), id=Number(item.dataset.id), current=x.find(v=>Number(v.id)===id);if(!current)return;item.innerHTML='<div class="grid" style="grid-template-columns:1fr 140px 140px;align-items:end"><div><label>Название</label><input class="edit-name" value="'+esc(current.name)+'"></div><div><label>Единица</label><select class="edit-unit"><option value="ml"'+(current.unit==="ml"?" selected":"")+'>мл</option><option value="g"'+(current.unit==="g"?" selected":"")+'>г</option><option value="pcs"'+(current.unit==="pcs"?" selected":"")+'>шт.</option></select></div><div><label>Крепость, %</label><input class="edit-strength" type="number" min="0" max="100" step="0.1" value="'+Number(current.strength_percent||0)+'"></div></div><div class="row" style="margin-top:10px"><button type="button" class="save-edit">💾 Сохранить</button><button type="button" class="secondary cancel-edit">Отмена</button><span class="edit-msg muted"></span></div>';item.querySelector(".cancel-edit").onclick=()=>load();item.querySelector(".save-edit").onclick=async()=>{const name=item.querySelector(".edit-name").value.trim(),unit=item.querySelector(".edit-unit").value,strength=Number(item.querySelector(".edit-strength").value||0),msg=item.querySelector(".edit-msg");if(!name||!Number.isFinite(strength)||strength<0||strength>100){msg.textContent="Проверьте название и крепость 0–100%";return}const r=await fetch("/api/ingredients",{method:"PUT",headers:{"content-type":"application/json"},body:JSON.stringify({id,name,unit,strength_percent:strength})});const d=await r.json();if(!r.ok){msg.textContent=d.error||"Ошибка"}else load()}})}
 document.querySelector("#ingredientForm").onsubmit=async e=>{e.preventDefault();const body=Object.fromEntries(new FormData(e.target));const r=await fetch("/api/ingredients",{method:"POST",headers:{"content-type":"application/json"},body:JSON.stringify(body)});const d=await r.json();document.querySelector("#msg").textContent=r.ok?"Ингредиент добавлен ✅":"Ошибка: "+(d.error||"");if(r.ok){e.target.reset();load()}};load();
 </script>`, "Ингредиенты");
       if (url.pathname === "/bar/stock") {
