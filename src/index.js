@@ -7,6 +7,7 @@ const ingredientKey=v=>String(v||"").toLowerCase().replace(/ё/g,"е").trim().re
 
 const ensureIngredientSystem=async env=>{
   await env.DB.prepare("CREATE TABLE IF NOT EXISTS ingredients (id INTEGER PRIMARY KEY AUTOINCREMENT, name TEXT NOT NULL UNIQUE, category TEXT DEFAULT '', unit TEXT NOT NULL CHECK(unit IN ('ml','g','pcs')), is_active INTEGER NOT NULL DEFAULT 1, created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP, updated_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP)").run();
+  await env.DB.prepare("CREATE TABLE IF NOT EXISTS product_aliases (alias_key TEXT PRIMARY KEY, product_id INTEGER NOT NULL REFERENCES products(id) ON DELETE CASCADE, created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP)").run();
   try{await env.DB.prepare("ALTER TABLE products ADD COLUMN ingredient_id INTEGER").run()}catch(e){}
   try{await env.DB.prepare("ALTER TABLE recipe_items ADD COLUMN ingredient_id INTEGER").run()}catch(e){}
   for(const [name,cat,unit] of ingredientTemplates){
