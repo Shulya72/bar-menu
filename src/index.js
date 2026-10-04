@@ -568,14 +568,16 @@ document.querySelector("#applyFilter").onclick=loadHistory;
 document.querySelector("#clearFilter").onclick=()=>{document.querySelector("#filterFrom").value="";document.querySelector("#filterTo").value="";document.querySelector("#filterIngredient").value="";loadHistory();};
 document.querySelector("#todayFilter").onclick=()=>{const d=new Date();const s=d.getFullYear()+"-"+pad(d.getMonth()+1)+"-"+pad(d.getDate());document.querySelector("#filterFrom").value=s;document.querySelector("#filterTo").value=s;loadHistory();};
 
-try{
-  await loadIngredients();
-  await loadHistory();
-}catch(e){
-  document.querySelector("#ingredientSelect").innerHTML='<option value="">Ошибка загрузки ингредиентов</option>';
-  document.querySelector("#filterIngredient").innerHTML='<option value="">Не удалось загрузить</option>';
-  document.querySelector("#history").innerHTML='<div class="empty">Ошибка: '+esc(e.message||e)+'</div>';
-}
+(async()=>{
+  try{
+    await loadIngredients();
+    await loadHistory();
+  }catch(e){
+    document.querySelector("#ingredientSelect").innerHTML='<option value="">Ошибка загрузки ингредиентов</option>';
+    document.querySelector("#filterIngredient").innerHTML='<option value="">Не удалось загрузить</option>';
+    document.querySelector("#history").innerHTML='<div class="empty">Ошибка: '+esc(e.message||e)+'</div>';
+  }
+})();
 </script>`, "Магазин");
 
       if (url.pathname === "/bar/orders") return page(`
