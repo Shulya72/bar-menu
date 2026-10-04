@@ -1,42 +1,27 @@
 
-const ingredientTemplates = [
-["Водка","Спиртное","ml",["водка","vodka"]],["Джин","Спиртное","ml",["джин","gin"]],["Ром белый","Спиртное","ml",["ром белый","белый ром","white rum"]],["Ром тёмный","Спиртное","ml",["ром тёмный","тёмный ром","dark rum"]],["Текила","Спиртное","ml",["текила","tequila"]],["Виски","Спиртное","ml",["виски","whiskey","whisky"]],["Бурбон","Спиртное","ml",["бурбон","bourbon"]],["Коньяк","Спиртное","ml",["коньяк","бренди","cognac","brandy"]],["Вермут сладкий","Вермут","ml",["сладкий вермут","sweet vermouth"]],["Вермут сухой","Вермут","ml",["сухой вермут","dry vermouth"]],["Ликер Triple Sec","Ликеры","ml",["трипл сек","triple sec","triple-sec"]],["Ликер Blue Curacao","Ликеры","ml",["blue curacao","блю кюрасао","блю курасао"]],["Ликер кофейный","Ликеры","ml",["кофейный ликер","coffee liqueur"]],["Ликер дынный","Ликеры","ml",["дынный ликер","ликер дынный","midori"]],["Абсент","Ликеры","ml",["абсент","absinthe"]],["Апероль","Аперитивы","ml",["апероль","aperol"]],["Кампари","Аперитивы","ml",["кампари","campari"]],["Лимонный сок","Соки","ml",["лимонный сок","сок лимона","lemon juice"]],["Лаймовый сок","Соки","ml",["лаймовый сок","сок лайма","lime juice"]],["Апельсиновый сок","Соки","ml",["апельсиновый сок","сок апельсина","orange juice"]],["Вишневый сок","Соки","ml",["вишневый сок","сок вишневый","cherry juice"]],["Ананасовый сок","Соки","ml",["ананасовый сок","сок ананаса","pineapple juice"]],["Клюквенный сок","Соки","ml",["клюквенный сок","сок клюквы","cranberry juice"]],["Кола","Безалкогольные","ml",["кола","cola","coca cola","coca-cola"]],["Спрайт","Безалкогольные","ml",["спрайт","sprite","7up","7-up"]],["Тоник","Тоники","ml",["тоник","tonic","tonic water"]],["Содовая","Безалкогольные","ml",["содовая","содовая вода","soda water","club soda"]],["Имбирный эль","Безалкогольные","ml",["имбирный эль","ginger ale"]],["Имбирное пиво","Безалкогольные","ml",["имбирное пиво","ginger beer"]],["Энергетик","Безалкогольные","ml",["энергетик","energy drink"]],["Гренадин","Сиропы","ml",["гренадин","сироп гренадин","grenadine"]],["Сироп простой","Сиропы","ml",["простой сироп","сахарный сироп","simple syrup"]],["Сироп кокосовый","Сиропы","ml",["кокосовый сироп","сироп кокосовый","coconut syrup"]],["Сироп зеленое яблоко","Сиропы","ml",["сироп зеленое яблоко","яблочный сироп"]],["Сироп Blue Curacao","Сиропы","ml",["сироп blue curacao","сироп блю кюрасао"]],["Лед","Лёд","g",["лед","лёд","ice"]],["Соль","Специи","g",["соль","salt"]],["Сахар","Специи","g",["сахар","sugar"]],["Лимон","Гарниры","pcs",["лимон","lemon"]],["Лайм","Гарниры","pcs",["лайм","lime"]],["Апельсин","Гарниры","pcs",["апельсин","orange"]],["Мята","Гарниры","g",["мята","mint"]]
-];
-const ingredientKey=v=>String(v||"").toLowerCase().replace(/ё/g,"е").trim().replace(/[^a-zа-я0-9]+/gi," ");
-const ingredientKey=v=>String(v||"").toLowerCase().replace(/ё/g,"е").trim().replace(/[^a-zа-я0-9]+/gi," ");
-
 const ensureIngredientSystem=async env=>{
   await env.DB.prepare("CREATE TABLE IF NOT EXISTS ingredients (id INTEGER PRIMARY KEY AUTOINCREMENT, name TEXT NOT NULL UNIQUE, category TEXT DEFAULT '', unit TEXT NOT NULL CHECK(unit IN ('ml','g','pcs')), is_active INTEGER NOT NULL DEFAULT 1, created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP, updated_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP)").run();
-  await env.DB.prepare("CREATE TABLE IF NOT EXISTS product_aliases (alias_key TEXT PRIMARY KEY, product_id INTEGER NOT NULL REFERENCES products(id) ON DELETE CASCADE, created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP)").run();
+  await env.DB.prepare("CREATE TABLE IF NOT EXISTS recipe_ingredients (id INTEGER PRIMARY KEY AUTOINCREMENT, cocktail_id INTEGER NOT NULL REFERENCES cocktails(id) ON DELETE CASCADE, ingredient_id INTEGER NOT NULL REFERENCES ingredients(id), quantity REAL NOT NULL CHECK(quantity > 0), UNIQUE(cocktail_id, ingredient_id))").run();
   try{await env.DB.prepare("ALTER TABLE products ADD COLUMN ingredient_id INTEGER").run()}catch(e){}
-  try{await env.DB.prepare("ALTER TABLE recipe_items ADD COLUMN ingredient_id INTEGER").run()}catch(e){}
-  for(const [name,cat,unit] of ingredientTemplates){
-    await env.DB.prepare("INSERT OR IGNORE INTO ingredients(name,category,unit) VALUES(?,?,?)").bind(name,cat,unit).run();
-  }
-  const {results: ps}=await env.DB.prepare("SELECT id,name,category,unit,ingredient_id FROM products WHERE is_active=1").all();
+  const {results: ps}=await env.DB.prepare("SELECT id,name,ingredient_id FROM products WHERE is_active=1").all();
   for(const p of ps){
     if(p.ingredient_id) continue;
-    let ing=await env.DB.prepare("SELECT id FROM ingredients WHERE lower(replace(name,'ё','е'))=lower(replace(?,'ё','е')) LIMIT 1").bind(p.name).first();
-    if(!ing){
-      for(const [name,cat,unit,aliases] of ingredientTemplates){
-        const k=ingredientKey(p.name), nk=ingredientKey(name);
-        if(k===nk || aliases.some(a=>ingredientKey(a)===k)){ ing=await env.DB.prepare("SELECT id FROM ingredients WHERE name=?").bind(name).first(); break; }
-      }
-    }
+    const ing=await env.DB.prepare("SELECT id FROM ingredients WHERE name=? LIMIT 1").bind(p.name).first();
     if(ing) await env.DB.prepare("UPDATE products SET ingredient_id=? WHERE id=?").bind(ing.id,p.id).run();
   }
-  await env.DB.prepare("UPDATE recipe_items SET ingredient_id=(SELECT ingredient_id FROM products WHERE products.id=recipe_items.product_id) WHERE ingredient_id IS NULL").run();
+  await env.DB.prepare("INSERT OR IGNORE INTO recipe_ingredients(cocktail_id,ingredient_id,quantity) SELECT ri.cocktail_id,p.ingredient_id,ri.quantity FROM recipe_items ri JOIN products p ON p.id=ri.product_id WHERE p.ingredient_id IS NOT NULL").run();
 };
 
-const seedIngredientCatalog=async env=>{
+const resolveIngredient=async(env,name)=>{
   await ensureIngredientSystem(env);
-  for(const [name,cat,unit,aliases] of ingredientTemplates){
-    const ing=await env.DB.prepare("SELECT id FROM ingredients WHERE name=?").bind(name).first();
-    if(!ing) continue;
-    for(const a of [name,...aliases]) await env.DB.prepare("INSERT OR IGNORE INTO product_aliases(alias_key,product_id) SELECT ?,id FROM products WHERE ingredient_id=? ORDER BY id LIMIT 1").bind(ingredientKey(a),ing.id).run();
-  }
+  const n=String(name||"").trim();
+  if(!n) return null;
+  const hit=await env.DB.prepare("SELECT id FROM ingredients WHERE lower(replace(name,'ё','е'))=lower(replace(?,'ё','е')) AND is_active=1 LIMIT 1").bind(n).first();
+  if(hit)return Number(hit.id);
+  const r=await env.DB.prepare("INSERT INTO ingredients(name,category,unit) VALUES(?,?,?)").bind(n,"Пользовательские","ml").run();
+  return Number(r.meta.last_row_id);
 };
-const resolveIngredient=async(env,name)=>{await ensureIngredientSystem(env);const n=String(name||"").trim();const hit=await env.DB.prepare("SELECT id FROM ingredients WHERE lower(replace(name,'ё','е'))=lower(replace(?,'ё','е')) LIMIT 1").bind(n).first();if(hit)return Number(hit.id);const key=ingredientKey(n);for(const [cn,cat,unit,aliases] of ingredientTemplates){if(aliases.some(a=>ingredientKey(a)===key)){const x=await env.DB.prepare("SELECT id FROM ingredients WHERE name=?").bind(cn).first();if(x)return Number(x.id)}}const r=await env.DB.prepare("INSERT INTO ingredients(name,category,unit) VALUES(?,?,?)").bind(n,"Пользовательские","ml").run();return Number(r.meta.last_row_id);};
+
 const json = (data, status = 200) =>
   Response.json(data, { status, headers: { "cache-control": "no-store" } });
 
