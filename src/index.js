@@ -176,7 +176,8 @@ const getProducts = async (env) => {
     x.details=(batches.results||[]).map(b=>({
       brand:b.brand,store:b.store,stock:Number(b.stock||0),
       stock_value:Number(b.stock_value||0),
-      unit_price:Number(b.stock||0)>0?Number(b.stock_value||0)/Number(b.stock):0
+      unit_price:Number(b.stock||0)>0?Number(b.stock_value||0)/Number(b.stock):0,
+      source_type:"purchase"
     }));
 
     if(adjustmentsAvailable){
@@ -185,7 +186,7 @@ const getProducts = async (env) => {
         for(const adjustment of (adjustments.results||[])){
           const stock=Number(adjustment.stock||0), value=Number(adjustment.stock_value||0);
           if(stock>0){
-            x.details.push({brand:adjustment.brand,store:adjustment.store,stock,stock_value:value,unit_price:value/stock});
+            x.details.push({brand:adjustment.brand,store:adjustment.store,stock,stock_value:value,unit_price:value/stock,source_type:"manual"});
           }
         }
       }catch(e){}
