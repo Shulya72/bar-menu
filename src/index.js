@@ -177,6 +177,46 @@ export default {
            ORDER BY pb.purchased_at DESC,pb.id DESC LIMIT 100`).all();
         return json(results);
       }
+      if (url.pathname === "/api/shop/purchase" && request.method === "PUT") {
+        await ensureShopSystem(env);
+        const data=await request.json();
+        const id=Number(data.id), ingredientId=Number(data.ingredient_id);
+        const qty=Number(data.quantity), price=Number(data.price_rub);
+        const store=String(data.store||"").trim(), brand=String(data.brand||"").trim();
+        if(!Number.isInteger(id)||id<1)return json({error:"Некорректная закупка"},400);
+        if(!Number.isInteger(ingredientId)||ingredientId<1)return json({error:"Выберите ингредиент"},400);
+        if(!(qty>0))return json({error:"Укажите количество"},400);
+        if(!(price>=0))return json({error:"Укажите цену закупки"},400);
+        const batch=await env.DB.prepare("SELECT id,purchased_qty,remaining_qty,product_id FROM purchase_batches WHERE id=?").bind(id).first();
+        if(!batch)return json({error:"Закупка не найдена"},404);
+        const consumed=Number(batch.purchased_qty)-Number(batch.remaining_qty);
+        if(qty<consumed)return json({error:"Количество не может быть меньше уже списанного остатка: "+consumed},400);
+        const ing=await env.DB.prepare("SELECT id,name,unit FROM ingredients WHERE id=? AND is_active=1").bind(ingredientId).first();
+        if(!ing)return json({error:"Ингредиент не найден"},404);
+        let product=await env.DB.prepare("SELECT id FROM products WHERE ingredient_id=? AND brand=? AND store=? AND is_active=1 LIMIT 1").bind(ingredientId,brand,store).first();
+        let productId;
+        if(product){productId=Number(product.id)}
+        else{
+          const pr=await env.DB.prepare("INSERT INTO products(name,brand,category,unit,min_stock,ingredient_id,store) VALUES(?,?,?,?,0,?,?)").bind(ing.name,brand,"",ing.unit,ingredientId,store).run();
+          productId=Number(pr.meta.last_row_id);
+        }
+        const newRemaining=qty-consumed;
+        await env.DB.prepare("UPDATE purchase_batches SET product_id=?,purchased_qty=?,remaining_qty=?,price_rub=? WHERE id=?").bind(productId,qty,newRemaining,price,id).run();
+        return json({ok:true});
+      }
+
+      if (url.pathname === "/api/shop/purchase" && request.method === "DELETE") {
+        await ensureShopSystem(env);
+        const id=Number(url.searchParams.get("id"));
+        if(!Number.isInteger(id)||id<1)return json({error:"Некорректная закупка"},400);
+        const batch=await env.DB.prepare("SELECT id,remaining_qty,purchased_qty FROM purchase_batches WHERE id=?").bind(id).first();
+        if(!batch)return json({error:"Закупка не найдена"},404);
+        const movement=await env.DB.prepare("SELECT COUNT(*) n FROM stock_movements WHERE batch_id=?").bind(id).first();
+        if(Number(movement?.n)>0)return json({error:"Эту закупку уже использовали на складе — удалить её нельзя"},409);
+        await env.DB.prepare("DELETE FROM purchase_batches WHERE id=?").bind(id).run();
+        return json({ok:true});
+      }
+
       if (url.pathname === "/api/shop/purchase" && request.method === "POST") {
         await ensureShopSystem(env);
         const data=await request.json();
@@ -409,8 +449,67 @@ fetch("/api/cocktails").then(r=>r.json()).then(x=>{document.querySelector("#menu
 </div>
 <script>
 const esc=s=>String(s??"").replace(/[&<>"']/g,c=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[c]));
-async function load(){const [ir,hr]=await Promise.all([fetch("/api/ingredients"),fetch("/api/shop/purchases")]);const ingredients=await ir.json(),history=await hr.json();document.querySelector("#ingredientSelect").innerHTML='<option value="">Выберите ингредиент...</option>'+ingredients.map(i=>'<option value="'+i.id+'">'+esc(i.name)+' ('+esc(i.unit)+')</option>').join("");document.querySelector("#history").innerHTML=history.length?history.map(x=>'<div style="padding:13px 0;border-bottom:1px solid #292929"><b>'+esc(x.ingredient_name)+'</b><div class="muted">'+Number(x.purchased_qty)+' '+esc(x.unit)+' · '+Number(x.price_rub).toFixed(2)+' ₽'+(x.store?' · '+esc(x.store):'')+(x.brand?' · '+esc(x.brand):'')+'</div><div class="muted">Осталось: '+Number(x.remaining_qty)+' '+esc(x.unit)+'</div></div>').join(""):'<div class="empty">Закупок пока нет.</div>';}
-document.querySelector("#purchaseForm").onsubmit=async e=>{e.preventDefault();const body=Object.fromEntries(new FormData(e.target));body.ingredient_id=Number(body.ingredient_id);body.quantity=Number(body.quantity);body.price_rub=Number(body.price_rub);const r=await fetch("/api/shop/purchase",{method:"POST",headers:{"content-type":"application/json"},body:JSON.stringify(body)});const d=await r.json();document.querySelector("#msg").textContent=r.ok?"Закупка добавлена ✅":"Ошибка: "+(d.error||"не удалось сохранить");if(r.ok){e.target.reset();await load();}};
+let ingredients=[];
+async function load(){
+  const [ir,hr]=await Promise.all([fetch("/api/ingredients"),fetch("/api/shop/purchases")]);
+  ingredients=await ir.json();
+  const history=await hr.json();
+  document.querySelector("#ingredientSelect").innerHTML='<option value="">Выберите ингредиент...</option>'+ingredients.map(i=>'<option value="'+i.id+'">'+esc(i.name)+' ('+esc(i.unit)+')</option>').join("");
+  document.querySelector("#history").innerHTML=history.length?history.map(x=>{
+    const consumed=Math.max(0,Number(x.purchased_qty)-Number(x.remaining_qty));
+    return '<div class="purchase-item" data-id="'+x.id+'" style="padding:13px 0;border-bottom:1px solid #292929">'+
+      '<div class="purchase-view"><b>'+esc(x.ingredient_name)+'</b><div class="muted">'+Number(x.purchased_qty)+' '+esc(x.unit)+' · '+Number(x.price_rub).toFixed(2)+' ₽'+(x.store?' · '+esc(x.store):'')+(x.brand?' · '+esc(x.brand):'')+'</div>'+
+      '<div class="muted">Осталось: '+Number(x.remaining_qty)+' '+esc(x.unit)+(consumed?' · списано: '+consumed+' '+esc(x.unit):'')+'</div>'+
+      '<div class="row" style="margin-top:9px"><button type="button" class="secondary edit">✏️ Изменить</button><button type="button" class="secondary delete">🗑 Удалить</button></div></div></div>';
+  }).join(""):'<div class="empty">Закупок пока нет.</div>';
+  document.querySelectorAll(".purchase-item .edit").forEach(b=>b.onclick=()=>editPurchase(history,b.closest(".purchase-item").dataset.id));
+  document.querySelectorAll(".purchase-item .delete").forEach(b=>b.onclick=()=>deletePurchase(b.closest(".purchase-item").dataset.id));
+}
+function editPurchase(history,id){
+  const item=history.find(x=>String(x.id)===String(id)); if(!item)return;
+  const row=document.querySelector('.purchase-item[data-id="'+id+'"]');
+  const consumed=Math.max(0,Number(item.purchased_qty)-Number(item.remaining_qty));
+  row.innerHTML='<div><div class="grid">'+
+    '<div><label>Ингредиент</label><select class="edit-ingredient">'+ingredients.map(i=>'<option value="'+i.id+'"'+(Number(i.id)===Number(item.ingredient_id)?' selected':'')+'>'+esc(i.name)+' ('+esc(i.unit)+')</option>').join("")+'</select></div>'+
+    '<div><label>Магазин / поставщик</label><input class="edit-store" value="'+esc(item.store||"")+'"></div>'+
+    '<div><label>Бренд</label><input class="edit-brand" value="'+esc(item.brand||"")+'"></div>'+
+    '<div><label>Количество</label><input class="edit-qty" type="number" min="'+Math.max(0.01,consumed).toString()+'" step="0.01" value="'+Number(item.purchased_qty)+'"></div>'+
+    '<div><label>Цена закупки, ₽</label><input class="edit-price" type="number" min="0" step="0.01" value="'+Number(item.price_rub)+'"></div>'+
+    '</div><p class="muted">Уже списано: '+consumed+' '+esc(item.unit)+'. Количество нельзя уменьшить ниже этого значения.</p>'+
+    '<div class="row"><button type="button" class="save-edit">💾 Сохранить</button><button type="button" class="secondary cancel-edit">Отмена</button><span class="edit-msg muted"></span></div></div>';
+  row.querySelector(".cancel-edit").onclick=load;
+  row.querySelector(".save-edit").onclick=async()=>{
+    const body={
+      id:Number(id),
+      ingredient_id:Number(row.querySelector(".edit-ingredient").value),
+      store:row.querySelector(".edit-store").value.trim(),
+      brand:row.querySelector(".edit-brand").value.trim(),
+      quantity:Number(row.querySelector(".edit-qty").value),
+      price_rub:Number(row.querySelector(".edit-price").value)
+    };
+    const msg=row.querySelector(".edit-msg");
+    const r=await fetch("/api/shop/purchase",{method:"PUT",headers:{"content-type":"application/json"},body:JSON.stringify(body)});
+    const d=await r.json();
+    if(!r.ok){msg.textContent="Ошибка: "+(d.error||"не удалось сохранить");return}
+    await load();
+  };
+}
+async function deletePurchase(id){
+  if(!confirm("Удалить эту закупку? Товар и его остаток по этой партии будут удалены из истории магазина."))return;
+  const r=await fetch("/api/shop/purchase?id="+encodeURIComponent(id),{method:"DELETE"});
+  const d=await r.json();
+  if(!r.ok){alert(d.error||"Не удалось удалить закупку");return}
+  await load();
+}
+document.querySelector("#purchaseForm").onsubmit=async e=>{
+  e.preventDefault();
+  const body=Object.fromEntries(new FormData(e.target));
+  body.ingredient_id=Number(body.ingredient_id);body.quantity=Number(body.quantity);body.price_rub=Number(body.price_rub);
+  const r=await fetch("/api/shop/purchase",{method:"POST",headers:{"content-type":"application/json"},body:JSON.stringify(body)});
+  const d=await r.json();
+  document.querySelector("#msg").textContent=r.ok?"Закупка добавлена ✅":"Ошибка: "+(d.error||"не удалось сохранить");
+  if(r.ok){e.target.reset();await load();}
+};
 load();
 </script>`, "Магазин");
 
