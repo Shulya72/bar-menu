@@ -64,7 +64,8 @@ const ensureIngredientSystem=async env=>{
   }catch(e){}
 };
 
-const ensureStockAdjustmentSystem=async env=>{ await ensureShopSystem(env); try{await env.DB.prepare("CREATE TABLE IF NOT EXISTS stock_adjustments (id INTEGER PRIMARY KEY AUTOINCREMENT, ingredient_id INTEGER NOT NULL REFERENCES ingredients(id), quantity REAL NOT NULL, unit_price REAL NOT NULL DEFAULT 0, brand TEXT DEFAULT '', store TEXT DEFAULT '', created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP)").run()}catch(e){} try{await env.DB.prepare("ALTER TABLE stock_adjustments ADD COLUMN brand TEXT DEFAULT ''").run()}catch(e){} try{await env.DB.prepare("ALTER TABLE stock_adjustments ADD COLUMN store TEXT DEFAULT ''").run()}catch(e){} };
+const ensureStockAdjustmentSystem=async env=>{ await ensureShopSystem(env); try{await env.DB.prepare("CREATE TABLE IF NOT EXISTS stock_adjustments (id INTEGER PRIMARY KEY AUTOINCREMENT, ingredient_id INTEGER NOT NULL REFERENCES ingredients(id), quantity REAL NOT NULL, unit_price REAL NOT NULL DEFAULT 0, brand TEXT DEFAULT '', store TEXT DEFAULT '', created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP)").run()}catch(e){} try{await env.DB.prepare("ALTER TABLE stock_adjustments ADD COLUMN brand TEXT DEFAULT ''").run()}catch(e){} try{await env.DB.prepare("ALTER TABLE stock_adjustments ADD COLUMN store TEXT DEFAULT ''").run()}catch(e){}
+  try{await env.DB.prepare("DELETE FROM stock_adjustments WHERE brand='Ручная корректировка'").run()}catch(e){} };
 
 const ensureShopSystem=async env=>{
   await ensureIngredientSystem(env);
