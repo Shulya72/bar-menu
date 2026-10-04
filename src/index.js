@@ -132,13 +132,7 @@ const getCocktails = async (env) => {
   return results;
 };
 
-const getProducts = async (env) => {
-  await ensureIngredientSystem(env);
-  const { results } = await env.DB.prepare(
-    "SELECT p.id,p.ingredient_id,i.name ingredient_name,p.brand,p.store,p.category,p.unit,p.min_stock,COALESCE(SUM(b.remaining_qty),0) stock FROM products p JOIN ingredients i ON i.id=p.ingredient_id LEFT JOIN purchase_batches b ON b.product_id=p.id WHERE p.is_active=1 GROUP BY p.id ORDER BY i.name,p.brand"
-  ).all();
-  return results;
-};
+const getProducts = async (env) => {\n  await ensureStockAdjustmentSystem(env);\n  const q="SELECT i.id ingredient_id,i.name ingredient_name,i.unit,COALESCE((SELECT SUM(pb.remaining_qty) FROM purchase_batches pb JOIN products pp ON pp.id=pb.product_id WHERE pp.ingredient_id=i.id AND pp.is_active=1),0)+COALESCE((SELECT SUM(sa.quantity) FROM stock_adjustments sa WHERE sa.ingredient_id=i.id),0) stock,COALESCE((SELECT SUM(pb.remaining_qty*(pb.price_rub/NULLIF(pb.purchased_qty,0))) FROM purchase_batches pb JOIN products pp ON pp.id=pb.product_id WHERE pp.ingredient_id=i.id AND pp.is_active=1),0)+COALESCE((SELECT SUM(sa.quantity*sa.unit_price) FROM stock_adjustments sa WHERE sa.ingredient_id=i.id),0) stock_value,COALESCE((SELECT group_concat(DISTINCT pp.brand) FROM products pp WHERE pp.ingredient_id=i.id AND pp.is_active=1 AND pp.brand<>char(39)),char(39)) brands FROM ingredients i WHERE i.is_active=1 ORDER BY i.name";\n  const {results}=await env.DB.prepare(q).all();\n  return results.map(x=>({...x,stock:Number(x.stock||0),stock_value:Number(x.stock_value||0),unit_price:Number(x.stock||0)>0?Number(x.stock_value||0)/Number(x.stock):0})).filter(x=>x.stock>0);\n};
 
 export default {
   async fetch(request, env) {
