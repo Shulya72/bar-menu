@@ -202,6 +202,9 @@ const getCocktails = async (env) => {
       "SELECT ri.ingredient_id,ri.quantity,i.name ingredient_name,i.unit,i.strength_percent FROM recipe_ingredients ri JOIN ingredients i ON i.id=ri.ingredient_id WHERE ri.cocktail_id=? ORDER BY ri.id"
     ).bind(c.id).all();
     c.recipe_items=r.results||[];
+    const calculated=calculateCocktailStrength(c.recipe_items);
+    c.strength=calculated.strength;
+    c.strength_abv=Number(calculated.abv.toFixed(2));
   }
   return results;
 };
@@ -577,6 +580,8 @@ export default {
         const data=await request.json(), id=Number(data.id), name=String(data.name||"").trim(), unit=String(data.unit||"ml"), strength=Number(data.strength_percent||0);
         if(!id||!name||!["ml","g","pcs"].includes(unit)||!Number.isFinite(strength)||strength<0||strength>100) return json({error:"Некорректные данные: крепость должна быть от 0 до 100%"},400);
         await env.DB.prepare("UPDATE ingredients SET name=?,unit=?,strength_percent=?,updated_at=CURRENT_TIMESTAMP WHERE id=?").bind(name,unit,strength,id).run();
+        const affected=await env.DB.prepare("SELECT DISTINCT cocktail_id FROM recipe_ingredients WHERE ingredient_id=?").bind(id).all();
+        for(const row of (affected.results||[])) await refreshCocktailStrength(env,Number(row.cocktail_id));
         return json({ok:true});
       }
       if (url.pathname === "/api/ingredients" && request.method === "DELETE") {
@@ -594,7 +599,7 @@ export default {
         const cocktail = await env.DB.prepare("SELECT * FROM cocktails WHERE id=?").bind(id).first();
         if (!cocktail) return json({error:"Коктейль не найден"},404);
         const {results} = await env.DB.prepare(
-          `SELECT ri.ingredient_id,ri.quantity,i.name,i.category,i.unit
+          `SELECT ri.ingredient_id,ri.quantity,i.name,i.category,i.unit,i.strength_percent
            FROM recipe_ingredients ri JOIN ingredients i ON i.id=ri.ingredient_id
            WHERE ri.cocktail_id=? ORDER BY ri.id`
         ).bind(id).all();
