@@ -101,7 +101,8 @@ export default {
             ).bind(cocktailId,productId,quantity).run();
           }
         }
-        const pricing=await refreshCocktailPrice(env,cocktailId);\n        return json({ok:true,id:cocktailId,pricing},201);
+        const pricing=await refreshCocktailPrice(env,cocktailId);
+        return json({ok:true,id:cocktailId,pricing},201);
       }
 
       if (url.pathname === "/api/legacy-data" && request.method === "GET") return json({products:legacyProducts,recipes:legacyRecipes});
