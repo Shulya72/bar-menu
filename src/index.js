@@ -1,3 +1,5 @@
+import { legacyProducts, legacyRecipes } from "./legacy-seed.js";
+
 const json = (data, status = 200) =>
   Response.json(data, { status, headers: { "cache-control": "no-store" } });
 
@@ -102,6 +104,8 @@ export default {
         const pricing=await refreshCocktailPrice(env,cocktailId);\n        return json({ok:true,id:cocktailId,pricing},201);
       }
 
+      if (url.pathname === "/api/legacy-data" && request.method === "GET") return json({products:legacyProducts,recipes:legacyRecipes});
+
       if (url.pathname === "/api/products" && request.method === "GET") {
         return json(await getProducts(env));
       }
@@ -122,7 +126,11 @@ export default {
           unit,
           Number(data.min_stock || 0)
         ).run();
-        return json({ok:true,id:result.meta.last_row_id},201);
+        const productId=result.meta.last_row_id;
+        if (Number(data.purchase_qty)>0 && Number(data.purchase_price)>=0) {
+          await env.DB.prepare("INSERT INTO purchase_batches (product_id,purchased_qty,remaining_qty,price_rub) VALUES (?,?,?,?)").bind(productId,Number(data.purchase_qty),Number(data.purchase_qty),Number(data.purchase_price)).run();
+        }
+        return json({ok:true,id:productId},201);
       }
 
       if (url.pathname === "/api/cocktail" && request.method === "GET") {
