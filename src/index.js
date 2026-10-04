@@ -106,8 +106,14 @@ textarea{min-height:80px;resize:vertical}
 button{border:0;border-radius:12px;padding:12px 16px;background:#c8ff3d;color:#000;font-weight:800;cursor:pointer}
 button.secondary{background:#252525;color:#fff}.row{display:flex;gap:10px;align-items:center;flex-wrap:wrap}
 a{color:#c8ff3d;text-decoration:none}.muted{color:#999}.pill{display:inline-block;padding:5px 9px;border-radius:99px;background:#202020;color:#bbb;margin:3px 3px 0 0}
-.recipe-row{display:grid;grid-template-columns:1fr 100px 80px;gap:8px;align-items:end;margin-bottom:8px}
+.recipe-row{display:grid;grid-template-columns:1fr 100px 58px;gap:8px;align-items:end;margin-bottom:10px}
 .recipe-row button{padding:10px}.empty{padding:24px;text-align:center;color:#888}
+.ingredient-picker{position:relative}
+.ingredient-suggestions{position:absolute;left:0;right:0;top:calc(100% + 4px);z-index:10;background:#181818;border:1px solid #333;border-radius:12px;max-height:220px;overflow:auto;box-shadow:0 10px 30px #000}
+.ingredient-suggestion{padding:12px;border-bottom:1px solid #292929;cursor:pointer}
+.ingredient-suggestion:last-child{border-bottom:0}
+.ingredient-suggestion:hover{background:#252525}
+.ingredient-suggestion .muted{font-size:12px}
 @media(max-width:600px){.recipe-row{grid-template-columns:1fr 90px 58px}}
 </style>
 </head><body>${body}</body></html>`, {headers:{"content-type":"text/html;charset=UTF-8","cache-control":"no-store"}});
@@ -504,18 +510,29 @@ const load=async()=>{
 };
 const addRow=()=>{
   const wrap=document.createElement("div"); wrap.className="recipe-row";
-  wrap.innerHTML='<div><input class="ingredient-search" type="search" placeholder="🔎 Введите ингредиент..." autocomplete="off"><select class="prod"><option value="">Выберите ингредиент...</option></select></div><input class="qty" type="number" min="0.01" step="0.01" placeholder="Количество"><button type="button" class="secondary remove">×</button>';
-  const search=wrap.querySelector(".ingredient-search"), select=wrap.querySelector(".prod");
+  wrap.innerHTML='<div class="ingredient-picker"><input class="ingredient-search" type="search" placeholder="🔎 Введите ингредиент..." autocomplete="off"><input class="prod" type="hidden" value=""><div class="ingredient-suggestions" hidden></div></div><input class="qty" type="number" min="0.01" step="0.01" placeholder="Количество"><button type="button" class="secondary remove">×</button>';
+  const search=wrap.querySelector(".ingredient-search"), hidden=wrap.querySelector(".prod"), suggestions=wrap.querySelector(".ingredient-suggestions");
   const fill=()=>{
+    hidden.value="";
     const q=search.value.trim().toLowerCase().replace(/ё/g,"е");
-    const filtered=products.filter(p=>String(p.name).toLowerCase().replace(/ё/g,"е").includes(q));
-    select.innerHTML='<option value="">Выберите ингредиент...</option>'+filtered.map(p=>'<option value="'+p.id+'">'+esc(p.name)+' ('+esc(p.unit)+')</option>').join("");
-    if(filtered.length===1) select.value=String(filtered[0].id);
-  };  search.addEventListener("input",fill);
-  select.addEventListener("change",()=>{const p=products.find(x=>String(x.id)===select.value);if(p)search.value=p.name;});
+    const filtered=products.filter(p=>String(p.name).toLowerCase().replace(/ё/g,"е").includes(q)).slice(0,20);
+    suggestions.innerHTML=filtered.length
+      ? filtered.map(p=>'<div class="ingredient-suggestion" data-id="'+p.id+'"><b>'+esc(p.name)+'</b><div class="muted">'+esc(p.unit)+'</div></div>').join("")
+      : '<div class="ingredient-suggestion muted">Ничего не найдено</div>';
+    suggestions.hidden=false;
+    suggestions.querySelectorAll("[data-id]").forEach(el=>el.onclick=()=>{
+      const p=products.find(x=>String(x.id)===String(el.dataset.id));
+      if(!p)return;
+      hidden.value=String(p.id);
+      search.value=p.name;
+      suggestions.hidden=true;
+    });
+  };
+  search.addEventListener("input",fill);
+  search.addEventListener("focus",()=>{if(search.value.trim())fill();});
+  document.addEventListener("click",ev=>{if(!wrap.contains(ev.target))suggestions.hidden=true},{once:false});
   wrap.querySelector(".remove").onclick=()=>wrap.remove();
   document.querySelector("#recipeItems").appendChild(wrap);
-  fill();
 };
 
 document.querySelector("#addIngredient").onclick=addRow;
@@ -523,6 +540,7 @@ document.querySelector("#cocktailForm").onsubmit=async e=>{
   e.preventDefault();
   const f=new FormData(e.target);
   const recipe_items=[...document.querySelectorAll(".recipe-row")].map(r=>({ingredient_id:Number(r.querySelector(".prod").value),quantity:Number(r.querySelector(".qty").value)})).filter(x=>x.ingredient_id>0&&x.quantity>0);
+  if(!recipe_items.length && document.querySelector(".recipe-row")){document.querySelector("#msg").textContent="Выберите ингредиент из списка";return;}
   const body=Object.fromEntries(f.entries()); body.recipe_items=recipe_items;
   const r=await fetch("/api/cocktails",{method:"POST",headers:{"content-type":"application/json"},body:JSON.stringify(body)});
   const data=await r.json();
