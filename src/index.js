@@ -1,5 +1,26 @@
 
+const resetLegacyDataOnce=async env=>{
+  await env.DB.prepare("CREATE TABLE IF NOT EXISTS app_migrations (name TEXT PRIMARY KEY, applied_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP)").run();
+  const done=await env.DB.prepare("SELECT name FROM app_migrations WHERE name=?").bind("reset-to-empty-2026-10-04").first();
+  if(done) return;
+  await env.DB.prepare("DELETE FROM reviews").run();
+  await env.DB.prepare("DELETE FROM favorites").run();
+  await env.DB.prepare("DELETE FROM order_items").run();
+  await env.DB.prepare("DELETE FROM orders").run();
+  await env.DB.prepare("DELETE FROM stock_movements").run();
+  await env.DB.prepare("DELETE FROM purchase_batches").run();
+  await env.DB.prepare("DELETE FROM recipe_ingredients").run();
+  await env.DB.prepare("DELETE FROM recipe_items").run();
+  await env.DB.prepare("DELETE FROM products").run();
+  await env.DB.prepare("DELETE FROM cocktails").run();
+  await env.DB.prepare("DELETE FROM ingredients").run();
+  await env.DB.prepare("DELETE FROM guests").run();
+  await env.DB.prepare("DELETE FROM shifts").run();
+  await env.DB.prepare("INSERT INTO app_migrations(name) VALUES(?)").bind("reset-to-empty-2026-10-04").run();
+};
+
 const ensureIngredientSystem=async env=>{
+  await resetLegacyDataOnce(env);
   await env.DB.prepare("CREATE TABLE IF NOT EXISTS ingredients (id INTEGER PRIMARY KEY AUTOINCREMENT, name TEXT NOT NULL UNIQUE, unit TEXT NOT NULL CHECK(unit IN ('ml','g','pcs')), is_active INTEGER NOT NULL DEFAULT 1, created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP, updated_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP)").run();
   await env.DB.prepare("CREATE TABLE IF NOT EXISTS recipe_ingredients (id INTEGER PRIMARY KEY AUTOINCREMENT, cocktail_id INTEGER NOT NULL REFERENCES cocktails(id) ON DELETE CASCADE, ingredient_id INTEGER NOT NULL REFERENCES ingredients(id), quantity REAL NOT NULL CHECK(quantity > 0), UNIQUE(cocktail_id, ingredient_id))").run();
   try{await env.DB.prepare("ALTER TABLE products ADD COLUMN ingredient_id INTEGER").run()}catch(e){}
