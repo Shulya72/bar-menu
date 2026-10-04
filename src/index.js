@@ -88,6 +88,7 @@ const getCocktails = async (env) => {
 };
 
 const getProducts = async (env) => {
+  await seedIngredientCatalog(env);
   const { results } = await env.DB.prepare(
     "SELECT p.id,p.name,p.brand,p.category,p.unit,p.min_stock,COALESCE(SUM(b.remaining_qty),0) stock FROM products p LEFT JOIN purchase_batches b ON b.product_id=p.id WHERE p.is_active=1 GROUP BY p.id ORDER BY p.name"
   ).all();
