@@ -321,6 +321,38 @@ export default {
         return json({ok:true,id,pricing});
       }
 
+      if (url.pathname === "/api/cocktails" && request.method === "DELETE") {
+        const data=await request.json();
+        const id=Number(data.id);
+        if(!Number.isInteger(id)||id<1)return json({error:"Некорректный коктейль"},400);
+
+        const cocktail=await env.DB.prepare("SELECT id,name,photo_url FROM cocktails WHERE id=?").bind(id).first();
+        if(!cocktail)return json({error:"Коктейль не найден"},404);
+
+        // Remove the R2 object first so deleting a cocktail cannot leave its photo behind.
+        let photoDeleted=true;
+        let photoKey="";
+        if(cocktail.photo_url && env.PHOTOS){
+          try{
+            const u=new URL(cocktail.photo_url,"https://bar-menu.invalid");
+            photoKey=u.searchParams.get("key") || (u.pathname.startsWith("/api/cocktail-photo/") ? decodeURIComponent(u.pathname.slice("/api/cocktail-photo/".length)) : "");
+            if(photoKey && photoKey.startsWith("cocktails/")) await env.PHOTOS.delete(photoKey);
+          }catch(e){
+            photoDeleted=false;
+          }
+        }
+
+        try{
+          await env.DB.prepare("DELETE FROM recipe_ingredients WHERE cocktail_id=?").bind(id).run();
+          try{await env.DB.prepare("DELETE FROM recipe_items WHERE cocktail_id=?").bind(id).run();}catch(e){}
+          await env.DB.prepare("DELETE FROM cocktails WHERE id=?").bind(id).run();
+        }catch(e){
+          return json({error:"Не удалось удалить коктейль",details:String(e&&e.message||e)},500);
+        }
+
+        return json({ok:true,id,name:cocktail.name,photo_deleted:photoDeleted,photo_key:photoKey||null});
+      }
+
       if (url.pathname === "/api/cocktails" && request.method === "POST") {
         const data=await request.json(), name=String(data.name||"").trim();
         if(!name)return json({error:"Название коктейля обязательно"},400);
@@ -615,7 +647,7 @@ const load=async()=>{
   document.querySelector("#list").innerHTML=cocktails.length
     ? '<div class="cocktail-grid">'+cocktails.map(c=>'<article class="card cocktail-card">'+
       (c.photo_url?'<img class="cocktail-photo" src="'+esc(c.photo_url)+'" alt="Фото '+esc(c.name)+'">':'<div class="cocktail-photo-placeholder">🍸</div>')+
-      '<div class="cocktail-card-body"><div class="cocktail-card-head"><div><h3>'+esc(c.name)+'</h3><div class="muted">'+esc(c.description||"Без описания")+'</div></div><button type="button" class="secondary edit-cocktail" data-id="'+c.id+'">✏️</button></div>'+
+      '<div class="cocktail-card-body"><div class="cocktail-card-head"><div><h3>'+esc(c.name)+'</h3><div class="muted">'+esc(c.description||"Без описания")+'</div></div><div class="row" style="gap:6px;flex-wrap:nowrap"><button type="button" class="secondary edit-cocktail" data-id="'+c.id+'">✏️</button><button type="button" class="secondary delete-cocktail" data-id="'+c.id+'" title="Удалить коктейль">🗑️</button></div></div>'+
       '<div class="cocktail-meta">'+(c.category?'<span class="pill">'+esc(c.category)+'</span>':"")+(c.strength?'<span class="pill">'+esc(c.strength)+'</span>':"")+(c.glass?'<span class="pill">'+esc(c.glass)+'</span>':"")+'</div>'+
       '<div class="cocktail-price">'+Number(c.price_rub||0)+' ₽</div>'+
       '<div class="cocktail-recipe"><b>Состав</b>'+(c.recipe_items?.length?'<ul style="margin:8px 0 0 18px">'+c.recipe_items.map(i=>'<li>'+esc(i.ingredient_name)+' — '+Number(i.quantity).toFixed(2)+' '+esc(i.unit)+'</li>').join("")+'</ul>':' <span class="muted">не указан</span>')+'</div>'+
@@ -625,6 +657,20 @@ const load=async()=>{
       '</div></article>').join("")+'</div>'
     : '<div class="empty">Пока коктейлей нет. Создай первый 👇</div>';
   document.querySelectorAll(".edit-cocktail").forEach(btn=>btn.onclick=()=>startEdit(cocktails.find(c=>Number(c.id)===Number(btn.dataset.id))));
+  document.querySelectorAll(".delete-cocktail").forEach(btn=>btn.onclick=async()=>{
+    const c=cocktails.find(x=>Number(x.id)===Number(btn.dataset.id));
+    if(!c)return;
+    if(!confirm('Удалить коктейль «'+c.name+'»? Его рецепт и фотография также будут удалены.'))return;
+    btn.disabled=true;
+    const r=await fetch("/api/cocktails",{method:"DELETE",headers:{"content-type":"application/json"},body:JSON.stringify({id:c.id})});
+    const data=await r.json().catch(()=>({}));
+    if(!r.ok){
+      btn.disabled=false;
+      alert(data.error||"Не удалось удалить коктейль");
+      return;
+    }
+    await load();
+  });
   if (!document.querySelector(".recipe-row")) addRow();
 };
 const showPanel=()=>{
