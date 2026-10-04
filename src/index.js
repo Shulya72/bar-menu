@@ -1,3 +1,5 @@
+import { legacyProducts, legacyRecipes } from "./legacy-seed.js";
+
 const json = (data, status = 200) =>
   Response.json(data, { status, headers: { "cache-control": "no-store" } });
 
@@ -26,6 +28,21 @@ a{color:#c8ff3d;text-decoration:none}.muted{color:#999}.pill{display:inline-bloc
 @media(max-width:600px){.recipe-row{grid-template-columns:1fr 90px 58px}}
 </style>
 </head><body>${body}</body></html>`, {headers:{"content-type":"text/html;charset=UTF-8"}});
+
+const refreshCocktailPrice = async (env, cocktailId) => {
+  const { results } = await env.DB.prepare(`
+    SELECT ri.quantity,
+      COALESCE((SELECT pb.price_rub / NULLIF(pb.purchased_qty,0)
+        FROM purchase_batches pb
+        WHERE pb.product_id=ri.product_id AND pb.remaining_qty>0
+        ORDER BY pb.purchased_at DESC, pb.id DESC LIMIT 1),0) unit_cost
+    FROM recipe_items ri WHERE ri.cocktail_id=?
+  `).bind(cocktailId).all();
+  const cost = results.reduce((sum,x)=>sum+Number(x.quantity)*Number(x.unit_cost),0);
+  const price = Math.max(0,Math.round((cost*3)/10)*10);
+  await env.DB.prepare("UPDATE cocktails SET price_rub=?,updated_at=CURRENT_TIMESTAMP WHERE id=?").bind(price,cocktailId).run();
+  return {cost,price};
+};
 
 const getCocktails = async (env) => {
   const { results } = await env.DB.prepare(
@@ -57,17 +74,15 @@ export default {
         const name = String(data.name || "").trim();
         if (!name) return json({error:"Название коктейля обязательно"},400);
 
-        const price = Number(data.price_rub || 0);
         const result = await env.DB.prepare(
           `INSERT INTO cocktails
           (name,description,category,strength,price_rub,photo_url,glass,ice,method,garnish)
-          VALUES (?,?,?,?,?,?,?,?,?,?)`
+          VALUES (?,?,?,?,0,?,?,?,?,?)`
         ).bind(
           name,
           String(data.description || ""),
           String(data.category || ""),
           String(data.strength || ""),
-          Number.isFinite(price) ? Math.round(price) : 0,
           String(data.photo_url || ""),
           String(data.glass || ""),
           String(data.ice || ""),
@@ -86,8 +101,10 @@ export default {
             ).bind(cocktailId,productId,quantity).run();
           }
         }
-        return json({ok:true,id:cocktailId},201);
+        const pricing=await refreshCocktailPrice(env,cocktailId);\n        return json({ok:true,id:cocktailId,pricing},201);
       }
+
+      if (url.pathname === "/api/legacy-data" && request.method === "GET") return json({products:legacyProducts,recipes:legacyRecipes});
 
       if (url.pathname === "/api/products" && request.method === "GET") {
         return json(await getProducts(env));
@@ -109,7 +126,11 @@ export default {
           unit,
           Number(data.min_stock || 0)
         ).run();
-        return json({ok:true,id:result.meta.last_row_id},201);
+        const productId=result.meta.last_row_id;
+        if (Number(data.purchase_qty)>0 && Number(data.purchase_price)>=0) {
+          await env.DB.prepare("INSERT INTO purchase_batches (product_id,purchased_qty,remaining_qty,price_rub) VALUES (?,?,?,?)").bind(productId,Number(data.purchase_qty),Number(data.purchase_qty),Number(data.purchase_price)).run();
+        }
+        return json({ok:true,id:productId},201);
       }
 
       if (url.pathname === "/api/cocktail" && request.method === "GET") {
@@ -151,15 +172,14 @@ export default {
 <header><h1>🍸 Книга рецептов</h1><div class="sub">Рецепт здесь — источник для гостевой «Карты бара»</div></header>
 <div class="wrap">
   <div class="card">
-    <h2>Новый коктейль</h2>
+    <div class="row" style="justify-content:space-between"><h2>Новый коктейль</h2><button type="button" class="secondary" id="importLegacy">📥 Импортировать старую базу</button></div>
     <form id="cocktailForm">
       <label>Название *</label><input name="name" required placeholder="Например, Negroni">
       <label>Описание для гостя</label><textarea name="description" placeholder="Короткое описание вкуса"></textarea>
       <div class="grid">
         <div><div><label>Категория</label><input name="category" placeholder="Классика"></div></div>
         <div><div><label>Крепость</label><input name="strength" placeholder="Крепкий"></div></div>
-        <div><div><label>Цена, ₽</label><input name="price_rub" type="number" min="0" value="0"></div></div>
-        <div><div><label>Бокал</label><input name="glass" placeholder="Rocks"></div></div>
+                <div><div><label>Бокал</label><input name="glass" placeholder="Rocks"></div></div>
       </div>
       <label>Лёд</label><input name="ice" placeholder="Крупный куб">
       <label>Метод приготовления</label><textarea name="method" placeholder="Stir / Shake / Build..."></textarea>
@@ -195,12 +215,38 @@ const addRow=()=>{
   wrap.querySelector(".remove").onclick=()=>wrap.remove();
   document.querySelector("#recipeItems").appendChild(wrap);
 };
+document.querySelector("#importLegacy").onclick=async()=>{
+  if(!confirm("Импортировать 10 старых рецептов и исходные закупочные партии?")) return;
+  const msg=document.querySelector("#msg"); msg.textContent="Импортирую…";
+  const legacy=await fetch("/api/legacy-data").then(r=>r.json());
+  const existingProducts=await fetch("/api/products").then(r=>r.json());
+  const byName=Object.fromEntries(existingProducts.map(p=>[p.name,p]));
+  for(const p of legacy.products){
+    if(!byName[p[0]]){
+      const r=await fetch("/api/products",{method:"POST",headers:{"content-type":"application/json"},body:JSON.stringify({name:p[0],brand:p[1],category:p[2],unit:p[3],purchase_qty:p[4],purchase_price:p[5]})});
+      const d=await r.json(); if(!r.ok) throw new Error(d.error||"Ошибка товара");
+      byName[p[0]]={id:d.id,name:p[0],unit:p[3]};
+    }
+  }
+  const existingCocktails=await fetch("/api/cocktails").then(r=>r.json());
+  const names=new Set(existingCocktails.map(c=>c.name));
+  let done=0;
+  for(const c of legacy.recipes){
+    if(names.has(c[0])) continue;
+    const body={name:c[0],description:c[1],category:c[2],strength:c[3],glass:c[4],ice:c[5],method:c[6],garnish:c[7],recipe_items:c[8].map(x=>({product_id:byName[x[0]].id,quantity:x[1]}))};
+    const r=await fetch("/api/cocktails",{method:"POST",headers:{"content-type":"application/json"},body:JSON.stringify(body)});
+    const d=await r.json(); if(!r.ok) throw new Error(d.error||"Ошибка рецепта");
+    done++;
+  }
+  msg.textContent="Импорт завершён: "+done+" новых рецептов ✅";
+  await load();
+};
 document.querySelector("#addIngredient").onclick=addRow;
 document.querySelector("#cocktailForm").onsubmit=async e=>{
   e.preventDefault();
   const f=new FormData(e.target);
   const recipe_items=[...document.querySelectorAll(".recipe-row")].map(r=>({product_id:Number(r.querySelector(".prod").value),quantity:Number(r.querySelector(".qty").value)})).filter(x=>x.product_id&&x.quantity>0);
-  const body=Object.fromEntries(f.entries()); body.price_rub=Number(body.price_rub||0); body.recipe_items=recipe_items;
+  const body=Object.fromEntries(f.entries()); body.recipe_items=recipe_items;
   const r=await fetch("/api/cocktails",{method:"POST",headers:{"content-type":"application/json"},body:JSON.stringify(body)});
   const data=await r.json();
   document.querySelector("#msg").textContent=r.ok?"Сохранено ✅":"Ошибка: "+(data.error||"не удалось сохранить");
