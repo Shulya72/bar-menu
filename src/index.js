@@ -36,14 +36,18 @@ const ensureIngredientSystem=async env=>{
   await resetAutoIncrementSequencesOnce(env);
   await env.DB.prepare("CREATE TABLE IF NOT EXISTS ingredients (id INTEGER PRIMARY KEY AUTOINCREMENT, name TEXT NOT NULL UNIQUE, unit TEXT NOT NULL CHECK(unit IN ('ml','g','pcs')), is_active INTEGER NOT NULL DEFAULT 1, created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP, updated_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP)").run();
   await env.DB.prepare("CREATE TABLE IF NOT EXISTS recipe_ingredients (id INTEGER PRIMARY KEY AUTOINCREMENT, cocktail_id INTEGER NOT NULL REFERENCES cocktails(id) ON DELETE CASCADE, ingredient_id INTEGER NOT NULL REFERENCES ingredients(id), quantity REAL NOT NULL CHECK(quantity > 0), UNIQUE(cocktail_id, ingredient_id))").run();
-  try{await env.DB.prepare("ALTER TABLE products ADD COLUMN ingredient_id INTEGER").run()}catch(e){}
-  const {results: ps}=await env.DB.prepare("SELECT id,name,ingredient_id FROM products WHERE is_active=1").all();
-  for(const p of ps){
-    if(p.ingredient_id) continue;
-    const ing=await env.DB.prepare("SELECT id FROM ingredients WHERE name=? LIMIT 1").bind(p.name).first();
-    if(ing) await env.DB.prepare("UPDATE products SET ingredient_id=? WHERE id=?").bind(ing.id,p.id).run();
-  }
-  await env.DB.prepare("INSERT OR IGNORE INTO recipe_ingredients(cocktail_id,ingredient_id,quantity) SELECT ri.cocktail_id,p.ingredient_id,ri.quantity FROM recipe_items ri JOIN products p ON p.id=ri.product_id WHERE p.ingredient_id IS NOT NULL").run();
+  try{
+    await env.DB.prepare("ALTER TABLE products ADD COLUMN ingredient_id INTEGER").run();
+    const {results: ps}=await env.DB.prepare("SELECT id,name,ingredient_id FROM products WHERE is_active=1").all();
+    for(const p of ps){
+      if(p.ingredient_id) continue;
+      const ing=await env.DB.prepare("SELECT id FROM ingredients WHERE name=? LIMIT 1").bind(p.name).first();
+      if(ing) await env.DB.prepare("UPDATE products SET ingredient_id=? WHERE id=?").bind(ing.id,p.id).run();
+    }
+  }catch(e){}
+  try{
+    await env.DB.prepare("INSERT OR IGNORE INTO recipe_ingredients(cocktail_id,ingredient_id,quantity) SELECT ri.cocktail_id,p.ingredient_id,ri.quantity FROM recipe_items ri JOIN products p ON p.id=ri.product_id WHERE p.ingredient_id IS NOT NULL").run();
+  }catch(e){}
 };
 
 const ensureShopSystem=async env=>{
