@@ -172,7 +172,7 @@ export default {
 <header><h1>🍸 Книга рецептов</h1><div class="sub">Рецепт здесь — источник для гостевой «Карты бара»</div></header>
 <div class="wrap">
   <div class="card">
-    <h2>Новый коктейль</h2>
+    <div class="row" style="justify-content:space-between"><h2>Новый коктейль</h2><button type="button" class="secondary" id="importLegacy">📥 Импортировать старую базу</button></div>
     <form id="cocktailForm">
       <label>Название *</label><input name="name" required placeholder="Например, Negroni">
       <label>Описание для гостя</label><textarea name="description" placeholder="Короткое описание вкуса"></textarea>
@@ -214,6 +214,32 @@ const addRow=()=>{
   wrap.innerHTML='<select class="prod"><option value="">Ингредиент...</option>'+products.map(p=>'<option value="'+p.id+'">'+esc(p.name)+(p.brand?' — '+esc(p.brand):"")+' ('+p.unit+')</option>').join("")+'</select><input class="qty" type="number" min="0.01" step="0.01" placeholder="Количество"><button type="button" class="secondary remove">×</button>';
   wrap.querySelector(".remove").onclick=()=>wrap.remove();
   document.querySelector("#recipeItems").appendChild(wrap);
+};
+document.querySelector("#importLegacy").onclick=async()=>{
+  if(!confirm("Импортировать 10 старых рецептов и исходные закупочные партии?")) return;
+  const msg=document.querySelector("#msg"); msg.textContent="Импортирую…";
+  const legacy=await fetch("/api/legacy-data").then(r=>r.json());
+  const existingProducts=await fetch("/api/products").then(r=>r.json());
+  const byName=Object.fromEntries(existingProducts.map(p=>[p.name,p]));
+  for(const p of legacy.products){
+    if(!byName[p[0]]){
+      const r=await fetch("/api/products",{method:"POST",headers:{"content-type":"application/json"},body:JSON.stringify({name:p[0],brand:p[1],category:p[2],unit:p[3],purchase_qty:p[4],purchase_price:p[5]})});
+      const d=await r.json(); if(!r.ok) throw new Error(d.error||"Ошибка товара");
+      byName[p[0]]={id:d.id,name:p[0],unit:p[3]};
+    }
+  }
+  const existingCocktails=await fetch("/api/cocktails").then(r=>r.json());
+  const names=new Set(existingCocktails.map(c=>c.name));
+  let done=0;
+  for(const c of legacy.recipes){
+    if(names.has(c[0])) continue;
+    const body={name:c[0],description:c[1],category:c[2],strength:c[3],glass:c[4],ice:c[5],method:c[6],garnish:c[7],recipe_items:c[8].map(x=>({product_id:byName[x[0]].id,quantity:x[1]}))};
+    const r=await fetch("/api/cocktails",{method:"POST",headers:{"content-type":"application/json"},body:JSON.stringify(body)});
+    const d=await r.json(); if(!r.ok) throw new Error(d.error||"Ошибка рецепта");
+    done++;
+  }
+  msg.textContent="Импорт завершён: "+done+" новых рецептов ✅";
+  await load();
 };
 document.querySelector("#addIngredient").onclick=addRow;
 document.querySelector("#cocktailForm").onsubmit=async e=>{
