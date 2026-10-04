@@ -67,13 +67,14 @@ a{color:#c8ff3d;text-decoration:none}.muted{color:#999}.pill{display:inline-bloc
 </head><body>${body}</body></html>`, {headers:{"content-type":"text/html;charset=UTF-8"}});
 
 const refreshCocktailPrice = async (env, cocktailId) => {
+  await ensureIngredientSystem(env);
   const { results } = await env.DB.prepare(`
     SELECT ri.quantity,
       COALESCE((SELECT pb.price_rub / NULLIF(pb.purchased_qty,0)
         FROM purchase_batches pb JOIN products pp ON pp.id=pb.product_id
         WHERE pp.ingredient_id=ri.ingredient_id AND pb.remaining_qty>0
         ORDER BY pb.purchased_at DESC, pb.id DESC LIMIT 1),0) unit_cost
-    FROM recipe_items ri WHERE ri.cocktail_id=?
+    FROM recipe_ingredients ri WHERE ri.cocktail_id=?
   `).bind(cocktailId).all();
   const cost = results.reduce((sum,x)=>sum+Number(x.quantity)*Number(x.unit_cost),0);
   const price = Math.max(0,Math.round((cost*3)/10)*10);
@@ -113,7 +114,7 @@ export default {
         const r=await env.DB.prepare(`INSERT INTO cocktails(name,description,category,strength,price_rub,photo_url,glass,ice,method,garnish) VALUES(?,?,?,?,0,?,?,?,?,?)`).bind(name,String(data.description||""),String(data.category||""),String(data.strength||""),String(data.photo_url||""),String(data.glass||""),String(data.ice||""),String(data.method||""),String(data.garnish||"")).run();
         const id=r.meta.last_row_id;
         await ensureIngredientSystem(env);
-        for(const item of (Array.isArray(data.recipe_items)?data.recipe_items:[])){let iid=Number(item.ingredient_id);if(!Number.isInteger(iid)&&item.name)iid=await resolveIngredient(env,item.name);const q=Number(item.quantity);if(Number.isInteger(iid)&&q>0)await env.DB.prepare("INSERT OR REPLACE INTO recipe_items(cocktail_id,ingredient_id,product_id,quantity) VALUES(?,?,NULL,?)").bind(id,iid,q).run();}
+        for(const item of (Array.isArray(data.recipe_items)?data.recipe_items:[])){let iid=Number(item.ingredient_id);if(!Number.isInteger(iid)&&item.name)iid=await resolveIngredient(env,item.name);const q=Number(item.quantity);if(Number.isInteger(iid)&&q>0)await env.DB.prepare("INSERT OR REPLACE INTO recipe_ingredients(cocktail_id,ingredient_id,quantity) VALUES(?,?,?)").bind(id,iid,q).run();}
         const pricing=await refreshCocktailPrice(env,id); return json({ok:true,id,pricing},201);
       }
 
@@ -164,7 +165,7 @@ export default {
       if (url.pathname === "/api/ingredients" && request.method === "DELETE") {
         await ensureIngredientSystem(env);
         const id=Number(url.searchParams.get("id"));
-        const used=await env.DB.prepare("SELECT COUNT(*) n FROM recipe_items WHERE ingredient_id=?").bind(id).first();
+        const used=await env.DB.prepare("SELECT COUNT(*) n FROM recipe_ingredients WHERE ingredient_id=?").bind(id).first();
         if(Number(used?.n)>0)return json({error:"Ингредиент уже используется в рецептах"},409);
         await env.DB.prepare("UPDATE ingredients SET is_active=0 WHERE id=?").bind(id).run();
         return json({ok:true});
@@ -177,7 +178,7 @@ export default {
         if (!cocktail) return json({error:"Коктейль не найден"},404);
         const {results} = await env.DB.prepare(
           `SELECT ri.ingredient_id,ri.quantity,i.name,i.category,i.unit
-           FROM recipe_items ri JOIN ingredients i ON i.id=ri.ingredient_id
+           FROM recipe_ingredients ri JOIN ingredients i ON i.id=ri.ingredient_id
            WHERE ri.cocktail_id=? ORDER BY ri.id`
         ).bind(id).all();
         return json({...cocktail,recipe_items:results});
@@ -202,6 +203,7 @@ export default {
 <div class="row" style="margin-bottom:14px"><a href="/" style="display:inline-block;padding:10px 14px;border:1px solid #333;border-radius:12px;background:#151515">🏠 Главное меню</a></div>
 <div class="grid">
 <a class="card" href="/bar/recipes"><h2>🍸 Книга рецептов</h2><p class="muted">Создание коктейлей и рецептур</p></a>
+<a class="card" href="/bar/ingredients"><h2>🧾 Ингредиенты</h2><p class="muted">Ваш справочник ингредиентов</p></a>
 <a class="card" href="/bar/stock"><h2>📦 Склад</h2><p class="muted">Товары и остатки</p></a>
 <a class="card" href="/bar/shop"><h2>🛒 Магазин</h2><p class="muted">Закупки и партии</p></a>
 <a class="card" href="/bar/orders"><h2>🔔 Заказы</h2><p class="muted">Заказы гостей</p></a>
@@ -252,16 +254,26 @@ const load=async()=>{
 };
 const addRow=()=>{
   const wrap=document.createElement("div"); wrap.className="recipe-row";
-  wrap.innerHTML='<select class="prod"><option value="">Ингредиент...</option>'+products.map(p=>'<option value="'+p.id+'">'+esc(p.name)+' ('+p.unit+')</option>').join("")+'</select><input class="qty" type="number" min="0.01" step="0.01" placeholder="Количество"><button type="button" class="secondary remove">×</button>';
+  wrap.innerHTML='<div><input class="ingredient-search" type="search" placeholder="🔎 Введите ингредиент..." autocomplete="off"><select class="prod"><option value="">Выберите ингредиент...</option></select></div><input class="qty" type="number" min="0.01" step="0.01" placeholder="Количество"><button type="button" class="secondary remove">×</button>';
+  const search=wrap.querySelector(".ingredient-search"), select=wrap.querySelector(".prod");
+  const fill=()=>{
+    const q=search.value.trim().toLowerCase().replace(/ё/g,"е");
+    const filtered=products.filter(p=>String(p.name).toLowerCase().replace(/ё/g,"е").includes(q));
+    select.innerHTML='<option value="">Выберите ингредиент...</option>'+filtered.map(p=>'<option value="'+p.id+'">'+esc(p.name)+' ('+esc(p.unit)+')</option>').join("");
+    if(filtered.length===1) select.value=String(filtered[0].id);
+  };
+  search.addEventListener("input",fill);
+  select.addEventListener("change",()=>{const p=products.find(x=>String(x.id)===select.value);if(p)search.value=p.name;});
   wrap.querySelector(".remove").onclick=()=>wrap.remove();
   document.querySelector("#recipeItems").appendChild(wrap);
+  fill();
 };
 
 document.querySelector("#addIngredient").onclick=addRow;
 document.querySelector("#cocktailForm").onsubmit=async e=>{
   e.preventDefault();
   const f=new FormData(e.target);
-  const recipe_items=[...document.querySelectorAll(".recipe-row")].map(r=>({ingredient_id:Number(r.querySelector(".prod").value),quantity:Number(r.querySelector(".qty").value)})).filter(x=>x.product_id&&x.quantity>0);
+  const recipe_items=[...document.querySelectorAll(".recipe-row")].map(r=>({ingredient_id:Number(r.querySelector(".prod").value),quantity:Number(r.querySelector(".qty").value)})).filter(x=>x.ingredient_id>0&&x.quantity>0);
   const body=Object.fromEntries(f.entries()); body.recipe_items=recipe_items;
   const r=await fetch("/api/cocktails",{method:"POST",headers:{"content-type":"application/json"},body:JSON.stringify(body)});
   const data=await r.json();
@@ -290,7 +302,7 @@ load();
 </div>
 <script>
 const esc=s=>String(s??"").replace(/[&<>"']/g,c=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[c]));
-async function load(){const r=await fetch("/api/ingredients");const x=await r.json();document.querySelector("#list").innerHTML=x.map(i=>'<div style="padding:10px 0;border-bottom:1px solid #292929"><b>'+esc(i.name)+'</b><span class="muted"> · '+esc(i.category||"")+' · '+i.unit+'</span> <button type="button" class="secondary edit" data-id="'+i.id+'" data-name="'+esc(i.name)+'" data-cat="'+esc(i.category||"")+'" data-unit="'+i.unit+'">Изменить</button></div>').join("")||'<div class="empty">Нет ингредиентов</div>';
+async function load(){const r=await fetch("/api/ingredients");const x=await r.json();document.querySelector("#list").innerHTML=x.map(i=>'<div style="padding:10px 0;border-bottom:1px solid #292929"><b>#'+i.id+' · '+esc(i.name)+'</b><span class="muted"> · '+esc(i.category||"")+' · '+i.unit+'</span> <button type="button" class="secondary edit" data-id="'+i.id+'" data-name="'+esc(i.name)+'" data-cat="'+esc(i.category||"")+'" data-unit="'+i.unit+'">Изменить</button></div>').join("")||'<div class="empty">Нет ингредиентов</div>';
 document.querySelectorAll(".edit").forEach(b=>b.onclick=async()=>{const name=prompt("Название ингредиента",b.dataset.name);if(!name)return;const category=prompt("Категория",b.dataset.cat)||"Пользовательские";const unit=prompt("Единица: ml, g или pcs",b.dataset.unit)||b.dataset.unit;const r=await fetch("/api/ingredients",{method:"PUT",headers:{"content-type":"application/json"},body:JSON.stringify({id:Number(b.dataset.id),name,category,unit})});const d=await r.json();if(!r.ok)alert(d.error||"Ошибка");else load()})}
 document.querySelector("#ingredientForm").onsubmit=async e=>{e.preventDefault();const body=Object.fromEntries(new FormData(e.target));const r=await fetch("/api/ingredients",{method:"POST",headers:{"content-type":"application/json"},body:JSON.stringify(body)});const d=await r.json();document.querySelector("#msg").textContent=r.ok?"Ингредиент добавлен ✅":"Ошибка: "+(d.error||"");if(r.ok){e.target.reset();e.target.category.value="Пользовательские";load()}};load();
 </script>`, "Ингредиенты");
