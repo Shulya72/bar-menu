@@ -100,6 +100,16 @@ header{padding:18px 16px;border-bottom:1px solid #242424;position:sticky;top:0;b
 h1{margin:0;font-size:22px}h2{margin:0 0 8px}h3{margin:0 0 6px}.sub{color:#999;margin-top:4px}
 .wrap{max-width:980px;margin:auto;padding:16px}.grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(270px,1fr));gap:14px}
 .card{border:1px solid #292929;border-radius:18px;padding:18px;background:#111}
+.cocktail-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(280px,1fr));gap:16px}
+.cocktail-card{overflow:hidden;padding:0;display:flex;flex-direction:column}
+.cocktail-photo{width:100%;aspect-ratio:4/3;object-fit:cover;display:block;background:#181818}
+.cocktail-photo-placeholder{width:100%;aspect-ratio:4/3;display:flex;align-items:center;justify-content:center;background:#181818;color:#777;font-size:42px}
+.cocktail-card-body{padding:16px}
+.cocktail-card-head{display:flex;justify-content:space-between;gap:10px;align-items:flex-start}
+.cocktail-card h3{margin:0 0 7px;font-size:21px}
+.cocktail-meta{display:flex;gap:6px;flex-wrap:wrap;margin:10px 0}
+.cocktail-price{font-size:19px;font-weight:700}
+.cocktail-recipe{margin-top:12px;padding-top:12px;border-top:1px solid #292929}
 label{display:block;color:#aaa;font-size:13px;margin:12px 0 6px}
 input,textarea,select{width:100%;padding:12px;border:1px solid #333;border-radius:12px;background:#181818;color:#fff;font:inherit}
 textarea{min-height:80px;resize:vertical}
@@ -560,7 +570,16 @@ const load=async()=>{
   const [cr,pr]=await Promise.all([fetch("/api/cocktails"),fetch("/api/ingredients")]);
   const cocktails=await cr.json(); products=await pr.json();
   document.querySelector("#list").innerHTML=cocktails.length
-    ? cocktails.map(c=>'<div style="padding:16px 0;border-bottom:1px solid #292929"><div class="row" style="justify-content:space-between;align-items:flex-start"><div><h3 style="margin:0 0 8px">'+esc(c.name)+'</h3><div class="muted" style="margin-bottom:8px">'+esc(c.description||"Без описания")+'</div><div style="margin-bottom:8px">'+(c.category?'<span class="pill">'+esc(c.category)+'</span>':"")+(c.strength?'<span class="pill">'+esc(c.strength)+'</span>':"")+'<span class="pill">'+Number(c.price_rub||0)+' ₽</span></div></div><button type="button" class="secondary edit-cocktail" data-id="'+c.id+'">✏️ Редактировать</button></div><div><b>Состав:</b>'+(c.recipe_items?.length?'<ul style="margin:6px 0 0 20px">'+c.recipe_items.map(i=>'<li>'+esc(i.ingredient_name)+' — '+Number(i.quantity).toFixed(2)+' '+esc(i.unit)+'</li>').join("")+'</ul>':' <span class="muted">не указан</span>')+'</div>'+(c.glass?'<div class="muted" style="margin-top:8px">Бокал: '+esc(c.glass)+'</div>':"")+(c.ice?'<div class="muted">Лёд: '+esc(c.ice)+'</div>':"")+(c.method?'<div class="muted">Метод: '+esc(c.method)+'</div>':"")+(c.garnish?'<div class="muted">Гарнир: '+esc(c.garnish)+'</div>':"")+(c.photo_url?'<img src="'+esc(c.photo_url)+'" style="width:180px;height:135px;object-fit:cover;border-radius:12px;margin-top:12px;display:block" alt="Фото '+esc(c.name)+'">':"")+'</div>').join("")
+    ? '<div class="cocktail-grid">'+cocktails.map(c=>'<article class="card cocktail-card">'+
+      (c.photo_url?'<img class="cocktail-photo" src="'+esc(c.photo_url)+'" alt="Фото '+esc(c.name)+'">':'<div class="cocktail-photo-placeholder">🍸</div>')+
+      '<div class="cocktail-card-body"><div class="cocktail-card-head"><div><h3>'+esc(c.name)+'</h3><div class="muted">'+esc(c.description||"Без описания")+'</div></div><button type="button" class="secondary edit-cocktail" data-id="'+c.id+'">✏️</button></div>'+
+      '<div class="cocktail-meta">'+(c.category?'<span class="pill">'+esc(c.category)+'</span>':"")+(c.strength?'<span class="pill">'+esc(c.strength)+'</span>':"")+(c.glass?'<span class="pill">'+esc(c.glass)+'</span>':"")+'</div>'+
+      '<div class="cocktail-price">'+Number(c.price_rub||0)+' ₽</div>'+
+      '<div class="cocktail-recipe"><b>Состав</b>'+(c.recipe_items?.length?'<ul style="margin:8px 0 0 18px">'+c.recipe_items.map(i=>'<li>'+esc(i.ingredient_name)+' — '+Number(i.quantity).toFixed(2)+' '+esc(i.unit)+'</li>').join("")+'</ul>':' <span class="muted">не указан</span>')+'</div>'+
+      (c.ice?'<div class="muted" style="margin-top:10px">🧊 Лёд: '+esc(c.ice)+'</div>':"")+
+      (c.method?'<div class="muted">🥄 Метод: '+esc(c.method)+'</div>':"")+
+      (c.garnish?'<div class="muted">🍋 Гарнир: '+esc(c.garnish)+'</div>':"")+
+      '</div></article>').join("")+'</div>'
     : '<div class="empty">Пока коктейлей нет. Создай первый 👇</div>';
   document.querySelectorAll(".edit-cocktail").forEach(btn=>btn.onclick=()=>startEdit(cocktails.find(c=>Number(c.id)===Number(btn.dataset.id))));
   if (!document.querySelector(".recipe-row")) addRow();
