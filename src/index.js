@@ -57,17 +57,15 @@ export default {
         const name = String(data.name || "").trim();
         if (!name) return json({error:"Название коктейля обязательно"},400);
 
-        const price = Number(data.price_rub || 0);
         const result = await env.DB.prepare(
           `INSERT INTO cocktails
           (name,description,category,strength,price_rub,photo_url,glass,ice,method,garnish)
-          VALUES (?,?,?,?,?,?,?,?,?,?)`
+          VALUES (?,?,?,?,0,?,?,?,?,?)`
         ).bind(
           name,
           String(data.description || ""),
           String(data.category || ""),
           String(data.strength || ""),
-          Number.isFinite(price) ? Math.round(price) : 0,
           String(data.photo_url || ""),
           String(data.glass || ""),
           String(data.ice || ""),
@@ -158,8 +156,7 @@ export default {
       <div class="grid">
         <div><div><label>Категория</label><input name="category" placeholder="Классика"></div></div>
         <div><div><label>Крепость</label><input name="strength" placeholder="Крепкий"></div></div>
-        <div><div><label>Цена, ₽</label><input name="price_rub" type="number" min="0" value="0"></div></div>
-        <div><div><label>Бокал</label><input name="glass" placeholder="Rocks"></div></div>
+                <div><div><label>Бокал</label><input name="glass" placeholder="Rocks"></div></div>
       </div>
       <label>Лёд</label><input name="ice" placeholder="Крупный куб">
       <label>Метод приготовления</label><textarea name="method" placeholder="Stir / Shake / Build..."></textarea>
@@ -200,7 +197,7 @@ document.querySelector("#cocktailForm").onsubmit=async e=>{
   e.preventDefault();
   const f=new FormData(e.target);
   const recipe_items=[...document.querySelectorAll(".recipe-row")].map(r=>({product_id:Number(r.querySelector(".prod").value),quantity:Number(r.querySelector(".qty").value)})).filter(x=>x.product_id&&x.quantity>0);
-  const body=Object.fromEntries(f.entries()); body.price_rub=Number(body.price_rub||0); body.recipe_items=recipe_items;
+  const body=Object.fromEntries(f.entries()); body.recipe_items=recipe_items;
   const r=await fetch("/api/cocktails",{method:"POST",headers:{"content-type":"application/json"},body:JSON.stringify(body)});
   const data=await r.json();
   document.querySelector("#msg").textContent=r.ok?"Сохранено ✅":"Ошибка: "+(data.error||"не удалось сохранить");
