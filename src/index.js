@@ -135,7 +135,9 @@ export default {
 
       if (url.pathname === "/bar") return page(`
 <header><h1>👨‍🍳 Меню бармена</h1><div class="sub">Рабочая часть</div></header>
-<div class="wrap"><div class="grid">
+<div class="wrap">
+<div class="row" style="margin-bottom:14px"><a href="/" style="display:inline-block;padding:10px 14px;border:1px solid #333;border-radius:12px;background:#151515">🏠 Главное меню</a></div>
+<div class="grid">
 <a class="card" href="/bar/recipes"><h2>🍸 Книга рецептов</h2><p class="muted">Создание коктейлей и рецептур</p></a>
 <a class="card" href="/bar/stock"><h2>📦 Склад</h2><p class="muted">Товары и остатки</p></a>
 <a class="card" href="/bar/shop"><h2>🛒 Магазин</h2><p class="muted">Закупки и партии</p></a>
@@ -145,8 +147,9 @@ export default {
       if (url.pathname === "/bar/recipes") return page(`
 <header><h1>🍸 Книга рецептов</h1><div class="sub">Рецепт здесь — источник для гостевой «Карты бара»</div></header>
 <div class="wrap">
+  <div class="row" style="margin-bottom:14px"><a href="/" style="display:inline-block;padding:10px 14px;border:1px solid #333;border-radius:12px;background:#151515">🏠 Главное меню</a></div>
   <div class="card">
-    <div class="row" style="justify-content:space-between"><h2>Новый коктейль</h2><button type="button" class="secondary" id="importLegacy">📥 Импортировать старую базу</button></div>
+    <div class="row" style="justify-content:space-between"><h2>Новый коктейль</h2></div>
     <form id="cocktailForm">
       <label>Название *</label><input name="name" required placeholder="Например, Negroni">
       <label>Описание для гостя</label><textarea name="description" placeholder="Короткое описание вкуса"></textarea>
@@ -189,7 +192,7 @@ const addRow=()=>{
   wrap.querySelector(".remove").onclick=()=>wrap.remove();
   document.querySelector("#recipeItems").appendChild(wrap);
 };
-document.querySelector("#importLegacy").onclick=async()=>{if(!confirm("Импортировать старые рецепты и связать ингредиенты по постоянным ID?"))return;const m=document.querySelector("#msg");m.textContent="Импортирую…";try{const r=await fetch("/api/import-legacy",{method:"POST"}),d=await r.json();if(!r.ok)throw new Error(d.error||"Ошибка");m.textContent="Импорт завершён: "+d.imported+" новых рецептов. Синхронизация ингредиентов выполнена ✅";await load()}catch(e){m.textContent="Ошибка импорта: "+e.message}};
+
 document.querySelector("#addIngredient").onclick=addRow;
 document.querySelector("#cocktailForm").onsubmit=async e=>{
   e.preventDefault();
@@ -207,6 +210,7 @@ load(); addRow();
       if (url.pathname === "/bar/stock") return page(`
 <header><h1>📦 Склад</h1><div class="sub">Справочник товаров и текущие остатки</div></header>
 <div class="wrap">
+<div class="row" style="margin-bottom:14px"><a href="/" style="display:inline-block;padding:10px 14px;border:1px solid #333;border-radius:12px;background:#151515">🏠 Главное меню</a></div>
 <div class="card">
 <h2>Новый товар</h2>
 <form id="productForm">
