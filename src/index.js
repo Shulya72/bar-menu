@@ -237,20 +237,46 @@ export default {
         return json({ok:true,stock:target});
       }
 
-      if (url.pathname === "/api/products" && request.method === "POST") {        const data=await request.json(), name=String(data.name||"").trim();
+      if (url.pathname === "/api/products" && request.method === "POST") {
         await ensureIngredientSystem(env);
-        let id=Number(data.ingredient_id);
-        if(Number.isInteger(id)&&id>0){
-          const found=await env.DB.prepare("SELECT id,name,unit FROM ingredients WHERE id=? AND is_active=1").bind(id).first();
-          if(!found)return json({error:"Ингредиент не найден"},404);
-          const existing=await env.DB.prepare("SELECT id FROM products WHERE ingredient_id=? AND brand=? AND is_active=1 LIMIT 1").bind(id,String(data.brand||"")).first();
-          if(existing) id=Number(existing.id);
-          else { const pr=await env.DB.prepare("INSERT INTO products(name,brand,category,unit,min_stock,ingredient_id) VALUES(?,?,?,?,0,?)").bind(found.name,String(data.brand||""),String(data.category||""),found.unit,id).run(); id=Number(pr.meta.last_row_id); }
-        } else {
-          return json({error:"Выберите ингредиент"},400);
-        if(data.brand)await env.DB.prepare("UPDATE products SET brand=? WHERE id=?").bind(String(data.brand),id).run();
-        if(Number(data.purchase_qty)>0&&Number(data.purchase_price)>=0)await env.DB.prepare("INSERT INTO purchase_batches(product_id,purchased_qty,remaining_qty,price_rub) VALUES(?,?,?,?)").bind(id,Number(data.purchase_qty),Number(data.purchase_qty),Number(data.purchase_price)).run();
-        return json({ok:true,id,existing:true},201);
+        const data=await request.json();
+        const ingredientId=Number(data.ingredient_id);
+        const brand=String(data.brand||"").trim();
+        const quantity=Number(data.quantity||0);
+        const takeAverage=Boolean(data.take_average);
+        let unitPrice=Number(data.price);
+
+        if(!Number.isInteger(ingredientId)||ingredientId<1)return json({error:"Выберите ингредиент"},400);
+        if(!Number.isFinite(quantity)||quantity<0)return json({error:"Некорректное количество"},400);
+
+        const found=await env.DB.prepare("SELECT id,name,unit FROM ingredients WHERE id=? AND is_active=1").bind(ingredientId).first();
+        if(!found)return json({error:"Ингредиент не найден"},404);
+
+        if(takeAverage){
+          const items=await getProducts(env);
+          const item=items.find(x=>Number(x.ingredient_id)===ingredientId);
+          if(!item||Number(item.stock)<=0)return json({error:"Для этого ингредиента пока нет средней цены. Укажите цену вручную."},400);
+          unitPrice=Number(item.unit_price||0);
+        }
+        if(quantity>0&&(!Number.isFinite(unitPrice)||unitPrice<0))return json({error:"Укажите цену или выберите «Взять среднюю»"},400);
+
+        let product=await env.DB.prepare("SELECT id FROM products WHERE ingredient_id=? AND brand=? AND is_active=1 LIMIT 1").bind(ingredientId,brand).first();
+        let productId;
+        if(product){
+          productId=Number(product.id);
+        }else{
+          const pr=await env.DB.prepare("INSERT INTO products(name,brand,category,unit,min_stock,ingredient_id) VALUES(?,?,?,?,0,?)")
+            .bind(found.name,brand,"",found.unit,ingredientId).run();
+          productId=Number(pr.meta.last_row_id);
+        }
+
+        if(quantity>0){
+          await ensureStockAdjustmentSystem(env);
+          await env.DB.prepare("INSERT INTO stock_adjustments(ingredient_id,quantity,unit_price) VALUES(?,?,?)")
+            .bind(ingredientId,quantity,unitPrice).run();
+        }
+
+        return json({ok:true,id:productId,unit_price:unitPrice},201);
       }
 
       if (url.pathname === "/api/shop/purchases" && request.method === "GET") {
@@ -521,7 +547,9 @@ document.querySelector("#ingredientForm").onsubmit=async e=>{e.preventDefault();
 <form id="productForm">
 <label>Ингредиент *</label><select name="ingredient_id" id="ingredientSelect" required><option value="">Выберите ингредиент...</option>${stockIngredients.map(p=>'<option value="'+p.id+'">'+hEsc(p.name)+' ('+hEsc(p.unit)+')</option>').join("")}</select>
 <label>Бренд</label><input name="brand" placeholder="Например, Царская">
-<label>Минимальный остаток</label><input name="min_stock" type="number" min="0" step="0.01" value="0">
+<label>Количество</label><input name="quantity" type="number" min="0" step="0.01" value="0" placeholder="Например, 1000">
+<label>Цена за единицу, ₽</label><input name="price" id="stockPrice" type="number" min="0" step="0.0001" placeholder="Например, 4">
+<label style="display:flex;align-items:center;gap:10px;margin-top:10px"><input name="take_average" id="takeAverage" type="checkbox" style="width:auto"> Взять среднюю цену по ингредиенту</label>
 <div style="margin-top:16px"><button>＋ Добавить товар</button></div>
 <p id="msg" class="muted"></p>
 </form>
@@ -562,13 +590,18 @@ document.querySelector("#productForm").onsubmit=async e=>{
   body.name="";
   body.ingredient_id=Number(body.ingredient_id);
   delete body.unit;
-  body.min_stock=Number(body.min_stock||0);
+  body.quantity=Number(body.quantity||0);
+  body.price=Number(body.price||0);
+  body.take_average=document.querySelector("#takeAverage").checked;
   const r=await fetch("/api/products",{method:"POST",headers:{"content-type":"application/json"},body:JSON.stringify(body)});
   const d=await r.json();
   document.querySelector("#msg").textContent=r.ok?"Товар добавлен ✅":"Ошибка: "+(d.error||"");
   if(r.ok){e.target.reset();location.reload();}
 };
 
+document.querySelector("#takeAverage").onchange=()=>{
+  document.querySelector("#stockPrice").disabled=document.querySelector("#takeAverage").checked;
+};
 renderStock();
 </script>`, "Склад");
       }
