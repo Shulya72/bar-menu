@@ -599,9 +599,17 @@ document.querySelector("#productForm").onsubmit=async e=>{
   if(r.ok){e.target.reset();location.reload();}
 };
 
-document.querySelector("#takeAverage").onchange=()=>{
-  document.querySelector("#stockPrice").disabled=document.querySelector("#takeAverage").checked;
-};
+function updateAveragePrice(){
+  const checked=document.querySelector("#takeAverage").checked;
+  const price=document.querySelector("#stockPrice");
+  price.disabled=checked;
+  if(!checked)return;
+  const ingredientId=Number(document.querySelector("#ingredientSelect").value);
+  const item=stockItems.find(v=>Number(v.ingredient_id)===ingredientId);
+  price.value=item&&Number(item.stock)>0?Number(item.unit_price).toFixed(4):"";
+}
+document.querySelector("#takeAverage").onchange=updateAveragePrice;
+document.querySelector("#ingredientSelect").onchange=updateAveragePrice;
 renderStock();
 </script>`, "Склад");
       }
