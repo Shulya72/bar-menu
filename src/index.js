@@ -256,6 +256,16 @@ export default {
     try {
       if (url.pathname === "/api/health") return json({ok:true,service:"bar-menu",database:"bar-menu-db",photos:!!env.PHOTOS,build:BUILD_VERSION});
 
+      // Temporary R2 diagnostics: shows whether uploaded cocktail objects actually exist
+      // and what metadata Cloudflare stored for them.
+      if (url.pathname === "/api/photo-debug" && request.method === "GET") {
+        if(!env.PHOTOS) return json({ok:false,error:"R2 binding missing",build:BUILD_VERSION},503);
+        const listed=await env.PHOTOS.list({prefix:"cocktails/",limit:100});
+        const objects=(listed.objects||[]).map(o=>({key:o.key,size:o.size,uploaded:o.uploaded,httpMetadata:o.httpMetadata||null,etag:o.etag||null}));
+        const cocktails=await env.DB.prepare("SELECT id,name,photo_url FROM cocktails WHERE photo_url IS NOT NULL AND photo_url != '' ORDER BY id DESC LIMIT 100").all();
+        return json({ok:true,build:BUILD_VERSION,bucket_objects:objects,cocktails_with_photos:cocktails.results||[]});
+      }
+
       if (url.pathname === "/api/cocktail-photo" && request.method === "POST") {
         if(!env.PHOTOS)return json({error:"Хранилище фотографий R2 ещё не подключено"},503);
         const form=await request.formData();
