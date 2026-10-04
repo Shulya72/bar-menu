@@ -138,6 +138,12 @@ const getCocktails = async (env) => {
   const { results } = await env.DB.prepare(
     "SELECT id,name,description,category,strength,price_rub,photo_url,glass,ice,method,garnish,is_active,created_at,updated_at FROM cocktails WHERE is_active=1 ORDER BY name"
   ).all();
+  for(const c of results){
+    const r=await env.DB.prepare(
+      "SELECT ri.ingredient_id,ri.quantity,i.name ingredient_name,i.unit FROM recipe_ingredients ri JOIN ingredients i ON i.id=ri.ingredient_id WHERE ri.cocktail_id=? ORDER BY ri.id"
+    ).bind(c.id).all();
+    c.recipe_items=r.results||[];
+  }
   return results;
 };
 
@@ -504,7 +510,7 @@ const load=async()=>{
   const [cr,pr]=await Promise.all([fetch("/api/cocktails"),fetch("/api/ingredients")]);
   const cocktails=await cr.json(); products=await pr.json();
   document.querySelector("#list").innerHTML=cocktails.length
-    ? cocktails.map(c=>'<div style="padding:14px 0;border-bottom:1px solid #292929"><h3>'+esc(c.name)+'</h3><div class="muted">'+esc(c.description||"Без описания")+'</div><span class="pill">'+esc(c.category||"Без категории")+'</span><span class="pill">'+esc(c.strength||"")+'</span><span class="pill">'+Number(c.price_rub||0)+' ₽</span></div>').join("")
+    ? cocktails.map(c=>'<div style="padding:16px 0;border-bottom:1px solid #292929"><h3 style="margin:0 0 8px">'+esc(c.name)+'</h3><div class="muted" style="margin-bottom:8px">'+esc(c.description||"Без описания")+'</div><div style="margin-bottom:8px">'+(c.category?'<span class="pill">'+esc(c.category)+'</span>':"")+(c.strength?'<span class="pill">'+esc(c.strength)+'</span>':"")+'<span class="pill">'+Number(c.price_rub||0)+' ₽</span></div><div><b>Состав:</b>'+(c.recipe_items?.length?'<ul style="margin:6px 0 0 20px">'+c.recipe_items.map(i=>'<li>'+esc(i.ingredient_name)+' — '+Number(i.quantity).toFixed(2)+' '+esc(i.unit)+'</li>').join("")+'</ul>':' <span class="muted">не указан</span>')+'</div>'+(c.glass?'<div class="muted" style="margin-top:8px">Бокал: '+esc(c.glass)+'</div>':"")+(c.ice?'<div class="muted">Лёд: '+esc(c.ice)+'</div>':"")+(c.method?'<div class="muted">Метод: '+esc(c.method)+'</div>':"")+(c.garnish?'<div class="muted">Гарнир: '+esc(c.garnish)+'</div>':"")+'</div>').join("")
     : '<div class="empty">Пока коктейлей нет. Создай первый 👇</div>';
   if (!document.querySelector(".recipe-row")) addRow();
 };
