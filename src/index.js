@@ -161,6 +161,14 @@ const getCocktails = async (env) => {
     "SELECT id,name,description,category,strength,price_rub,photo_url,glass,ice,method,garnish,is_active,created_at,updated_at FROM cocktails WHERE is_active=1 ORDER BY name"
   ).all();
   for(const c of results){
+    // Normalize legacy photo URLs and keep the database independent from the public route.
+    if(c.photo_url){
+      try{
+        const u=new URL(c.photo_url,"https://bar-menu.invalid");
+        const key=u.searchParams.get("key") || (u.pathname.startsWith("/api/cocktail-photo/") ? decodeURIComponent(u.pathname.slice("/api/cocktail-photo/".length)) : "");
+        if(key && key.startsWith("cocktails/")) c.photo_url="/api/cocktail-photo/"+encodeURIComponent(key);
+      }catch(e){}
+    }
     const r=await env.DB.prepare(
       "SELECT ri.ingredient_id,ri.quantity,i.name ingredient_name,i.unit FROM recipe_ingredients ri JOIN ingredients i ON i.id=ri.ingredient_id WHERE ri.cocktail_id=? ORDER BY ri.id"
     ).bind(c.id).all();
@@ -256,20 +264,21 @@ export default {
         const ext=(String(file.name||"").split(".").pop()||"jpg").toLowerCase().replace(/[^a-z0-9]/g,"");
         const key="cocktails/"+crypto.randomUUID()+"."+((ext==="jpeg")?"jpg":ext||"jpg");
         await env.PHOTOS.put(key,file.stream(),{httpMetadata:{contentType:file.type||"image/jpeg",cacheControl:"public, max-age=31536000"}});
-        return json({ok:true,key,url:"/api/cocktail-photo?key="+encodeURIComponent(key)});
+        return json({ok:true,key,photo_key:key,url:"/api/cocktail-photo/"+encodeURIComponent(key)});
       }
 
-      if ((url.pathname === "/api/cocktail-photo" || url.pathname.startsWith("/api/cocktail-photo/")) && request.method === "GET") {
+      if (url.pathname.startsWith("/api/cocktail-photo/") && request.method === "GET") {
         if(!env.PHOTOS)return new Response("R2 не подключено",{status:503});
-        let key=url.searchParams.get("key")||"";
-        if(!key && url.pathname.startsWith("/api/cocktail-photo/")) key=decodeURIComponent(url.pathname.slice("/api/cocktail-photo/".length));
-        if(!key.startsWith("cocktails/"))return new Response("Not found",{status:404});
+        let key="";
+        try{key=decodeURIComponent(url.pathname.slice("/api/cocktail-photo/".length));}catch(e){}
+        if(!key.startsWith("cocktails/") || key.includes(".."))return new Response("Not found",{status:404});
         const object=await env.PHOTOS.get(key);
         if(!object)return new Response("Not found",{status:404});
         const headers=new Headers();
         object.writeHttpMetadata(headers);
         headers.set("etag",object.httpEtag);
         headers.set("cache-control","public, max-age=31536000");
+        headers.set("x-content-type-options","nosniff");
         return new Response(object.body,{headers});
       }
 
@@ -697,6 +706,7 @@ document.querySelector("#cocktailForm").onsubmit=async e=>{
     document.querySelector("#photoUrl").value=ud.url;
   }
   const body=Object.fromEntries(f.entries()); body.recipe_items=recipe_items;
+  if(body.photo_url) body.photo_url=String(body.photo_url);
   const editId=Number(e.target.dataset.editId||0);
   const r=await fetch("/api/cocktails",{method:editId?"PUT":"POST",headers:{"content-type":"application/json"},body:JSON.stringify(editId?{...body,id:editId}:body)});
   const data=await r.json();
