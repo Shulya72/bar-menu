@@ -5,4 +5,4 @@ compatibility_date = "2026-10-04"
 [[d1_databases]]
 binding = "DB"
 database_name = "bar-menu-db"
-database_id = "REPLACE_WITH_D1_DATABASE_ID"
+database_id = "370d49fa-99b0-4497-861e-db1a77a710a0"
