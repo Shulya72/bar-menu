@@ -64,7 +64,7 @@ const ensureIngredientSystem=async env=>{
   }catch(e){}
 };
 
-const ensureStockAdjustmentSystem=async env=>{ await ensureShopSystem(env); try{await env.DB.prepare("CREATE TABLE IF NOT EXISTS stock_adjustments (id INTEGER PRIMARY KEY AUTOINCREMENT, ingredient_id INTEGER NOT NULL REFERENCES ingredients(id), quantity REAL NOT NULL, unit_price REAL NOT NULL DEFAULT 0, created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP)").run()}catch(e){} };
+const ensureStockAdjustmentSystem=async env=>{ await ensureShopSystem(env); try{await env.DB.prepare("CREATE TABLE IF NOT EXISTS stock_adjustments (id INTEGER PRIMARY KEY AUTOINCREMENT, ingredient_id INTEGER NOT NULL REFERENCES ingredients(id), quantity REAL NOT NULL, unit_price REAL NOT NULL DEFAULT 0, brand TEXT DEFAULT '', store TEXT DEFAULT '', created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP)").run()}catch(e){} try{await env.DB.prepare("ALTER TABLE stock_adjustments ADD COLUMN brand TEXT DEFAULT ''").run()}catch(e){} try{await env.DB.prepare("ALTER TABLE stock_adjustments ADD COLUMN store TEXT DEFAULT ''").run()}catch(e){} };
 
 const ensureShopSystem=async env=>{
   await ensureIngredientSystem(env);
@@ -181,13 +181,12 @@ const getProducts = async (env) => {
 
     if(adjustmentsAvailable){
       try{
-        const adjustments=await env.DB.prepare("SELECT SUM(quantity) stock,SUM(quantity*unit_price) stock_value FROM stock_adjustments WHERE ingredient_id=? AND quantity>0").bind(x.ingredient_id).first();
-        if(Number(adjustments?.stock||0)>0){
-          x.details.push({
-            brand:"Ручная корректировка",store:"",stock:Number(adjustments.stock),
-            stock_value:Number(adjustments.stock_value||0),
-            unit_price:Number(adjustments.stock)>0?Number(adjustments.stock_value||0)/Number(adjustments.stock):0
-          });
+        const adjustments=await env.DB.prepare("SELECT COALESCE(NULLIF(brand,''),'Ручная корректировка') brand, COALESCE(NULLIF(store,''),'Ручной ввод') store, SUM(quantity) stock, SUM(quantity*unit_price) stock_value FROM stock_adjustments WHERE ingredient_id=? AND quantity>0 GROUP BY brand,store ORDER BY brand,store").bind(x.ingredient_id).all();
+        for(const adjustment of (adjustments.results||[])){
+          const stock=Number(adjustment.stock||0), value=Number(adjustment.stock_value||0);
+          if(stock>0){
+            x.details.push({brand:adjustment.brand,store:adjustment.store,stock,stock_value:value,unit_price:value/stock});
+          }
         }
       }catch(e){}
     }
@@ -233,7 +232,7 @@ export default {
         const items=await getProducts(env); const item=items.find(x=>Number(x.ingredient_id)===ingredientId);
         if(!item)return json({error:"Ингредиент не найден на складе"},404);
         const delta=target-Number(item.stock); if(Math.abs(delta)<0.000001)return json({ok:true});
-        await env.DB.prepare("INSERT INTO stock_adjustments(ingredient_id,quantity,unit_price) VALUES(?,?,?)").bind(ingredientId,delta,Number(item.unit_price||0)).run();
+        await env.DB.prepare("INSERT INTO stock_adjustments(ingredient_id,quantity,unit_price,brand,store) VALUES(?,?,?,?,?)").bind(ingredientId,delta,Number(item.unit_price||0),"Ручная корректировка","Ручной ввод").run();
         return json({ok:true,stock:target});
       }
 
@@ -273,8 +272,8 @@ export default {
 
         if(quantity>0){
           await ensureStockAdjustmentSystem(env);
-          await env.DB.prepare("INSERT INTO stock_adjustments(ingredient_id,quantity,unit_price) VALUES(?,?,?)")
-            .bind(ingredientId,quantity,unitPrice).run();
+          await env.DB.prepare("INSERT INTO stock_adjustments(ingredient_id,quantity,unit_price,brand,store) VALUES(?,?,?,?,?)")
+            .bind(ingredientId,quantity,unitPrice,brand,"Ручной ввод").run();
         }
 
         return json({ok:true,id:productId,unit_price:unitPrice,price_rub:bottlePrice},201);
