@@ -253,6 +253,26 @@ export default {
         return json(await getCocktails(env));
       }
 
+      if (url.pathname === "/api/cocktails" && request.method === "PUT") {
+        const data=await request.json();
+        const id=Number(data.id);
+        const name=String(data.name||"").trim();
+        if(!Number.isInteger(id)||id<1)return json({error:"Некорректный коктейль"},400);
+        if(!name)return json({error:"Название коктейля обязательно"},400);
+        const existing=await env.DB.prepare("SELECT id FROM cocktails WHERE id=?").bind(id).first();
+        if(!existing)return json({error:"Коктейль не найден"},404);
+        await env.DB.prepare("UPDATE cocktails SET name=?,description=?,category=?,strength=?,photo_url=?,glass=?,ice=?,method=?,garnish=?,updated_at=CURRENT_TIMESTAMP WHERE id=?")
+          .bind(name,String(data.description||""),String(data.category||""),String(data.strength||""),String(data.photo_url||""),String(data.glass||""),String(data.ice||""),String(data.method||""),String(data.garnish||""),id).run();
+        await ensureIngredientSystem(env);
+        await env.DB.prepare("DELETE FROM recipe_ingredients WHERE cocktail_id=?").bind(id).run();
+        for(const item of (Array.isArray(data.recipe_items)?data.recipe_items:[])){
+          const iid=Number(item.ingredient_id), q=Number(item.quantity);
+          if(Number.isInteger(iid)&&iid>0&&q>0)await env.DB.prepare("INSERT INTO recipe_ingredients(cocktail_id,ingredient_id,quantity) VALUES(?,?,?)").bind(id,iid,q).run();
+        }
+        const pricing=await refreshCocktailPrice(env,id);
+        return json({ok:true,id,pricing});
+      }
+
       if (url.pathname === "/api/cocktails" && request.method === "POST") {
         const data=await request.json(), name=String(data.name||"").trim();
         if(!name)return json({error:"Название коктейля обязательно"},400);
@@ -538,11 +558,26 @@ const load=async()=>{
   const [cr,pr]=await Promise.all([fetch("/api/cocktails"),fetch("/api/ingredients")]);
   const cocktails=await cr.json(); products=await pr.json();
   document.querySelector("#list").innerHTML=cocktails.length
-    ? cocktails.map(c=>'<div style="padding:16px 0;border-bottom:1px solid #292929"><h3 style="margin:0 0 8px">'+esc(c.name)+'</h3><div class="muted" style="margin-bottom:8px">'+esc(c.description||"Без описания")+'</div><div style="margin-bottom:8px">'+(c.category?'<span class="pill">'+esc(c.category)+'</span>':"")+(c.strength?'<span class="pill">'+esc(c.strength)+'</span>':"")+'<span class="pill">'+Number(c.price_rub||0)+' ₽</span></div><div><b>Состав:</b>'+(c.recipe_items?.length?'<ul style="margin:6px 0 0 20px">'+c.recipe_items.map(i=>'<li>'+esc(i.ingredient_name)+' — '+Number(i.quantity).toFixed(2)+' '+esc(i.unit)+'</li>').join("")+'</ul>':' <span class="muted">не указан</span>')+'</div>'+(c.glass?'<div class="muted" style="margin-top:8px">Бокал: '+esc(c.glass)+'</div>':"")+(c.ice?'<div class="muted">Лёд: '+esc(c.ice)+'</div>':"")+(c.method?'<div class="muted">Метод: '+esc(c.method)+'</div>':"")+(c.garnish?'<div class="muted">Гарнир: '+esc(c.garnish)+'</div>':"")+'</div>').join("")
+    ? cocktails.map(c=>'<div style="padding:16px 0;border-bottom:1px solid #292929"><div class="row" style="justify-content:space-between;align-items:flex-start"><div><h3 style="margin:0 0 8px">'+esc(c.name)+'</h3><div class="muted" style="margin-bottom:8px">'+esc(c.description||"Без описания")+'</div><div style="margin-bottom:8px">'+(c.category?'<span class="pill">'+esc(c.category)+'</span>':"")+(c.strength?'<span class="pill">'+esc(c.strength)+'</span>':"")+'<span class="pill">'+Number(c.price_rub||0)+' ₽</span></div></div><button type="button" class="secondary edit-cocktail" data-id="'+c.id+'">✏️ Редактировать</button></div><div><b>Состав:</b>'+(c.recipe_items?.length?'<ul style="margin:6px 0 0 20px">'+c.recipe_items.map(i=>'<li>'+esc(i.ingredient_name)+' — '+Number(i.quantity).toFixed(2)+' '+esc(i.unit)+'</li>').join("")+'</ul>':' <span class="muted">не указан</span>')+'</div>'+(c.glass?'<div class="muted" style="margin-top:8px">Бокал: '+esc(c.glass)+'</div>':"")+(c.ice?'<div class="muted">Лёд: '+esc(c.ice)+'</div>':"")+(c.method?'<div class="muted">Метод: '+esc(c.method)+'</div>':"")+(c.garnish?'<div class="muted">Гарнир: '+esc(c.garnish)+'</div>':"")+(c.photo_url?'<div class="muted" style="margin-top:8px">📷 Фото добавлено</div>':"")+'</div>').join("")
     : '<div class="empty">Пока коктейлей нет. Создай первый 👇</div>';
+  document.querySelectorAll(".edit-cocktail").forEach(btn=>btn.onclick=()=>startEdit(cocktails.find(c=>Number(c.id)===Number(btn.dataset.id))));
   if (!document.querySelector(".recipe-row")) addRow();
 };
-const addRow=()=>{
+const startEdit=(c)=>{
+  if(!c)return;
+  const form=document.querySelector("#cocktailForm");
+  form.dataset.editId=c.id;
+  for(const n of ["name","description","category","strength","glass","ice","method","garnish"]){
+    const el=form.elements[n]; if(el)el.value=c[n]||"";
+  }
+  document.querySelector("#photoUrl").value=c.photo_url||"";
+  document.querySelector("#photoPreview").innerHTML=c.photo_url?'<img src="'+esc(c.photo_url)+'" style="max-width:240px;max-height:240px;border-radius:14px;display:block" alt="Фото">':"";
+  document.querySelector("#recipeItems").innerHTML="";
+  (c.recipe_items||[]).forEach(item=>addRow(item));
+  document.querySelector("#cocktailForm button[type=submit]").textContent="💾 Сохранить изменения";
+  document.querySelector("#cocktailForm").scrollIntoView({behavior:"smooth",block:"start"});
+};
+const addRow=(initial=null)=>{
   const wrap=document.createElement("div"); wrap.className="recipe-row";
   wrap.innerHTML='<div class="ingredient-picker"><input class="ingredient-search" type="search" placeholder="🔎 Введите ингредиент..." autocomplete="off"><input class="prod" type="hidden" value=""><div class="ingredient-suggestions" hidden></div></div><input class="qty" type="number" min="0.01" step="0.01" placeholder="Количество"><button type="button" class="secondary remove">×</button>';
   const search=wrap.querySelector(".ingredient-search"), hidden=wrap.querySelector(".prod"), suggestions=wrap.querySelector(".ingredient-suggestions");
@@ -567,6 +602,11 @@ const addRow=()=>{
   document.addEventListener("click",ev=>{if(!wrap.contains(ev.target))suggestions.hidden=true},{once:false});
   wrap.querySelector(".remove").onclick=()=>wrap.remove();
   document.querySelector("#recipeItems").appendChild(wrap);
+  if(initial){
+    const p=products.find(x=>Number(x.id)===Number(initial.ingredient_id));
+    if(p){search.value=p.name;hidden.value=String(p.id);}
+    wrap.querySelector(".qty").value=initial.quantity;
+  }
 };
 
 document.querySelector("#photoFile").onchange=()=>{
@@ -591,10 +631,11 @@ document.querySelector("#cocktailForm").onsubmit=async e=>{
     document.querySelector("#photoUrl").value=ud.url;
   }
   const body=Object.fromEntries(f.entries()); body.recipe_items=recipe_items;
-  const r=await fetch("/api/cocktails",{method:"POST",headers:{"content-type":"application/json"},body:JSON.stringify(body)});
+  const editId=Number(e.target.dataset.editId||0);
+  const r=await fetch("/api/cocktails",{method:editId?"PUT":"POST",headers:{"content-type":"application/json"},body:JSON.stringify(editId?{...body,id:editId}:body)});
   const data=await r.json();
   document.querySelector("#msg").textContent=r.ok?"Сохранено ✅":"Ошибка: "+(data.error||"не удалось сохранить");
-  if(r.ok){e.target.reset();document.querySelector("#recipeItems").innerHTML="";await load();}
+  if(r.ok){e.target.reset();delete e.target.dataset.editId;document.querySelector("#recipeItems").innerHTML="";document.querySelector("#photoUrl").value="";document.querySelector("#photoPreview").innerHTML="";document.querySelector("#cocktailForm button[type=submit]").textContent="💾 Сохранить коктейль";await load();}
 };
 load();
 </script>`, "Книга рецептов");
