@@ -699,7 +699,8 @@ export default {
 <a class="card" href="/bar/ingredients"><h2>🧾 Ингредиенты</h2><p class="muted">Ваш справочник ингредиентов</p></a>
 <a class="card" href="/bar/stock"><h2>📦 Склад</h2><p class="muted">Товары и остатки</p></a>
 <a class="card" href="/bar/shop"><h2>🛒 Магазин</h2><p class="muted">Закупки и партии</p></a>
-<a class="card" href="/bar/orders"><h2>🔔 Заказы</h2><p class="muted">Заказы гостей</p></a>
+<a class="card" href="/bar/orders"><h2>📋 Заказы</h2><p class="muted">Текущий заказ бармена</p></a>
+<a class="card" href="/bar/statistics"><h2>📊 Статистика</h2><p class="muted">Смены, заказы и коктейли</p></a>
 </div></div>`);
 
       if (url.pathname === "/bar/recipes") return page(`
@@ -1216,4 +1217,5 @@ loadOrder();
     }
   }
 };
+
 
