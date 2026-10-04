@@ -20,8 +20,20 @@ const resetLegacyDataOnce=async env=>{
   await env.DB.prepare("INSERT INTO app_migrations(name) VALUES(?)").bind("reset-to-empty-2026-10-04").run();
 };
 
+const resetAutoIncrementSequencesOnce=async env=>{
+  await env.DB.prepare("CREATE TABLE IF NOT EXISTS app_migrations (name TEXT PRIMARY KEY, applied_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP)").run();
+  const name="reset-autoincrement-sequences-2026-10-04";
+  const done=await env.DB.prepare("SELECT name FROM app_migrations WHERE name=?").bind(name).first();
+  if(done) return;
+  for(const table of ["ingredients","products","cocktails","recipe_ingredients","recipe_items","purchase_batches","stock_movements","guests","orders","order_items","reviews","shifts","favorites"]){
+    try{await env.DB.prepare("DELETE FROM sqlite_sequence WHERE name=?").bind(table).run()}catch(e){}
+  }
+  await env.DB.prepare("INSERT INTO app_migrations(name) VALUES(?)").bind(name).run();
+};
+
 const ensureIngredientSystem=async env=>{
   await resetLegacyDataOnce(env);
+  await resetAutoIncrementSequencesOnce(env);
   await env.DB.prepare("CREATE TABLE IF NOT EXISTS ingredients (id INTEGER PRIMARY KEY AUTOINCREMENT, name TEXT NOT NULL UNIQUE, unit TEXT NOT NULL CHECK(unit IN ('ml','g','pcs')), is_active INTEGER NOT NULL DEFAULT 1, created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP, updated_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP)").run();
   await env.DB.prepare("CREATE TABLE IF NOT EXISTS recipe_ingredients (id INTEGER PRIMARY KEY AUTOINCREMENT, cocktail_id INTEGER NOT NULL REFERENCES cocktails(id) ON DELETE CASCADE, ingredient_id INTEGER NOT NULL REFERENCES ingredients(id), quantity REAL NOT NULL CHECK(quantity > 0), UNIQUE(cocktail_id, ingredient_id))").run();
   try{await env.DB.prepare("ALTER TABLE products ADD COLUMN ingredient_id INTEGER").run()}catch(e){}
