@@ -169,12 +169,19 @@ export default {
 
       if (url.pathname === "/api/shop/purchases" && request.method === "GET") {
         await ensureShopSystem(env);
-        const {results}=await env.DB.prepare(
-          `SELECT pb.id,pb.purchased_qty,pb.remaining_qty,pb.price_rub,pb.purchased_at,
+        const from=url.searchParams.get("date_from")||"";
+        const to=url.searchParams.get("date_to")||"";
+        const ingredientId=Number(url.searchParams.get("ingredient_id")||0);
+        let sql=`SELECT pb.id,pb.purchased_qty,pb.remaining_qty,pb.price_rub,pb.purchased_at,
                   i.id ingredient_id,i.name ingredient_name,i.unit,p.brand,p.store
            FROM purchase_batches pb JOIN products p ON p.id=pb.product_id
-           JOIN ingredients i ON i.id=p.ingredient_id
-           ORDER BY pb.purchased_at DESC,pb.id DESC LIMIT 100`).all();
+           JOIN ingredients i ON i.id=p.ingredient_id WHERE 1=1`;
+        const binds=[];
+        if(/^\d{4}-\d{2}-\d{2}$/.test(from)){sql+=" AND pb.purchased_at >= ?";binds.push(from+" 00:00:00")}
+        if(/^\d{4}-\d{2}-\d{2}$/.test(to)){sql+=" AND pb.purchased_at < datetime(?, '+1 day')";binds.push(to+" 00:00:00")}
+        if(Number.isInteger(ingredientId)&&ingredientId>0){sql+=" AND i.id=?";binds.push(ingredientId)}
+        sql+=" ORDER BY pb.purchased_at DESC,pb.id DESC LIMIT 500";
+        const {results}=await env.DB.prepare(sql).bind(...binds).all();
         return json(results);
       }
       if (url.pathname === "/api/shop/purchase" && request.method === "PUT") {
@@ -188,7 +195,7 @@ export default {
         if(!Number.isInteger(ingredientId)||ingredientId<1)return json({error:"Выберите ингредиент"},400);
         if(!(qty>0))return json({error:"Укажите количество"},400);
         if(!(price>=0))return json({error:"Укажите цену закупки"},400);
-        if(!/^\d{4}-\d{2}-\d{2}$/.test(purchaseDate))return json({error:"Укажите дату покупки"},400);
+        if(!/^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}$/.test(purchaseDate))return json({error:"Укажите дату и время покупки"},400);
         const batch=await env.DB.prepare("SELECT id,purchased_qty,remaining_qty,product_id FROM purchase_batches WHERE id=?").bind(id).first();
         if(!batch)return json({error:"Закупка не найдена"},404);
         const consumed=Number(batch.purchased_qty)-Number(batch.remaining_qty);
@@ -203,7 +210,7 @@ export default {
           productId=Number(pr.meta.last_row_id);
         }
         const newRemaining=qty-consumed;
-        await env.DB.prepare("UPDATE purchase_batches SET product_id=?,purchased_qty=?,remaining_qty=?,price_rub=?,purchased_at=? WHERE id=?").bind(productId,qty,newRemaining,price,purchaseDate+" 00:00:00",id).run();
+        await env.DB.prepare("UPDATE purchase_batches SET product_id=?,purchased_qty=?,remaining_qty=?,price_rub=?,purchased_at=? WHERE id=?").bind(productId,qty,newRemaining,price,purchaseDate.replace("T"," ")+":00",id).run();
         return json({ok:true});
       }
 
@@ -228,7 +235,7 @@ export default {
         if(!Number.isInteger(ingredientId)||ingredientId<1) return json({error:"Выберите ингредиент"},400);
         if(!(qty>0)) return json({error:"Укажите количество"},400);
         if(!(price>=0)) return json({error:"Укажите цену закупки"},400);
-        if(!/^\d{4}-\d{2}-\d{2}$/.test(purchaseDate)) return json({error:"Укажите дату покупки"},400);
+        if(!/^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}$/.test(purchaseDate)) return json({error:"Укажите дату и время покупки"},400);
         const ing=await env.DB.prepare("SELECT id,name,unit FROM ingredients WHERE id=? AND is_active=1").bind(ingredientId).first();
         if(!ing)return json({error:"Ингредиент не найден"},404);
         let product=await env.DB.prepare("SELECT id FROM products WHERE ingredient_id=? AND brand=? AND store=? AND is_active=1 LIMIT 1").bind(ingredientId,brand,store).first();
@@ -441,87 +448,104 @@ fetch("/api/cocktails").then(r=>r.json()).then(x=>{document.querySelector("#menu
 <header><h1>🛒 Магазин</h1><div class="sub">Закупки и партии товара</div></header>
 <div class="wrap">
 <div class="row" style="margin-bottom:14px"><a href="/" style="display:inline-block;padding:10px 14px;border:1px solid #333;border-radius:12px;background:#151515">🏠 Главное меню</a><a href="/bar/stock" style="display:inline-block;padding:10px 14px;border:1px solid #333;border-radius:12px;background:#151515">📦 Склад</a></div>
+
 <div class="card"><h2>Новая закупка</h2><p class="muted">Фиксируем фактически купленную партию.</p>
 <form id="purchaseForm">
 <label>Ингредиент *</label><select name="ingredient_id" id="ingredientSelect" required><option value="">Загрузка...</option></select>
 <label>Магазин / поставщик</label><input name="store" placeholder="Например, Перекрёсток">
 <label>Бренд</label><input name="brand" placeholder="Например, Царская">
-<label>Дата покупки *</label><input name="purchased_at" type="date" required>
+<label>Дата и время покупки *</label><input name="purchased_at" type="datetime-local" required>
 <div class="grid"><div><label>Количество *</label><input name="quantity" type="number" min="0.01" step="0.01" required placeholder="1000"></div><div><label>Цена закупки, ₽ *</label><input name="price_rub" type="number" min="0" step="0.01" required placeholder="650"></div></div>
 <div style="margin-top:16px"><button>🛒 Оприходовать закупку</button></div><p id="msg" class="muted"></p>
 </form></div>
-<div style="height:16px"></div><div class="card"><h2>Последние закупки</h2><div id="history">Загрузка...</div></div>
+
+<div style="height:16px"></div>
+<div class="card"><h2>🔎 Фильтр закупок</h2>
+<div class="grid">
+<div><label>С даты</label><input id="filterFrom" type="date"></div>
+<div><label>По дату</label><input id="filterTo" type="date"></div>
+</div>
+<label>Ингредиент</label><select id="filterIngredient"><option value="">Все ингредиенты</option></select>
+<div class="row" style="margin-top:14px"><button type="button" id="applyFilter">🔎 Показать</button><button type="button" class="secondary" id="todayFilter">Сегодня</button><button type="button" class="secondary" id="clearFilter">Сбросить</button></div>
+<p class="muted">Например, выберите «Водка», чтобы увидеть все покупки водки. Чтобы посмотреть покупки только за 5 число — поставьте 5-е число в оба поля.</p>
+</div>
+
+<div style="height:16px"></div><div class="card"><h2>Закупки</h2><div id="history">Загрузка...</div></div>
 </div>
 <script>
 const esc=s=>String(s??"").replace(/[&<>"']/g,c=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[c]));
 let ingredients=[];
-const today=new Date().toISOString().slice(0,10);
-document.querySelector("#purchaseForm [name=purchased_at]").value=today;
-const formatDate=s=>{const m=String(s||"").match(/^(\d{4})-(\d{2})-(\d{2})/);return m?m[3]+"."+m[2]+"."+m[1]:String(s||"")};
+const pad=n=>String(n).padStart(2,"0");
+const localDateTime=()=>{const d=new Date();return d.getFullYear()+"-"+pad(d.getMonth()+1)+"-"+pad(d.getDate())+"T"+pad(d.getHours())+":"+pad(d.getMinutes())};
+document.querySelector("#purchaseForm [name=purchased_at]").value=localDateTime();
+const formatDateTime=s=>{const m=String(s||"").match(/^(\d{4})-(\d{2})-(\d{2})[ T](\d{2}):(\d{2})/);return m?m[3]+"."+m[2]+"."+m[1]+" "+m[4]+":"+m[5]:String(s||"")};
 const unitPrice=(price,qty)=>qty>0?(Number(price)/Number(qty)).toFixed(4):"0.0000";
-async function load(){
-  const [ir,hr]=await Promise.all([fetch("/api/ingredients"),fetch("/api/shop/purchases")]);
-  ingredients=await ir.json();
-  const history=await hr.json();
-  document.querySelector("#ingredientSelect").innerHTML='<option value="">Выберите ингредиент...</option>'+ingredients.map(i=>'<option value="'+i.id+'">'+esc(i.name)+' ('+esc(i.unit)+')</option>').join("");
+
+async function loadIngredients(){
+  const r=await fetch("/api/ingredients"); ingredients=await r.json();
+  const opts=ingredients.map(i=>'<option value="'+i.id+'">'+esc(i.name)+' ('+esc(i.unit)+')</option>').join("");
+  document.querySelector("#ingredientSelect").innerHTML='<option value="">Выберите ингредиент...</option>'+opts;
+  document.querySelector("#filterIngredient").innerHTML='<option value="">Все ингредиенты</option>'+opts;
+}
+
+async function loadHistory(){
+  const params=new URLSearchParams();
+  const from=document.querySelector("#filterFrom").value, to=document.querySelector("#filterTo").value, ing=document.querySelector("#filterIngredient").value;
+  if(from)params.set("date_from",from); if(to)params.set("date_to",to); if(ing)params.set("ingredient_id",ing);
+  const r=await fetch("/api/shop/purchases?"+params.toString()); const history=await r.json();
   document.querySelector("#history").innerHTML=history.length?history.map(x=>{
     const consumed=Math.max(0,Number(x.purchased_qty)-Number(x.remaining_qty));
     return '<div class="purchase-item" data-id="'+x.id+'" style="padding:13px 0;border-bottom:1px solid #292929">'+
-      '<div class="purchase-view"><b>'+esc(x.ingredient_name)+'</b><div class="muted">Дата покупки: '+formatDate(x.purchased_at)+'</div><div class="muted">'+Number(x.purchased_qty)+' '+esc(x.unit)+' · '+Number(x.price_rub).toFixed(2)+' ₽ · '+unitPrice(x.price_rub,x.purchased_qty)+' ₽/'+esc(x.unit)+(x.store?' · '+esc(x.store):'')+(x.brand?' · '+esc(x.brand):'')+'</div>'+
+      '<div class="purchase-view"><b>'+esc(x.ingredient_name)+'</b><div class="muted">Дата покупки: '+formatDateTime(x.purchased_at)+'</div><div class="muted">'+Number(x.purchased_qty)+' '+esc(x.unit)+' · '+Number(x.price_rub).toFixed(2)+' ₽ · '+unitPrice(x.price_rub,x.purchased_qty)+' ₽/'+esc(x.unit)+(x.store?' · '+esc(x.store):'')+(x.brand?' · '+esc(x.brand):'')+'</div>'+
       '<div class="muted">Осталось: '+Number(x.remaining_qty)+' '+esc(x.unit)+(consumed?' · списано: '+consumed+' '+esc(x.unit):'')+'</div>'+
       '<div class="row" style="margin-top:9px"><button type="button" class="secondary edit">✏️ Изменить</button><button type="button" class="secondary delete">🗑 Удалить</button></div></div></div>';
-  }).join(""):'<div class="empty">Закупок пока нет.</div>';
+  }).join(""):'<div class="empty">По выбранному фильтру закупок нет.</div>';
   document.querySelectorAll(".purchase-item .edit").forEach(b=>b.onclick=()=>editPurchase(history,b.closest(".purchase-item").dataset.id));
   document.querySelectorAll(".purchase-item .delete").forEach(b=>b.onclick=()=>deletePurchase(b.closest(".purchase-item").dataset.id));
 }
+
 function editPurchase(history,id){
   const item=history.find(x=>String(x.id)===String(id)); if(!item)return;
   const row=document.querySelector('.purchase-item[data-id="'+id+'"]');
   const consumed=Math.max(0,Number(item.purchased_qty)-Number(item.remaining_qty));
+  const dt=String(item.purchased_at||"").replace(" ","T").slice(0,16);
   row.innerHTML='<div><div class="grid">'+
     '<div><label>Ингредиент</label><select class="edit-ingredient">'+ingredients.map(i=>'<option value="'+i.id+'"'+(Number(i.id)===Number(item.ingredient_id)?' selected':'')+'>'+esc(i.name)+' ('+esc(i.unit)+')</option>').join("")+'</select></div>'+
     '<div><label>Магазин / поставщик</label><input class="edit-store" value="'+esc(item.store||"")+'"></div>'+
     '<div><label>Бренд</label><input class="edit-brand" value="'+esc(item.brand||"")+'"></div>'+
-    '<div><label>Дата покупки</label><input class="edit-date" type="date" value="'+String(item.purchased_at||"").slice(0,10)+'"></div>'+
+    '<div><label>Дата и время покупки</label><input class="edit-date" type="datetime-local" value="'+dt+'"></div>'+
     '<div><label>Количество</label><input class="edit-qty" type="number" min="'+Math.max(0.01,consumed).toString()+'" step="0.01" value="'+Number(item.purchased_qty)+'"></div>'+
     '<div><label>Цена закупки, ₽</label><input class="edit-price" type="number" min="0" step="0.01" value="'+Number(item.price_rub)+'"></div>'+
     '</div><p class="muted">Уже списано: '+consumed+' '+esc(item.unit)+'. Количество нельзя уменьшить ниже этого значения.</p>'+
     '<div class="row"><button type="button" class="save-edit">💾 Сохранить</button><button type="button" class="secondary cancel-edit">Отмена</button><span class="edit-msg muted"></span></div></div>';
-  row.querySelector(".cancel-edit").onclick=load;
+  row.querySelector(".cancel-edit").onclick=loadHistory;
   row.querySelector(".save-edit").onclick=async()=>{
-    const body={
-      id:Number(id),
-      ingredient_id:Number(row.querySelector(".edit-ingredient").value),
-      store:row.querySelector(".edit-store").value.trim(),
-      brand:row.querySelector(".edit-brand").value.trim(),
-      purchased_at:row.querySelector(".edit-date").value,
-      quantity:Number(row.querySelector(".edit-qty").value),
-      price_rub:Number(row.querySelector(".edit-price").value)
-    };
+    const body={id:Number(id),ingredient_id:Number(row.querySelector(".edit-ingredient").value),store:row.querySelector(".edit-store").value.trim(),brand:row.querySelector(".edit-brand").value.trim(),purchased_at:row.querySelector(".edit-date").value,quantity:Number(row.querySelector(".edit-qty").value),price_rub:Number(row.querySelector(".edit-price").value)};
     const msg=row.querySelector(".edit-msg");
-    const r=await fetch("/api/shop/purchase",{method:"PUT",headers:{"content-type":"application/json"},body:JSON.stringify(body)});
-    const d=await r.json();
-    if(!r.ok){msg.textContent="Ошибка: "+(d.error||"не удалось сохранить");return}
-    await load();
+    const r=await fetch("/api/shop/purchase",{method:"PUT",headers:{"content-type":"application/json"},body:JSON.stringify(body)}); const d=await r.json();
+    if(!r.ok){msg.textContent="Ошибка: "+(d.error||"не удалось сохранить");return} await loadHistory();
   };
 }
+
 async function deletePurchase(id){
   if(!confirm("Удалить эту закупку? Товар и его остаток по этой партии будут удалены из истории магазина."))return;
-  const r=await fetch("/api/shop/purchase?id="+encodeURIComponent(id),{method:"DELETE"});
-  const d=await r.json();
-  if(!r.ok){alert(d.error||"Не удалось удалить закупку");return}
-  await load();
+  const r=await fetch("/api/shop/purchase?id="+encodeURIComponent(id),{method:"DELETE"}); const d=await r.json();
+  if(!r.ok){alert(d.error||"Не удалось удалить закупку");return} await loadHistory();
 }
+
 document.querySelector("#purchaseForm").onsubmit=async e=>{
-  e.preventDefault();
-  const body=Object.fromEntries(new FormData(e.target));
-  body.ingredient_id=Number(body.ingredient_id);body.quantity=Number(body.quantity);body.price_rub=Number(body.price_rub);
-  const r=await fetch("/api/shop/purchase",{method:"POST",headers:{"content-type":"application/json"},body:JSON.stringify(body)});
-  const d=await r.json();
+  e.preventDefault(); const body=Object.fromEntries(new FormData(e.target));
+  body.ingredient_id=Number(body.ingredient_id); body.quantity=Number(body.quantity); body.price_rub=Number(body.price_rub);
+  const r=await fetch("/api/shop/purchase",{method:"POST",headers:{"content-type":"application/json"},body:JSON.stringify(body)}); const d=await r.json();
   document.querySelector("#msg").textContent=r.ok?"Закупка добавлена ✅":"Ошибка: "+(d.error||"не удалось сохранить");
-  if(r.ok){e.target.reset();await load();}
+  if(r.ok){e.target.reset();document.querySelector("#purchaseForm [name=purchased_at]").value=localDateTime();await loadHistory();}
 };
-load();
+
+document.querySelector("#applyFilter").onclick=loadHistory;
+document.querySelector("#clearFilter").onclick=()=>{document.querySelector("#filterFrom").value="";document.querySelector("#filterTo").value="";document.querySelector("#filterIngredient").value="";loadHistory();};
+document.querySelector("#todayFilter").onclick=()=>{const d=new Date();const s=d.getFullYear()+"-"+pad(d.getMonth()+1)+"-"+pad(d.getDate());document.querySelector("#filterFrom").value=s;document.querySelector("#filterTo").value=s;loadHistory();};
+
+await loadIngredients(); await loadHistory();
 </script>`, "Магазин");
 
       if (url.pathname === "/bar/orders") return page(`
