@@ -32,21 +32,33 @@ const resetAutoIncrementSequencesOnce=async env=>{
 };
 
 const ensureIngredientSystem=async env=>{
-  await env.DB.prepare("CREATE TABLE IF NOT EXISTS ingredients (id INTEGER PRIMARY KEY AUTOINCREMENT, name TEXT NOT NULL UNIQUE, unit TEXT NOT NULL DEFAULT 'ml' CHECK(unit IN ('ml','g','pcs')), is_active INTEGER NOT NULL DEFAULT 1, created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP, updated_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP)").run();
+  // This migration must be safe against the older D1 schema. In particular,
+  // SQLite/D1 does not allow ADD COLUMN with a non-constant DEFAULT.
+  await env.DB.prepare("CREATE TABLE IF NOT EXISTS ingredients (id INTEGER PRIMARY KEY AUTOINCREMENT, name TEXT NOT NULL UNIQUE, unit TEXT NOT NULL DEFAULT 'ml' CHECK(unit IN ('ml','g','pcs')), is_active INTEGER NOT NULL DEFAULT 1, created_at TEXT DEFAULT NULL, updated_at TEXT DEFAULT NULL)").run();
   try{ await env.DB.prepare("ALTER TABLE ingredients ADD COLUMN unit TEXT NOT NULL DEFAULT 'ml'").run(); }catch(e){}
   try{ await env.DB.prepare("ALTER TABLE ingredients ADD COLUMN is_active INTEGER NOT NULL DEFAULT 1").run(); }catch(e){}
-  try{ await env.DB.prepare("ALTER TABLE ingredients ADD COLUMN created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP").run(); }catch(e){}
-  try{ await env.DB.prepare("ALTER TABLE ingredients ADD COLUMN updated_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP").run(); }catch(e){}
-  await env.DB.prepare("CREATE TABLE IF NOT EXISTS recipe_ingredients (id INTEGER PRIMARY KEY AUTOINCREMENT, cocktail_id INTEGER NOT NULL REFERENCES cocktails(id) ON DELETE CASCADE, ingredient_id INTEGER NOT NULL REFERENCES ingredients(id), quantity REAL NOT NULL CHECK(quantity > 0), UNIQUE(cocktail_id, ingredient_id))").run();
-  try{ await env.DB.prepare("ALTER TABLE products ADD COLUMN ingredient_id INTEGER").run(); }catch(e){}
+  try{ await env.DB.prepare("ALTER TABLE ingredients ADD COLUMN created_at TEXT DEFAULT NULL").run(); }catch(e){}
+  try{ await env.DB.prepare("ALTER TABLE ingredients ADD COLUMN updated_at TEXT DEFAULT NULL").run(); }catch(e){}
+  try{ await env.DB.prepare("UPDATE ingredients SET created_at=COALESCE(created_at,CURRENT_TIMESTAMP), updated_at=COALESCE(updated_at,CURRENT_TIMESTAMP)").run(); }catch(e){}
+
+  // Recipe migration is deliberately isolated: a broken/old recipe table
+  // must never prevent the ingredient list from loading.
   try{
-    const {results: ps}=await env.DB.prepare("SELECT id,name,ingredient_id FROM products WHERE is_active=1").all();
+    await env.DB.prepare("CREATE TABLE IF NOT EXISTS recipe_ingredients (id INTEGER PRIMARY KEY AUTOINCREMENT, cocktail_id INTEGER NOT NULL REFERENCES cocktails(id) ON DELETE CASCADE, ingredient_id INTEGER NOT NULL REFERENCES ingredients(id), quantity REAL NOT NULL CHECK(quantity > 0), UNIQUE(cocktail_id, ingredient_id))").run();
+  }catch(e){}
+
+  // Product links are also migrated independently from the ingredient API.
+  try{ await env.DB.prepare("ALTER TABLE products ADD COLUMN ingredient_id INTEGER").run(); }catch(e){}
+  try{ await env.DB.prepare("ALTER TABLE products ADD COLUMN store TEXT DEFAULT ''").run(); }catch(e){}
+  try{
+    const {results: ps}=await env.DB.prepare("SELECT id,name,ingredient_id FROM products").all();
     for(const p of ps){
       if(p.ingredient_id) continue;
       const ing=await env.DB.prepare("SELECT id FROM ingredients WHERE lower(replace(name,'ё','е'))=lower(replace(?,'ё','е')) LIMIT 1").bind(p.name).first();
       if(ing) await env.DB.prepare("UPDATE products SET ingredient_id=? WHERE id=?").bind(ing.id,p.id).run();
     }
   }catch(e){}
+
   try{
     await env.DB.prepare("INSERT OR IGNORE INTO recipe_ingredients(cocktail_id,ingredient_id,quantity) SELECT ri.cocktail_id,p.ingredient_id,ri.quantity FROM recipe_items ri JOIN products p ON p.id=ri.product_id WHERE p.ingredient_id IS NOT NULL").run();
   }catch(e){}
@@ -54,6 +66,7 @@ const ensureIngredientSystem=async env=>{
 
 const ensureShopSystem=async env=>{
   await ensureIngredientSystem(env);
+  // Kept as a separate guarded migration for old installations.
   try{await env.DB.prepare("ALTER TABLE products ADD COLUMN store TEXT DEFAULT ''").run()}catch(e){}
 };
 
