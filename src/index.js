@@ -451,7 +451,6 @@ document.querySelector("#ingredientForm").onsubmit=async e=>{e.preventDefault();
 <form id="productForm">
 <label>Ингредиент *</label><select name="ingredient_id" id="ingredientSelect" required><option value="">Загрузка...</option></select>
 <label>Название/описание товара в магазине</label><input name="brand" placeholder="Царская · Перекрёсток">
-<label>Категория</label><input name="category" placeholder="Спиртное">
 <label>Единица хранения *</label><select name="unit"><option value="ml">мл</option><option value="g">г</option><option value="pcs">шт.</option></select>
 <label>Минимальный остаток</label><input name="min_stock" type="number" min="0" step="0.01" value="0">
 <div style="margin-top:16px"><button>＋ Добавить товар</button></div>
