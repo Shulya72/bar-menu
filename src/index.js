@@ -156,7 +156,7 @@ const refreshCocktailPrice = async (env, cocktailId) => {
   return {cost,price};
 };
 
-const BUILD_VERSION = "2026-10-05-photo-fix-2";
+const BUILD_VERSION = "2026-10-05-cocktail-delete-r2";
 
 const getCocktails = async (env) => {
   const { results } = await env.DB.prepare(
