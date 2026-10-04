@@ -156,6 +156,8 @@ const refreshCocktailPrice = async (env, cocktailId) => {
   return {cost,price};
 };
 
+const BUILD_VERSION = "2026-10-05-photo-fix-2";
+
 const getCocktails = async (env) => {
   const { results } = await env.DB.prepare(
     "SELECT id,name,description,category,strength,price_rub,photo_url,glass,ice,method,garnish,is_active,created_at,updated_at FROM cocktails WHERE is_active=1 ORDER BY name"
@@ -252,7 +254,7 @@ export default {
     const url = new URL(request.url);
 
     try {
-      if (url.pathname === "/api/health") return json({ok:true,service:"bar-menu",database:"bar-menu-db"});
+      if (url.pathname === "/api/health") return json({ok:true,service:"bar-menu",database:"bar-menu-db",photos:!!env.PHOTOS,build:BUILD_VERSION});
 
       if (url.pathname === "/api/cocktail-photo" && request.method === "POST") {
         if(!env.PHOTOS)return json({error:"Хранилище фотографий R2 ещё не подключено"},503);
@@ -275,7 +277,7 @@ export default {
         }
         if(!key.startsWith("cocktails/") || key.includes(".."))return new Response("Not found",{status:404});
         const object=await env.PHOTOS.get(key);
-        if(!object)return new Response("Not found",{status:404});
+        if(!object)return new Response("Photo not found: "+key,{status:404,headers:{"cache-control":"no-store","x-photo-key":key,"x-build-version":BUILD_VERSION}});
         const headers=new Headers();
         object.writeHttpMetadata(headers);
         headers.set("etag",object.httpEtag);
