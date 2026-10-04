@@ -11,7 +11,29 @@ const ensureIngredient=async(env,name,category="Пользовательские
  let id=same?.id; if(!id){const r=await env.DB.prepare("INSERT INTO products(name,brand,category,unit,min_stock) VALUES(?,?,?,?,0)").bind(name,brand,category,unit).run();id=r.meta.last_row_id;}
  await env.DB.prepare("INSERT OR IGNORE INTO product_aliases(alias_key,product_id) VALUES(?,?)").bind(key,id).run(); return Number(id);
 };
-const seedIngredientCatalog=async env=>{for(const [name,cat,unit,aliases] of ingredientTemplates){const id=await ensureIngredient(env,name,cat,unit);for(const a of aliases)await env.DB.prepare("INSERT OR IGNORE INTO product_aliases(alias_key,product_id) VALUES(?,?)").bind(ingredientKey(a),id).run();}};
+const seedIngredientCatalog=async env=>{for(const [name,cat,unit,aliases] of ingredientTemplates){
+  let id=await ensureIngredient(env,name,cat,unit);
+  // Canonical ingredient identity: recipe/stock logic uses only the generic name.
+  // If an older row was entered as e.g. "Водка Царская Перекресток",
+  // fold it into the canonical "Водка" product so the recipe never depends on a brand/store name.
+  const nk=ingredientKey(name);
+  const {results: specific}=await env.DB.prepare(
+    "SELECT id,name,brand FROM products WHERE is_active=1 AND unit=? AND id<>? AND (lower(replace(name,'ё','е')) LIKE lower(replace(?,'ё','е')) || ' %')"
+  ).bind(unit,id,name).all();
+  for(const p of specific){
+    const oldName=String(p.name||"").trim();
+    const oldBrand=String(p.brand||"").trim();
+    const preserved=[oldBrand,oldName.slice(name.length).trim()].filter(Boolean).join(" · ");
+    if(preserved && !oldBrand) await env.DB.prepare("UPDATE products SET brand=? WHERE id=?").bind(preserved,p.id).run();
+    await env.DB.prepare("UPDATE recipe_items SET product_id=? WHERE product_id=?").bind(id,p.id).run();
+    await env.DB.prepare("UPDATE purchase_batches SET product_id=? WHERE product_id=?").bind(id,p.id).run();
+    await env.DB.prepare("UPDATE stock_movements SET product_id=? WHERE product_id=?").bind(id,p.id).run();
+    await env.DB.prepare("DELETE FROM product_aliases WHERE product_id=?").bind(p.id).run();
+    await env.DB.prepare("UPDATE products SET is_active=0 WHERE id=?").bind(p.id).run();
+  }
+  for(const a of aliases)await env.DB.prepare("INSERT OR IGNORE INTO product_aliases(alias_key,product_id) VALUES(?,?)").bind(ingredientKey(a),id).run();
+  await env.DB.prepare("INSERT OR IGNORE INTO product_aliases(alias_key,product_id) VALUES(?,?)").bind(nk,id).run();
+}};
 const resolveIngredient=async(env,name)=>{await seedIngredientCatalog(env);return ensureIngredient(env,String(name).trim());};
 
 const json = (data, status = 200) =>
@@ -98,8 +120,14 @@ export default {
 
       if (url.pathname === "/api/products" && request.method === "POST") {
         const data=await request.json(), name=String(data.name||"").trim(), unit=String(data.unit||"");
-        if(!name||!["ml","g","pcs"].includes(unit))return json({error:"Укажите название и единицу: ml, g или pcs"},400);
-        const id=await resolveIngredient(env,name);
+        let id=Number(data.ingredient_id);
+        if(Number.isInteger(id)&&id>0){
+          const found=await env.DB.prepare("SELECT id FROM products WHERE id=? AND is_active=1").bind(id).first();
+          if(!found)return json({error:"Ингредиент не найден"},404);
+        } else {
+          if(!name||!["ml","g","pcs"].includes(unit))return json({error:"Выберите ингредиент"},400);
+          id=await resolveIngredient(env,name);
+        }
         if(data.brand)await env.DB.prepare("UPDATE products SET brand=? WHERE id=? AND (brand='' OR brand IS NULL)").bind(String(data.brand),id).run();
         if(Number(data.purchase_qty)>0&&Number(data.purchase_price)>=0)await env.DB.prepare("INSERT INTO purchase_batches(product_id,purchased_qty,remaining_qty,price_rub) VALUES(?,?,?,?)").bind(id,Number(data.purchase_qty),Number(data.purchase_qty),Number(data.purchase_price)).run();
         return json({ok:true,id,existing:true},201);
@@ -214,9 +242,9 @@ load(); addRow();
 <div class="card">
 <h2>Новый товар</h2>
 <form id="productForm">
-<label>Название *</label><input name="name" required placeholder="Gin">
-<label>Бренд</label><input name="brand" placeholder="Beefeater">
-<label>Категория</label><input name="category" placeholder="Джин">
+<label>Ингредиент *</label><select name="ingredient_id" id="ingredientSelect" required><option value="">Загрузка...</option></select>
+<label>Название/описание товара в магазине</label><input name="brand" placeholder="Царская · Перекрёсток">
+<label>Категория</label><input name="category" placeholder="Спиртное">
 <label>Единица хранения *</label><select name="unit"><option value="ml">мл</option><option value="g">г</option><option value="pcs">шт.</option></select>
 <label>Минимальный остаток</label><input name="min_stock" type="number" min="0" step="0.01" value="0">
 <div style="margin-top:16px"><button>＋ Добавить товар</button></div>
@@ -228,8 +256,8 @@ load(); addRow();
 </div>
 <script>
 const esc=s=>String(s??"").replace(/[&<>"']/g,c=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[c]));
-async function load(){const r=await fetch("/api/products");const x=await r.json();document.querySelector("#stock").innerHTML=x.length?x.map(p=>'<div style="padding:12px 0;border-bottom:1px solid #292929"><b>'+esc(p.name)+'</b> '+esc(p.brand||"")+'<div class="muted">'+esc(p.category||"")+' · '+p.stock+' '+p.unit+'</div></div>').join(""):'<div class="empty">Товаров пока нет.</div>'}
-document.querySelector("#productForm").onsubmit=async e=>{e.preventDefault();const body=Object.fromEntries(new FormData(e.target));body.min_stock=Number(body.min_stock||0);const r=await fetch("/api/products",{method:"POST",headers:{"content-type":"application/json"},body:JSON.stringify(body)});const d=await r.json();document.querySelector("#msg").textContent=r.ok?"Товар добавлен ✅":"Ошибка: "+(d.error||"");if(r.ok){e.target.reset();await load()}};
+async function load(){const [r,ir]=await Promise.all([fetch("/api/products"),fetch("/api/ingredients")]);const x=await r.json();const ingredients=await ir.json();document.querySelector("#ingredientSelect").innerHTML='<option value="">Выберите ингредиент...</option>'+ingredients.map(p=>'<option value="'+p.id+'">'+esc(p.name)+' ('+p.unit+')</option>').join("");document.querySelector("#stock").innerHTML=x.length?x.map(p=>'<div style="padding:12px 0;border-bottom:1px solid #292929"><b>'+esc(p.name)+'</b>'+(p.brand?' <span class="muted">· '+esc(p.brand)+'</span>':"")+'<div class="muted">'+esc(p.category||"")+' · '+p.stock+' '+p.unit+'</div></div>').join(""):'<div class="empty">Товаров пока нет.</div>'}
+document.querySelector("#productForm").onsubmit=async e=>{e.preventDefault();const body=Object.fromEntries(new FormData(e.target));const selected=body.ingredient_id;body.name="";body.ingredient_id=Number(selected);body.min_stock=Number(body.min_stock||0);body.unit=document.querySelector("#ingredientSelect").selectedOptions[0]?.textContent.match(/\((ml|g|pcs)\)$/)?.[1]||"ml";const r=await fetch("/api/products",{method:"POST",headers:{"content-type":"application/json"},body:JSON.stringify(body)});const d=await r.json();document.querySelector("#msg").textContent=r.ok?"Товар добавлен ✅":"Ошибка: "+(d.error||"");if(r.ok){e.target.reset();await load()}};
 load();
 </script>`, "Склад");
 
