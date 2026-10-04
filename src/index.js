@@ -27,6 +27,21 @@ a{color:#c8ff3d;text-decoration:none}.muted{color:#999}.pill{display:inline-bloc
 </style>
 </head><body>${body}</body></html>`, {headers:{"content-type":"text/html;charset=UTF-8"}});
 
+const refreshCocktailPrice = async (env, cocktailId) => {
+  const { results } = await env.DB.prepare(`
+    SELECT ri.quantity,
+      COALESCE((SELECT pb.price_rub / NULLIF(pb.purchased_qty,0)
+        FROM purchase_batches pb
+        WHERE pb.product_id=ri.product_id AND pb.remaining_qty>0
+        ORDER BY pb.purchased_at DESC, pb.id DESC LIMIT 1),0) unit_cost
+    FROM recipe_items ri WHERE ri.cocktail_id=?
+  `).bind(cocktailId).all();
+  const cost = results.reduce((sum,x)=>sum+Number(x.quantity)*Number(x.unit_cost),0);
+  const price = Math.max(0,Math.round((cost*3)/10)*10);
+  await env.DB.prepare("UPDATE cocktails SET price_rub=?,updated_at=CURRENT_TIMESTAMP WHERE id=?").bind(price,cocktailId).run();
+  return {cost,price};
+};
+
 const getCocktails = async (env) => {
   const { results } = await env.DB.prepare(
     "SELECT id,name,description,category,strength,price_rub,photo_url,glass,ice,method,garnish,is_active,created_at,updated_at FROM cocktails WHERE is_active=1 ORDER BY name"
@@ -84,7 +99,7 @@ export default {
             ).bind(cocktailId,productId,quantity).run();
           }
         }
-        return json({ok:true,id:cocktailId},201);
+        const pricing=await refreshCocktailPrice(env,cocktailId);\n        return json({ok:true,id:cocktailId,pricing},201);
       }
 
       if (url.pathname === "/api/products" && request.method === "GET") {
