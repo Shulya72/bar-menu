@@ -413,3 +413,15 @@ async function load(){const [ir,hr]=await Promise.all([fetch("/api/ingredients")
 document.querySelector("#purchaseForm").onsubmit=async e=>{e.preventDefault();const body=Object.fromEntries(new FormData(e.target));body.ingredient_id=Number(body.ingredient_id);body.quantity=Number(body.quantity);body.price_rub=Number(body.price_rub);const r=await fetch("/api/shop/purchase",{method:"POST",headers:{"content-type":"application/json"},body:JSON.stringify(body)});const d=await r.json();document.querySelector("#msg").textContent=r.ok?"Закупка добавлена ✅":"Ошибка: "+(d.error||"не удалось сохранить");if(r.ok){e.target.reset();await load();}};
 load();
 </script>`, "Магазин");
+
+      if (url.pathname === "/bar/orders") return page(`
+<header><h1>🔔 Заказы</h1><div class="sub">Заказы гостей — следующий модуль</div></header>
+<div class="wrap"><div class="row" style="margin-bottom:14px"><a href="/" style="display:inline-block;padding:10px 14px;border:1px solid #333;border-radius:12px;background:#151515">🏠 Главное меню</a></div><div class="card"><h2>Здесь будут заказы</h2><p class="muted">Гость → заказ → принят барменом → приготовлен → выдан.</p><a href="/bar">← Назад</a></div></div>`);
+
+      return new Response("Не найдено",{status:404});
+    } catch (error) {
+      console.error(error);
+      return json({error:"Ошибка сервера",details:String(error?.message||error)},500);
+    }
+  }
+};
