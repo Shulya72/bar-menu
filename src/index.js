@@ -64,7 +64,9 @@ const ensureIngredientSystem=async env=>{
   }catch(e){}
 };
 
-const ensureStockAdjustmentSystem=async env=>{ await ensureShopSystem(env); try{await env.DB.prepare("CREATE TABLE IF NOT EXISTS stock_adjustments (id INTEGER PRIMARY KEY AUTOINCREMENT, ingredient_id INTEGER NOT NULL REFERENCES ingredients(id), quantity REAL NOT NULL, unit_price REAL NOT NULL DEFAULT 0, created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP)").run()}catch(e){} };\n\nconst ensureShopSystem=async env=>{
+const ensureStockAdjustmentSystem=async env=>{ await ensureShopSystem(env); try{await env.DB.prepare("CREATE TABLE IF NOT EXISTS stock_adjustments (id INTEGER PRIMARY KEY AUTOINCREMENT, ingredient_id INTEGER NOT NULL REFERENCES ingredients(id), quantity REAL NOT NULL, unit_price REAL NOT NULL DEFAULT 0, created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP)").run()}catch(e){} };
+
+const ensureShopSystem=async env=>{
   await ensureIngredientSystem(env);
   // Kept as a separate guarded migration for old installations.
   try{await env.DB.prepare("ALTER TABLE products ADD COLUMN store TEXT DEFAULT ''").run()}catch(e){}
@@ -132,7 +134,12 @@ const getCocktails = async (env) => {
   return results;
 };
 
-const getProducts = async (env) => {\n  await ensureStockAdjustmentSystem(env);\n  const q="SELECT i.id ingredient_id,i.name ingredient_name,i.unit,COALESCE((SELECT SUM(pb.remaining_qty) FROM purchase_batches pb JOIN products pp ON pp.id=pb.product_id WHERE pp.ingredient_id=i.id AND pp.is_active=1),0)+COALESCE((SELECT SUM(sa.quantity) FROM stock_adjustments sa WHERE sa.ingredient_id=i.id),0) stock,COALESCE((SELECT SUM(pb.remaining_qty*(pb.price_rub/NULLIF(pb.purchased_qty,0))) FROM purchase_batches pb JOIN products pp ON pp.id=pb.product_id WHERE pp.ingredient_id=i.id AND pp.is_active=1),0)+COALESCE((SELECT SUM(sa.quantity*sa.unit_price) FROM stock_adjustments sa WHERE sa.ingredient_id=i.id),0) stock_value,COALESCE((SELECT group_concat(DISTINCT pp.brand) FROM products pp WHERE pp.ingredient_id=i.id AND pp.is_active=1 AND pp.brand<>char(39)),char(39)) brands FROM ingredients i WHERE i.is_active=1 ORDER BY i.name";\n  const {results}=await env.DB.prepare(q).all();\n  return results.map(x=>({...x,stock:Number(x.stock||0),stock_value:Number(x.stock_value||0),unit_price:Number(x.stock||0)>0?Number(x.stock_value||0)/Number(x.stock):0})).filter(x=>x.stock>0);\n};
+const getProducts = async (env) => {
+  await ensureStockAdjustmentSystem(env);
+  const q="SELECT i.id ingredient_id,i.name ingredient_name,i.unit,COALESCE((SELECT SUM(pb.remaining_qty) FROM purchase_batches pb JOIN products pp ON pp.id=pb.product_id WHERE pp.ingredient_id=i.id AND pp.is_active=1),0)+COALESCE((SELECT SUM(sa.quantity) FROM stock_adjustments sa WHERE sa.ingredient_id=i.id),0) stock,COALESCE((SELECT SUM(pb.remaining_qty*(pb.price_rub/NULLIF(pb.purchased_qty,0))) FROM purchase_batches pb JOIN products pp ON pp.id=pb.product_id WHERE pp.ingredient_id=i.id AND pp.is_active=1),0)+COALESCE((SELECT SUM(sa.quantity*sa.unit_price) FROM stock_adjustments sa WHERE sa.ingredient_id=i.id),0) stock_value,COALESCE((SELECT group_concat(DISTINCT pp.brand) FROM products pp WHERE pp.ingredient_id=i.id AND pp.is_active=1 AND pp.brand<>''),'') brands FROM ingredients i WHERE i.is_active=1 ORDER BY i.name";
+  const {results}=await env.DB.prepare(q).all();
+  return results.map(x=>({...x,stock:Number(x.stock||0),stock_value:Number(x.stock_value||0),unit_price:Number(x.stock||0)>0?Number(x.stock_value||0)/Number(x.stock):0})).filter(x=>x.stock>0);
+};
 
 export default {
   async fetch(request, env) {
@@ -159,7 +166,19 @@ export default {
         return json(await getProducts(env));
       }
 
-      if (url.pathname === "/api/products" && request.method === "PUT") {\n        await ensureStockAdjustmentSystem(env);\n        const data=await request.json();\n        const ingredientId=Number(data.ingredient_id), target=Number(data.stock);\n        if(!Number.isInteger(ingredientId)||ingredientId<1||!Number.isFinite(target)||target<0)return json({error:"Некорректный остаток"},400);\n        const items=await getProducts(env); const item=items.find(x=>Number(x.ingredient_id)===ingredientId);\n        if(!item)return json({error:"Ингредиент не найден на складе"},404);\n        const delta=target-Number(item.stock); if(Math.abs(delta)<0.000001)return json({ok:true});\n        await env.DB.prepare("INSERT INTO stock_adjustments(ingredient_id,quantity,unit_price) VALUES(?,?,?)").bind(ingredientId,delta,Number(item.unit_price||0)).run();\n        return json({ok:true,stock:target});\n      }\n\n      if (url.pathname === "/api/products" && request.method === "POST") {
+      if (url.pathname === "/api/products" && request.method === "PUT") {
+        await ensureStockAdjustmentSystem(env);
+        const data=await request.json();
+        const ingredientId=Number(data.ingredient_id), target=Number(data.stock);
+        if(!Number.isInteger(ingredientId)||ingredientId<1||!Number.isFinite(target)||target<0)return json({error:"Некорректный остаток"},400);
+        const items=await getProducts(env); const item=items.find(x=>Number(x.ingredient_id)===ingredientId);
+        if(!item)return json({error:"Ингредиент не найден на складе"},404);
+        const delta=target-Number(item.stock); if(Math.abs(delta)<0.000001)return json({ok:true});
+        await env.DB.prepare("INSERT INTO stock_adjustments(ingredient_id,quantity,unit_price) VALUES(?,?,?)").bind(ingredientId,delta,Number(item.unit_price||0)).run();
+        return json({ok:true,stock:target});
+      }
+
+      if (url.pathname === "/api/products" && request.method === "POST") {
         const data=await request.json(), name=String(data.name||"").trim(), unit=String(data.unit||"");
         await ensureIngredientSystem(env);
         let id=Number(data.ingredient_id);
@@ -444,7 +463,8 @@ document.querySelector("#ingredientForm").onsubmit=async e=>{e.preventDefault();
 </div>
 <script>
 const esc=s=>String(s??"").replace(/[&<>"']/g,c=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[c]));
-async function load(){const [r,ir]=await Promise.all([fetch("/api/products"),fetch("/api/ingredients")]);const x=await r.json();const ingredients=await ir.json();document.querySelector("#ingredientSelect").innerHTML='<option value="">Выберите ингредиент...</option>'+ingredients.map(p=>'<option value="'+p.id+'">'+esc(p.name)+' ('+p.unit+')</option>').join("");document.querySelector("#stock").innerHTML=x.length?x.map(p=>'<div class="stock-item" data-id="'+p.ingredient_id+'" style="padding:12px 0;border-bottom:1px solid #292929"><b>🥃 '+esc(p.ingredient_name)+'</b>'+(p.brands?' <span class="muted">· '+esc(p.brands)+'</span>':"")+'<div class="muted">Остаток: <b>'+Number(p.stock).toFixed(2)+' '+esc(p.unit)+'</b> · Цена: '+Number(p.unit_price).toFixed(4)+' ₽/'+esc(p.unit)+'</div><div class="row" style="margin-top:9px"><button type="button" class="secondary edit-stock">✏️ Изменить остаток</button></div></div>').join(""):'<div class="empty">Товаров пока нет.</div>'}
+let stockItems=[];
+async function load(){const [r,ir]=await Promise.all([fetch("/api/products"),fetch("/api/ingredients")]);const x=await r.json();const ingredients=await ir.json();if(!r.ok||!Array.isArray(x))throw new Error(x?.error||"Не удалось загрузить склад");if(!Array.isArray(ingredients))throw new Error(ingredients?.error||"Не удалось загрузить ингредиенты");stockItems=x;document.querySelector("#ingredientSelect").innerHTML='<option value="">Выберите ингредиент...</option>'+ingredients.map(p=>'<option value="'+p.id+'">'+esc(p.name)+' ('+p.unit+')</option>').join("");document.querySelector("#stock").innerHTML=x.length?x.map(p=>'<div class="stock-item" data-id="'+p.ingredient_id+'" style="padding:12px 0;border-bottom:1px solid #292929"><b>🥃 '+esc(p.ingredient_name)+'</b>'+(p.brands?' <span class="muted">· '+esc(p.brands)+'</span>':"")+'<div class="muted">Остаток: <b>'+Number(p.stock).toFixed(2)+' '+esc(p.unit)+'</b> · Цена: '+Number(p.unit_price).toFixed(4)+' ₽/'+esc(p.unit)+'</div><div class="row" style="margin-top:9px"><button type="button" class="secondary edit-stock">✏️ Изменить остаток</button></div></div>').join(""):'<div class="empty">Товаров пока нет.</div>';document.querySelectorAll(".edit-stock").forEach(btn=>btn.onclick=async()=>{const id=Number(btn.closest(".stock-item").dataset.id);const p=stockItems.find(v=>Number(v.ingredient_id)===id);if(!p)return;const value=prompt("Новый остаток, "+p.unit,Number(p.stock));if(value===null)return;const stock=Number(value);if(!Number.isFinite(stock)||stock<0){alert("Введите корректное число");return}const r=await fetch("/api/products",{method:"PUT",headers:{"content-type":"application/json"},body:JSON.stringify({ingredient_id:id,stock})});const d=await r.json();if(!r.ok){alert(d.error||"Ошибка");return}await load()})}
 document.querySelector("#productForm").onsubmit=async e=>{e.preventDefault();const body=Object.fromEntries(new FormData(e.target));const selected=body.ingredient_id;body.name="";body.ingredient_id=Number(selected);body.min_stock=Number(body.min_stock||0);body.unit=document.querySelector("#ingredientSelect").selectedOptions[0]?.textContent.match(/\((ml|g|pcs)\)$/)?.[1]||"ml";const r=await fetch("/api/products",{method:"POST",headers:{"content-type":"application/json"},body:JSON.stringify(body)});const d=await r.json();document.querySelector("#msg").textContent=r.ok?"Товар добавлен ✅":"Ошибка: "+(d.error||"");if(r.ok){e.target.reset();await load()}};
 document.querySelectorAll(".edit-stock").forEach(btn=>btn.onclick=async()=>{const id=Number(btn.closest(".stock-item").dataset.id);const p=x.find(v=>Number(v.ingredient_id)===id);if(!p)return;const value=prompt("Новый остаток, "+p.unit,Number(p.stock));if(value===null)return;const stock=Number(value);if(!Number.isFinite(stock)||stock<0){alert("Введите корректное число");return}const r=await fetch("/api/products",{method:"PUT",headers:{"content-type":"application/json"},body:JSON.stringify({ingredient_id:id,stock})});const d=await r.json();if(!r.ok){alert(d.error||"Ошибка");return}await load()});
 load();
