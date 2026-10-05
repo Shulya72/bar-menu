@@ -1206,11 +1206,33 @@ renderStock();
       }
 
       if (url.pathname === "/menu") return page(`
-<header><h1>🥂 Карта бара</h1><div class="sub">Гостевое меню · без рецептур</div></header>
-<div class="wrap"><div class="row" style="margin-bottom:14px"><a href="/" style="display:inline-block;padding:10px 14px;border:1px solid #333;border-radius:12px;background:#151515">🏠 Главное меню</a></div><div id="menu" class="grid"><div class="card">Загрузка...</div></div></div>
+<header><h1>🥂 Карта бара</h1><div class="sub">Гостевое меню · состав и аллергены</div></header>
+<div class="wrap">
+  <div class="row" style="margin-bottom:14px">
+    <a href="/" style="display:inline-block;padding:10px 14px;border:1px solid #333;border-radius:12px;background:#151515">🏠 Главное меню</a>
+  </div>
+  <div id="menu" class="cocktail-grid"><div class="card">Загрузка...</div></div>
+</div>
 <script>
 const esc=s=>String(s??"").replace(/[&<>"']/g,c=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[c]));
-fetch("/api/cocktails").then(r=>r.json()).then(x=>{document.querySelector("#menu").innerHTML=x.length?x.map(c=>'<div class="card">'+(c.photo_url?'<img src="'+esc(c.photo_url)+'" style="width:100%;aspect-ratio:4/3;object-fit:cover;border-radius:12px;margin-bottom:12px;display:block" alt="Фото '+esc(c.name)+'">':"")+'<h2>'+esc(c.name)+'</h2><p class="muted">'+esc(c.description)+'</p><span class="pill">'+esc(c.strength||"")+'</span><span class="pill">'+Number(c.price_rub||0)+' ₽</span></div>').join(""):'<div class="card">Пока коктейлей нет.</div>'});
+const unitLabel=u=>u==="g"?"гр":u==="ml"?"мл":u==="pcs"?"шт.":String(u||"");
+fetch("/api/cocktails").then(r=>r.json()).then(x=>{
+  document.querySelector("#menu").innerHTML=x.length?x.map(c=>{
+    const ingredients=[...(c.recipe_items||[])]
+      .map(i=>String(i.ingredient_name||i.name||"").trim())
+      .filter(Boolean);
+    const uniqueIngredients=[...new Map(ingredients.map(name=>[name.toLowerCase().replace(/ё/g,"е"),name])).values()];
+    return '<article class="card cocktail-card">'+
+      (c.photo_url?'<img class="cocktail-photo" src="'+esc(c.photo_url)+'" alt="Фото '+esc(c.name)+'">':'<div class="cocktail-photo-placeholder">🍸</div>')+
+      '<div class="cocktail-card-body">'+
+        '<h2>'+esc(c.name)+'</h2>'+
+        (c.description?'<p class="muted">'+esc(c.description)+'</p>':"")+
+        '<div class="cocktail-meta"><span class="pill">'+esc(c.strength||"")+'</span><span class="pill">'+Number(c.price_rub||0)+' ₽</span></div>'+
+        (uniqueIngredients.length?'<div class="cocktail-section"><div class="cocktail-section-title">Состав</div><div class="recipe-list">'+uniqueIngredients.map(name=>'<div class="recipe-line"><span class="recipe-name">'+esc(name)+'</span></div>').join("")+'</div></div>':"")+
+      '</div>'+
+    '</article>';
+  }).join(""):'<div class="card">Пока коктейлей нет.</div>';
+});
 </script>`);
 
       if (url.pathname === "/bar/shop") return page(`
