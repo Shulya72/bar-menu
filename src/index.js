@@ -833,8 +833,6 @@ export default {
         return json({...cocktail,recipe_items:results});
       }
 
-      if (url.pathname === "/") return Response.redirect(new URL("/menu",url),302);
-
       if (url.pathname === "/bar") return page(`
 <header><h1>👨‍🍳 Меню бармена</h1><div class="sub">Рабочая часть</div></header>
 <div class="wrap">
