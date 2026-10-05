@@ -378,7 +378,7 @@ export default {
         const existing=await env.DB.prepare("SELECT id FROM cocktails WHERE id=?").bind(id).first();
         if(!existing)return json({error:"Коктейль не найден"},404);
         await env.DB.prepare("UPDATE cocktails SET name=?,description=?,category=?,strength=?,photo_url=?,glass=?,ice=?,method=?,garnish=?,updated_at=CURRENT_TIMESTAMP WHERE id=?")
-          .bind(name,String(data.description||""),String(data.category||""),"",String(data.photo_url||""),String(data.glass||""),String(data.ice||""),String(data.method||""),String(data.garnish||""),id).run();
+          .bind(name,String(data.description||""),String(data.category||""),"",String(data.photo_url||""),String(data.inventory??data.glass??""),"",String(data.method||""),String(data.garnish||""),id).run();
         await ensureIngredientSystem(env);
         await env.DB.prepare("DELETE FROM recipe_ingredients WHERE cocktail_id=?").bind(id).run();
         for(const item of (Array.isArray(data.recipe_items)?data.recipe_items:[])){
@@ -425,7 +425,7 @@ export default {
       if (url.pathname === "/api/cocktails" && request.method === "POST") {
         const data=await request.json(), name=String(data.name||"").trim();
         if(!name)return json({error:"Название коктейля обязательно"},400);
-        const r=await env.DB.prepare(`INSERT INTO cocktails(name,description,category,strength,price_rub,photo_url,glass,ice,method,garnish) VALUES(?,?,?,?,0,?,?,?,?,?)`).bind(name,String(data.description||""),String(data.category||""),"",String(data.photo_url||""),String(data.glass||""),String(data.ice||""),String(data.method||""),String(data.garnish||"")).run();
+        const r=await env.DB.prepare(`INSERT INTO cocktails(name,description,category,strength,price_rub,photo_url,glass,ice,method,garnish) VALUES(?,?,?,?,0,?,?,?,?,?)`).bind(name,String(data.description||""),String(data.category||""),"",String(data.photo_url||""),String(data.inventory??data.glass??""),"",String(data.method||""),String(data.garnish||"")).run();
         const id=r.meta.last_row_id;
         await ensureIngredientSystem(env);
         for(const item of (Array.isArray(data.recipe_items)?data.recipe_items:[])){let iid=Number(item.ingredient_id);if(!Number.isInteger(iid)&&item.name)iid=await resolveIngredient(env,item.name);const q=Number(item.quantity);if(Number.isInteger(iid)&&q>0)await env.DB.prepare("INSERT OR REPLACE INTO recipe_ingredients(cocktail_id,ingredient_id,quantity) VALUES(?,?,?)").bind(id,iid,q).run();}
@@ -727,10 +727,10 @@ export default {
       <div class="grid">
         <div><div><label>Категория</label><input name="category" placeholder="Классика"></div></div>
         <div><div><label>Крепость</label><input name="strength" readonly placeholder="Рассчитывается автоматически"></div></div>
-                <div><div><label>Бокал</label><input name="glass" placeholder="Rocks"></div></div>
+                <div><div><label>Инвентарь</label><textarea name="inventory" rows="2" placeholder="Джигер
+Барная ложка"></textarea></div></div>
       </div>
-      <label>Лёд</label><input name="ice" placeholder="Крупный куб">
-      <label>Метод приготовления</label><textarea name="method" placeholder="Stir / Shake / Build..."></textarea>
+      <label>Способ приготовления</label><textarea name="method" placeholder="Например: собрать в бокале, перемешать барной ложкой"></textarea>
       <label>Гарнир</label><input name="garnish" placeholder="Апельсиновая цедра">
       <label>Фото коктейля</label>
       <input id="photoFile" type="file" accept="image/*" style="padding:10px">
@@ -769,9 +769,9 @@ let draft={shift:null,order:null,items:[]};const load=async()=>{
       '<div class="cocktail-meta">'+(c.category?'<span class="pill">'+esc(c.category)+'</span>':"")+(c.strength?'<span class="pill">'+esc(c.strength)+'</span>':"")+(c.glass?'<span class="pill">'+esc(c.glass)+'</span>':"")+'</div>'+
       '<div class="cocktail-price">'+Number(c.price_rub||0)+' ₽</div>'+
       '<div class="cocktail-recipe"><b>Состав</b>'+(c.recipe_items?.length?'<ul style="margin:8px 0 0 18px">'+c.recipe_items.map(i=>'<li>'+esc(i.ingredient_name)+' — '+fmtQty(i.quantity)+' '+unitLabel(i.unit)+' <span class="muted">(ост: '+fmtQty(i.stock_available)+' '+unitLabel(i.unit)+')</span></li>').join("")+'</ul>':' <span class="muted">не указан</span>')+'</div>'+
-      (c.ice?'<div class="muted" style="margin-top:10px">🧊 Лёд: '+esc(c.ice)+'</div>':"")+
-      (c.method?'<div class="muted">🥄 Метод: '+esc(c.method)+'</div>':"")+
-      (c.garnish?'<div class="muted">🍋 Гарнир: '+esc(c.garnish)+'</div>':"")+
+
+      (c.method?'<div class="muted">🥄 Способ приготовления: '+esc(c.method)+'</div>':"")+
+      (c.garnish?'<div class="muted">🍋 Гарнир: '+esc(c.garnish)+'</div>':"")+      (c.glass?'<div class="muted" style="margin-top:10px">🧰 Инвентарь:<br><span style="white-space:pre-line">' + esc(c.glass) + '</span></div>':"")+
       '</div></article>').join("")+'</div>'
     : '<div class="empty">Пока коктейлей нет. Создай первый 👇</div>';
   document.querySelectorAll(".edit-cocktail").forEach(btn=>btn.onclick=()=>startEdit(cocktails.find(c=>Number(c.id)===Number(btn.dataset.id))));
@@ -819,9 +819,10 @@ const startEdit=(c)=>{
   showPanel();
   const form=document.querySelector("#cocktailForm");
   form.dataset.editId=c.id;
-  for(const n of ["name","description","category","glass","ice","method","garnish"]){
+  for(const n of ["name","description","category","method","garnish"]){
     const el=form.elements[n]; if(el)el.value=c[n]||"";
   }
+  if(form.elements.inventory)form.elements.inventory.value=c.glass||"";
   document.querySelector("#photoUrl").value=c.photo_url||"";
   document.querySelector("#photoPreview").innerHTML=c.photo_url?'<img src="'+esc(c.photo_url)+'" style="max-width:240px;max-height:240px;border-radius:14px;display:block" alt="Фото">':"";
   document.querySelector("#recipeItems").innerHTML="";
@@ -1225,6 +1226,7 @@ loadOrder();
     }
   }
 };
+
 
 
 
