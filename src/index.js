@@ -1207,7 +1207,7 @@ renderStock();
 
       if (url.pathname === "/menu") return page(`
 <style>
-.guest-menu{max-width:680px;margin:auto;padding:14px 12px 32px}
+.guest-menu{max-width:980px;margin:auto;padding:16px 16px 32px}
 .guest-title{text-align:center;margin:0 0 20px}
 .guest-title span{display:inline-block;padding:9px 25px;border:1px solid #3a3a3a;border-radius:21px;background:#222;color:#eee;font-size:21px;box-shadow:0 2px 12px rgba(0,0,0,.25)}
 .guest-filters{display:grid;grid-template-columns:1fr 1fr;gap:14px;margin-bottom:20px}
@@ -1215,13 +1215,13 @@ renderStock();
 .guest-search::placeholder{color:#8c8c8c}
 .guest-random{width:100%;height:64px;margin-bottom:22px;border-radius:23px;background:#6dff00;color:#080808;font-size:22px;font-weight:850;box-shadow:0 7px 20px rgba(109,255,0,.12)}
 .guest-random:active{transform:scale(.985)}
-.guest-card{overflow:hidden;margin-bottom:20px;padding:24px;border:1px solid #333;border-radius:24px;background:#202020;box-shadow:0 4px 18px rgba(0,0,0,.16)}
-.guest-photo{width:100%;aspect-ratio:16/9;object-fit:cover;display:block;border-radius:19px;background:#111}
-.guest-photo-placeholder{width:100%;aspect-ratio:16/9;display:flex;align-items:center;justify-content:center;border-radius:19px;background:#111;color:#777;font-size:40px}
-.guest-card h2{margin:22px 0 8px;font-size:28px;line-height:1.12;color:#f4f4f4;letter-spacing:-.4px}
-.guest-price{font-size:24px;color:#6dff00;font-weight:500;margin-bottom:20px}
-.guest-strength{font-size:18px;color:#aaa;margin-bottom:18px}
-.guest-ingredients{font-size:18px;line-height:1.45;color:#e0e0e0}
+.guest-card{overflow:hidden;margin-bottom:14px;padding:18px;border:1px solid #292929;border-radius:18px;background:#111;box-shadow:none}
+.guest-photo{width:100%;aspect-ratio:4/3;object-fit:cover;display:block;border-radius:12px;background:#111}
+.guest-photo-placeholder{width:100%;aspect-ratio:4/3;display:flex;align-items:center;justify-content:center;border-radius:12px;background:#181818;color:#777;font-size:38px}
+.guest-card h2{margin:0 0 8px;font-size:22px;line-height:1.15;color:#f4f4f4;letter-spacing:0}
+.guest-price{font-size:19px;color:#6dff00;font-weight:700;margin-bottom:12px}
+.guest-strength{font-size:15px;color:#aaa;margin-bottom:12px}
+.guest-ingredients{font-size:15px;line-height:1.45;color:#e0e0e0}
 .guest-empty{padding:34px;text-align:center;color:#888}
 @media(max-width:600px){
   .guest-menu{padding:14px 12px 28px}
@@ -1230,15 +1230,15 @@ renderStock();
   .guest-filters{gap:12px;margin-bottom:20px}
   .guest-select,.guest-search{height:56px;padding:0 17px;font-size:16px;border-radius:20px}
   .guest-random{height:62px;font-size:21px;margin-bottom:22px}
-  .guest-card{padding:24px;margin-bottom:20px;border-radius:24px}
-  .guest-photo,.guest-photo-placeholder{border-radius:19px}
-  .guest-card h2{font-size:28px;margin-top:22px}
-  .guest-price{font-size:24px}
-  .guest-ingredients{font-size:18px}
+  .guest-card{padding:18px;margin-bottom:14px;border-radius:18px}
+  .guest-photo,.guest-photo-placeholder{border-radius:12px}
+  .guest-card h2{font-size:22px;margin-top:0}
+  .guest-price{font-size:19px}
+  .guest-ingredients{font-size:15px}
 }
 @media(max-width:430px){
-  .guest-card{padding:24px}
-  .guest-card h2{font-size:28px}
+  .guest-card{padding:18px}
+  .guest-card h2{font-size:22px}
 }
 </style>
 <div class="guest-menu">
