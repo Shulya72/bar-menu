@@ -184,22 +184,30 @@ const refreshCocktailPrice = async (env, cocktailId) => {
   return {cost,price};
 };
 
-const BUILD_VERSION = "2026-10-05-orders-stock-statistics-v1";
+const BUILD_VERSION = "2026-10-05-russian-ui-inventory-strength-v2";
 
 const calculateCocktailStrength = (recipeItems) => {
   let alcoholMl = 0;
-  let totalMl = 0;
+  let liquidMl = 0;
+  let iceG = 0;
   for (const item of (Array.isArray(recipeItems) ? recipeItems : [])) {
     const q = Number(item.quantity);
     const unit = String(item.unit || "");
+    const name = String(item.ingredient_name || item.name || "").toLowerCase().replace(/ё/g,"е");
     const pct = Number(item.strength_percent);
-    if (!(q > 0) || unit !== "ml") continue;
-    totalMl += q;
-    if (Number.isFinite(pct) && pct > 0) alcoholMl += q * Math.min(100, Math.max(0, pct)) / 100;
+    if (!(q > 0)) continue;
+    if (unit === "ml") {
+      liquidMl += q;
+      if (Number.isFinite(pct) && pct > 0) alcoholMl += q * Math.min(100, Math.max(0, pct)) / 100;
+    } else if (unit === "g" && (name.includes("лед") || name.includes("ice"))) {
+      iceG += q;
+    }
   }
+  const dilutionMl = iceG * 0.15;
+  const totalMl = liquidMl + dilutionMl;
   const abv = totalMl > 0 ? alcoholMl / totalMl * 100 : 0;
-  const strength = abv <= 0 ? "Безалкогольный" : abv <= 8 ? "Лёгкий" : abv <= 20 ? "Средний" : "Крепкий";
-  return {abv, strength};
+  const strength = abv <= 0 ? "Безалкогольный" : abv <= 10 ? "Лёгкий" : abv <= 20 ? "Средний" : "Крепкий";
+  return {abv, strength, liquidMl, dilutionMl};
 };
 
 const refreshCocktailStrength = async (env, cocktailId) => {
@@ -1217,5 +1225,6 @@ loadOrder();
     }
   }
 };
+
 
 
