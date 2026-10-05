@@ -1284,6 +1284,23 @@ renderStock();
 <style>
 .guest-menu{max-width:980px;margin:auto;padding:10px 12px 24px}
 .guest-title{text-align:center;margin:0 0 14px}
+.guest-top{display:flex;justify-content:space-between;align-items:center;gap:10px;margin-bottom:14px}
+.guest-login{background:#252525;color:#fff;padding:10px 14px;border-radius:14px}
+.guest-user{display:flex;align-items:center;gap:8px}
+.guest-user button{padding:8px 11px;background:#252525;color:#fff}
+.guest-order-controls{display:flex;align-items:center;justify-content:center;gap:12px;margin-top:13px;padding-top:12px;border-top:1px solid #292929}
+.guest-order-controls button{width:48px;height:44px;padding:0;font-size:24px}
+.guest-order-controls span{min-width:38px;text-align:center;font-size:19px;font-weight:900}
+.guest-submit{position:fixed;left:50%;bottom:12px;transform:translateX(-50%);width:min(940px,calc(100% - 24px));z-index:20;display:flex;justify-content:space-between;align-items:center;gap:12px;padding:12px 14px;border:1px solid #3b3b3b;border-radius:17px;background:#151515ee;backdrop-filter:blur(12px);box-shadow:0 12px 40px #000}
+.guest-modal{position:fixed;inset:0;background:rgba(0,0,0,.72);z-index:50;display:flex;align-items:center;justify-content:center;padding:16px}
+.guest-modal>div{width:min(430px,100%);background:#111;border:1px solid #333;border-radius:18px;padding:18px;box-shadow:0 20px 70px #000}
+.guest-profile-nav{display:grid;grid-template-columns:repeat(3,1fr);gap:8px;margin:12px 0}
+.guest-profile-nav button{background:#252525;color:#fff;font-size:13px}
+.guest-history-item{padding:12px 0;border-bottom:1px solid #292929}
+.guest-rating{display:flex;gap:5px;margin-top:7px}
+.guest-rating button{background:#252525;color:#fff;padding:7px 9px}
+.guest-rating button.active{background:#c8ff3d;color:#000}
+
 .guest-title span{display:inline-block;padding:7px 20px;border:1px solid #3a3a3a;border-radius:18px;background:#222;color:#eee;font-size:18px;box-shadow:0 2px 12px rgba(0,0,0,.25)}
 .guest-filters{display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-bottom:14px}
 .guest-select,.guest-search{width:100%;height:48px;padding:0 14px;border:1px solid #303030;border-radius:17px;background:#111;color:#aaa;font-size:14px;outline:none}
@@ -1317,7 +1334,7 @@ renderStock();
 }
 </style>
 <div class="guest-menu">
-  <div class="guest-title"><span>🍸 Карта бара</span></div>
+  <div class="guest-top"><div class="guest-title" style="margin:0"><span>🍸 Карта бара</span></div><div id="guestAccount"><button class="guest-login" id="loginBtn">👤 Войти</button></div></div>
   <div class="guest-filters">
     <select id="strengthFilter" class="guest-select">
       <option value="">Крепость: все</option>
@@ -1331,65 +1348,28 @@ renderStock();
   <button id="randomCocktail" class="guest-random">🥃 Что выпить?</button>
   <div id="menu"><div class="guest-card guest-empty">Загрузка...</div></div>
 </div>
+<div id="guestModal" class="guest-modal" hidden><div><div class="row" style="justify-content:space-between"><h2>Вход</h2><button type="button" class="secondary" id="closeModal">×</button></div><p class="muted">Регистрация добровольная. Имя и номер нужны только для заказов и личной статистики.</p><form id="authForm"><label>Имя</label><input id="authName" required minlength="2" placeholder="Ваше имя"><label>Номер телефона</label><input id="authPhone" required inputmode="tel" placeholder="+7 999 123-45-67"><div style="margin-top:14px"><button style="width:100%">Войти / создать профиль</button></div><p id="authMsg" class="muted"></p></form></div></div>
+<div id="profileModal" class="guest-modal" hidden><div><div class="row" style="justify-content:space-between"><h2>👤 Личный кабинет</h2><button type="button" class="secondary" id="closeProfile">×</button></div><div id="profileBody">Загрузка...</div></div></div>
+<div id="guestSubmit" class="guest-submit" hidden><div><b id="guestOrderCount">0 коктейлей</b><div class="muted" id="guestOrderTotal">0 ₽</div></div><button id="submitGuestOrder">🛒 Сделать заказ</button></div>
 <script>
 const esc=s=>String(s??"").replace(/[&<>"']/g,c=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[c]));
-let cocktails=[];
-const strengthStars=s=>{
-  const v=String(s||"").toLowerCase();
-  if(v.includes("безалк")) return "—";
-  if(v.includes("лёг")||v.includes("лег")) return "★";
-  if(v.includes("сред")) return "★★";
-  if(v.includes("креп")) return "★★★";
-  return "★";
-};
-const render=highlightId=>{
-  const strength=document.querySelector("#strengthFilter").value;
-  const q=document.querySelector("#ingredientSearch").value.trim().toLowerCase().replace(/ё/g,"е");
-  let list=cocktails.filter(c=>{
-    if(strength&&String(c.strength||"")!==strength)return false;
-    if(q){
-      const names=(c.recipe_items||[]).map(i=>String(i.ingredient_name||i.name||"").toLowerCase().replace(/ё/g,"е"));
-      if(!names.some(n=>n.includes(q)))return false;
-    }
-    return true;
-  });
-  const box=document.querySelector("#menu");
-  if(!list.length){box.innerHTML='<div class="guest-card guest-empty">Ничего не найдено.</div>';return}
-  box.innerHTML=list.map(c=>{
-    const names=[...(c.recipe_items||[])]
-      .map(i=>String(i.ingredient_name||i.name||"").trim())
-      .filter(Boolean);
-    const unique=[...new Map(names.map(n=>[n.toLowerCase().replace(/ё/g,"е"),n])).values()];
-    return '<article class="guest-card" id="cocktail-'+Number(c.id)+'">'+
-      (c.photo_url?'<img class="guest-photo" src="'+esc(c.photo_url)+'" alt="Фото '+esc(c.name)+'">':'<div class="guest-photo-placeholder">🍸</div>')+
-      '<h2>'+esc(c.name)+'</h2>'+
-      '<div class="guest-price">'+Number(c.price_rub||0)+' ₽</div>'+
-      '<div class="guest-strength">Крепость — '+strengthStars(c.strength)+'</div>'+
-      (unique.length?'<div class="guest-ingredients">'+unique.map(esc).join(", ")+'</div>':"")+
-      '</article>';
-  }).join("");
-  if(highlightId){
-    const el=document.querySelector("#cocktail-"+Number(highlightId));
-    if(el){el.scrollIntoView({behavior:"smooth",block:"center"});}
-  }
-};
-document.querySelector("#strengthFilter").onchange=()=>render();
-document.querySelector("#ingredientSearch").oninput=()=>render();
-document.querySelector("#randomCocktail").onclick=()=>{
-  const strength=document.querySelector("#strengthFilter").value;
-  const q=document.querySelector("#ingredientSearch").value.trim().toLowerCase().replace(/ё/g,"е");
-  const list=cocktails.filter(c=>{
-    if(strength&&String(c.strength||"")!==strength)return false;
-    if(q&&!((c.recipe_items||[]).some(i=>String(i.ingredient_name||i.name||"").toLowerCase().replace(/ё/g,"е").includes(q))))return false;
-    return true;
-  });
-  if(!list.length){alert("По выбранным условиям коктейлей нет.");return}
-  render(list[Math.floor(Math.random()*list.length)].id);
-};
-fetch("/api/cocktails").then(r=>r.json()).then(x=>{
-  cocktails=Array.isArray(x)?x:[];
-  render();
-}).catch(()=>{document.querySelector("#menu").innerHTML='<div class="guest-card guest-empty">Не удалось загрузить карту бара.</div>';});
+let cocktails=[],guest=null,draft=new Map();
+const strengthStars=s=>{const v=String(s||"").toLowerCase();if(v.includes("безалк"))return "—";if(v.includes("лёг")||v.includes("лег"))return "★";if(v.includes("сред"))return "★★";if(v.includes("креп"))return "★★★";return "★";};
+const qty=id=>Number(draft.get(Number(id))||0);
+const filtered=()=>{const strength=document.querySelector("#strengthFilter").value,q=document.querySelector("#ingredientSearch").value.trim().toLowerCase().replace(/ё/g,"е");return cocktails.filter(c=>{if(strength&&String(c.strength||"")!==strength)return false;if(q&&!((c.recipe_items||[]).some(i=>String(i.ingredient_name||i.name||"").toLowerCase().replace(/ё/g,"е").includes(q))))return false;return true;});};
+const renderOrderBar=()=>{const n=[...draft.values()].reduce((a,b)=>a+b,0),total=[...draft.entries()].reduce((sum,[id,q])=>{const c=cocktails.find(x=>Number(x.id)===Number(id));return sum+q*Number(c?.price_rub||0)},0);document.querySelector("#guestSubmit").hidden=!guest||n===0;document.querySelector("#guestOrderCount").textContent=n+" коктейл"+(n===1?"ь":n<5?"я":"ей");document.querySelector("#guestOrderTotal").textContent=total.toFixed(0)+" ₽";};
+const render=highlightId=>{const list=filtered(),box=document.querySelector("#menu");if(!list.length){box.innerHTML='<div class="guest-card guest-empty">Ничего не найдено.</div>';return}box.innerHTML=list.map(c=>{const names=[...(c.recipe_items||[])].map(i=>String(i.ingredient_name||i.name||"").trim()).filter(Boolean);const unique=[...new Map(names.map(n=>[n.toLowerCase().replace(/ё/g,"е"),n])).values()];return '<article class="guest-card" id="cocktail-'+Number(c.id)+'">'+(c.photo_url?'<img class="guest-photo" src="'+esc(c.photo_url)+'" alt="Фото '+esc(c.name)+'">':'<div class="guest-photo-placeholder">🍸</div>')+'<h2>'+esc(c.name)+'</h2>'+(c.description?'<div class="muted" style="margin-bottom:7px">'+esc(c.description)+'</div>':"")+'<div class="guest-price">'+Number(c.price_rub||0)+' ₽</div><div class="guest-strength">Крепость — '+strengthStars(c.strength)+'</div>'+(unique.length?'<div class="guest-ingredients">'+unique.map(esc).join(", ")+'</div>':"")+(guest?'<div class="guest-order-controls"><button type="button" class="secondary minus" data-id="'+c.id+'">−</button><span>'+qty(c.id)+'</span><button type="button" class="plus" data-id="'+c.id+'">+</button></div>':"")+'</article>';}).join("");document.querySelectorAll(".guest-order-controls .plus").forEach(b=>b.onclick=()=>{const id=Number(b.dataset.id);draft.set(id,qty(id)+1);renderOrderBar();render()});document.querySelectorAll(".guest-order-controls .minus").forEach(b=>b.onclick=()=>{const id=Number(b.dataset.id),next=Math.max(0,qty(id)-1);if(next)draft.set(id,next);else draft.delete(id);renderOrderBar();render()});if(highlightId)document.querySelector("#cocktail-"+Number(highlightId))?.scrollIntoView({behavior:"smooth",block:"center"});};
+const loadMe=async()=>{const r=await fetch("/api/guest/me",{cache:"no-store"}),d=await r.json();guest=d.guest||null;document.querySelector("#guestAccount").innerHTML=guest?'<div class="guest-user"><span>👤 '+esc(guest.name)+'</span><button id="profileBtn">ЛК</button></div>':'<button class="guest-login" id="loginBtn">👤 Войти</button>';document.querySelector("#loginBtn")?.addEventListener("click",()=>document.querySelector("#guestModal").hidden=false);document.querySelector("#profileBtn")?.addEventListener("click",openProfile);render();renderOrderBar();};
+document.querySelector("#closeModal").onclick=()=>document.querySelector("#guestModal").hidden=true;
+document.querySelector("#closeProfile").onclick=()=>document.querySelector("#profileModal").hidden=true;
+document.querySelector("#authForm").onsubmit=async e=>{e.preventDefault();const msg=document.querySelector("#authMsg");const r=await fetch("/api/guest/auth",{method:"POST",headers:{"content-type":"application/json"},body:JSON.stringify({name:document.querySelector("#authName").value,phone:document.querySelector("#authPhone").value})});const d=await r.json();if(!r.ok){msg.textContent=d.error||"Не удалось войти";return}guest=d.guest;document.querySelector("#guestModal").hidden=true;msg.textContent="";render();renderOrderBar();loadMe();};
+document.querySelector("#strengthFilter").onchange=()=>render();document.querySelector("#ingredientSearch").oninput=()=>render();
+document.querySelector("#randomCocktail").onclick=()=>{const list=filtered();if(!list.length){alert("По выбранным условиям коктейлей нет.");return}render(list[Math.floor(Math.random()*list.length)].id);};
+document.querySelector("#submitGuestOrder").onclick=async()=>{const items=[...draft.entries()].map(([cocktail_id,quantity])=>({cocktail_id,quantity}));if(!items.length)return;const btn=document.querySelector("#submitGuestOrder");btn.disabled=true;const r=await fetch("/api/guest/order",{method:"POST",headers:{"content-type":"application/json"},body:JSON.stringify({items})});const d=await r.json();btn.disabled=false;if(!r.ok){alert(d.error||"Не удалось отправить заказ");return}draft.clear();renderOrderBar();render();alert("Заказ №"+d.order_id+" отправлен бармену 🍸");};
+const openProfile=async()=>{document.querySelector("#profileModal").hidden=false;const body=document.querySelector("#profileBody");body.innerHTML='<div class="guest-profile-nav"><button id="histBtn">🍸 Заказы</button><button id="statBtn">📊 Статистика</button><button id="logoutBtn">🚪 Выйти</button></div><div id="profileContent">Загрузка...</div>';document.querySelector("#histBtn").onclick=loadHistory;document.querySelector("#statBtn").onclick=loadStats;document.querySelector("#logoutBtn").onclick=async()=>{await fetch("/api/guest/logout",{method:"POST"});guest=null;draft.clear();document.querySelector("#profileModal").hidden=true;render();renderOrderBar();loadMe();};loadHistory();};
+const loadHistory=async()=>{const box=document.querySelector("#profileContent");const r=await fetch("/api/guest/orders",{cache:"no-store"}),d=await r.json();if(!r.ok){box.textContent=d.error||"Ошибка";return}box.innerHTML=(d.orders||[]).map(o=>'<div class="guest-history-item"><b>Заказ #'+o.id+'</b> · '+(o.status==="pending"?"⏳ ожидает бармена":"✅ принят")+'<div class="muted">'+o.items.map(i=>i.cocktail_name+" × "+i.quantity).join(", ")+'</div>'+o.items.filter(i=>o.status==="accepted").map(i=>'<div style="margin-top:8px"><b>'+esc(i.cocktail_name)+'</b><div class="guest-rating">'+[1,2,3,4,5].map(n=>'<button class="'+(Number(i.rating)===n?"active":"")+'" data-order="'+o.id+'" data-cocktail="'+i.cocktail_id+'" data-rating="'+n+'">'+n+'★</button>').join("")+'</div></div>').join("")+'</div>').join("")||'<div class="empty">Заказов пока нет.</div>';document.querySelectorAll(".guest-rating button").forEach(b=>b.onclick=async()=>{const r=await fetch("/api/guest/review",{method:"POST",headers:{"content-type":"application/json"},body:JSON.stringify({order_id:Number(b.dataset.order),cocktail_id:Number(b.dataset.cocktail),rating:Number(b.dataset.rating)})});if(!r.ok){const d=await r.json();alert(d.error||"Не удалось сохранить оценку");return}loadHistory();});};
+const loadStats=async()=>{const box=document.querySelector("#profileContent");const r=await fetch("/api/guest/statistics",{cache:"no-store"}),d=await r.json();if(!r.ok){box.textContent=d.error||"Ошибка";return}box.innerHTML='<div class="card"><h3>📊 Моя статистика</h3><p>🍸 Выпито: <b>'+d.totals.cocktails+'</b></p><p>🧾 Заказов: <b>'+d.totals.orders+'</b></p><p>💰 Потрачено: <b>'+d.totals.spent.toFixed(0)+' ₽</b></p><p>⭐ Средняя оценка: <b>'+(d.rating.count?d.rating.avg:"—")+'</b></p></div><h3 style="margin-top:14px">Любимые коктейли</h3>'+((d.top||[]).map((x,i)=>'<div style="padding:8px 0;border-bottom:1px solid #292929">'+(i+1)+'. '+esc(x.name)+' — <b>'+x.quantity+'</b> шт.</div>').join("")||'<div class="muted">Пока нет истории.</div>');};
+loadMe();fetch("/api/cocktails").then(r=>r.json()).then(x=>{cocktails=Array.isArray(x)?x:[];render();}).catch(()=>{document.querySelector("#menu").innerHTML='<div class="guest-card guest-empty">Не удалось загрузить карту бара.</div>';});
 </script>`);
 
       if (url.pathname === "/bar/shop") return page(`
