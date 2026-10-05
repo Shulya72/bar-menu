@@ -802,7 +802,7 @@ let draft={shift:null,order:null,items:[]};const load=async()=>{
       '</div></div>'+
       '<div class="cocktail-price">'+Number(c.price_rub||0)+' ₽</div>'+
       '<div class="cocktail-section"><div class="cocktail-section-title">Состав</div>'+
-      (c.recipe_items?.length?'<div class="recipe-list">'+c.recipe_items.map(i=>'<div class="recipe-line" data-ingredient-id="'+i.ingredient_id+'" data-recipe-qty="'+Number(i.quantity||0)+'"><div class="recipe-name">'+esc(i.ingredient_name)+'<span class="recipe-stock" data-stock="'+Number(i.stock_available||0)+'">остаток: '+fmtQty(i.stock_available)+' '+unitLabel(i.unit)+'</span></div><div class="recipe-qty">'+fmtQty(i.quantity)+' '+unitLabel(i.unit)+'</div></div>').join("")+'</div>':'<span class="muted">Не указан</span>')+
+      (c.recipe_items?.length?'<div class="recipe-list">'+c.recipe_items.map(i=>'<div class="recipe-line" data-ingredient-id="'+i.ingredient_id+'" data-recipe-qty="'+Number(i.quantity||0)+'"><div class="recipe-name">'+esc(i.ingredient_name)+'<span class="recipe-stock" data-stock="'+Number(i.stock_available||0)+'" data-unit="'+esc(unitLabel(i.unit))+'">остаток: '+fmtQty(i.stock_available)+' '+unitLabel(i.unit)+'</span></div><div class="recipe-qty">'+fmtQty(i.quantity)+' '+unitLabel(i.unit)+'</div></div>').join("")+'</div>':'<span class="muted">Не указан</span>')+
       '</div>'+
       ((c.method||c.glass)?'<div class="cocktail-info-grid">'+
         (c.method?'<div class="cocktail-info">🥄 <b>Приготовление</b><br>'+esc(c.method)+'</div>':"")+
@@ -842,7 +842,7 @@ function optimisticOrderVisual(id,delta){
     const stock=line.querySelector(".recipe-stock"),qty=Number(line.dataset.recipeQty||0);
     if(!stock||!(qty>0))return;
     const next=Math.max(0,Number(stock.dataset.stock||0)-delta*qty);
-    stock.dataset.stock=String(next);stock.textContent="остаток: "+fmtQty(next)+" "+stock.textContent.replace(/^.*?\s/,"").trim();
+    stock.dataset.stock=String(next);stock.textContent="остаток: "+fmtQty(next)+" "+(stock.dataset.unit||"");
   });
   card.classList.toggle("unavailable",Array.from(card.querySelectorAll(".recipe-stock")).some(x=>Number(x.dataset.stock||0)+.000001<Number(x.closest(".recipe-line")?.dataset.recipeQty||0)));
 }
