@@ -833,18 +833,7 @@ export default {
         return json({...cocktail,recipe_items:results});
       }
 
-      if (url.pathname === "/") return page(`
-<header><h1>🍸 Карты Бара</h1><div class="sub">Cloudflare + D1</div></header>
-<div class="wrap">
-  <div class="card">
-    <h2>Система запущена</h2>
-    <p class="muted">База данных подключена. Теперь приложение можно наполнять реальными данными.</p>
-    <div class="row">
-      <a href="/bar">👨‍🍳 Меню бармена</a>
-      <a href="/menu">🥂 Карта бара</a>
-    </div>
-  </div>
-</div>`);
+      if (url.pathname === "/") return Response.redirect(new URL("/menu",url),302);
 
       if (url.pathname === "/bar") return page(`
 <header><h1>👨‍🍳 Меню бармена</h1><div class="sub">Рабочая часть</div></header>
