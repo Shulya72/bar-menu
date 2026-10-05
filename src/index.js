@@ -1206,33 +1206,115 @@ renderStock();
       }
 
       if (url.pathname === "/menu") return page(`
-<header><h1>🥂 Карта бара</h1><div class="sub">Гостевое меню · состав и аллергены</div></header>
-<div class="wrap">
-  <div class="row" style="margin-bottom:14px">
-    <a href="/" style="display:inline-block;padding:10px 14px;border:1px solid #333;border-radius:12px;background:#151515">🏠 Главное меню</a>
+<style>
+.guest-menu{max-width:720px;margin:auto;padding:18px 14px 40px}
+.guest-title{text-align:center;margin:0 0 28px}
+.guest-title span{display:inline-block;padding:12px 30px;border:1px solid #3a3a3a;border-radius:24px;background:#222;color:#eee;font-size:24px;box-shadow:0 2px 12px rgba(0,0,0,.25)}
+.guest-filters{display:grid;grid-template-columns:1fr 1fr;gap:18px;margin-bottom:28px}
+.guest-select,.guest-search{width:100%;height:72px;padding:0 22px;border:1px solid #303030;border-radius:26px;background:#111;color:#aaa;font-size:18px;outline:none}
+.guest-search::placeholder{color:#8c8c8c}
+.guest-random{width:100%;height:86px;margin-bottom:32px;border-radius:30px;background:#6dff00;color:#080808;font-size:27px;font-weight:850;box-shadow:0 7px 20px rgba(109,255,0,.12)}
+.guest-random:active{transform:scale(.985)}
+.guest-card{overflow:hidden;margin-bottom:24px;padding:36px;border:1px solid #333;border-radius:30px;background:#202020;box-shadow:0 4px 18px rgba(0,0,0,.16)}
+.guest-photo{width:100%;aspect-ratio:16/9;object-fit:cover;display:block;border-radius:24px;background:#111}
+.guest-photo-placeholder{width:100%;aspect-ratio:16/9;display:flex;align-items:center;justify-content:center;border-radius:24px;background:#111;color:#777;font-size:48px}
+.guest-card h2{margin:30px 0 10px;font-size:34px;line-height:1.08;color:#f4f4f4;letter-spacing:-.5px}
+.guest-price{font-size:28px;color:#6dff00;font-weight:500;margin-bottom:26px}
+.guest-strength{font-size:21px;color:#aaa;margin-bottom:24px}
+.guest-ingredients{font-size:22px;line-height:1.45;color:#e0e0e0}
+.guest-empty{padding:34px;text-align:center;color:#888}
+@media(max-width:600px){
+  .guest-menu{padding:18px 12px 36px}
+  .guest-title{margin-bottom:26px}
+  .guest-title span{font-size:24px;padding:11px 28px}
+  .guest-filters{gap:14px;margin-bottom:28px}
+  .guest-select,.guest-search{height:70px;padding:0 20px;font-size:17px;border-radius:25px}
+  .guest-random{height:86px;font-size:25px;margin-bottom:32px}
+  .guest-card{padding:36px;margin-bottom:24px;border-radius:30px}
+  .guest-photo,.guest-photo-placeholder{border-radius:23px}
+  .guest-card h2{font-size:32px;margin-top:30px}
+  .guest-price{font-size:28px}
+  .guest-ingredients{font-size:21px}
+}
+@media(max-width:430px){
+  .guest-card{padding:36px 36px}
+  .guest-card h2{font-size:31px}
+}
+</style>
+<div class="guest-menu">
+  <div class="guest-title"><span>🍸 Карта бара</span></div>
+  <div class="guest-filters">
+    <select id="strengthFilter" class="guest-select">
+      <option value="">Крепость: все</option>
+      <option value="Безалкогольный">Безалкогольный</option>
+      <option value="Лёгкий">Лёгкий</option>
+      <option value="Средний">Средний</option>
+      <option value="Крепкий">Крепкий</option>
+    </select>
+    <input id="ingredientSearch" class="guest-search" placeholder="Содержит... (водка, апельсины)" autocomplete="off">
   </div>
-  <div id="menu" class="cocktail-grid"><div class="card">Загрузка...</div></div>
+  <button id="randomCocktail" class="guest-random">🥃 Что выпить?</button>
+  <div id="menu"><div class="guest-card guest-empty">Загрузка...</div></div>
 </div>
 <script>
 const esc=s=>String(s??"").replace(/[&<>"']/g,c=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[c]));
-const unitLabel=u=>u==="g"?"гр":u==="ml"?"мл":u==="pcs"?"шт.":String(u||"");
-fetch("/api/cocktails").then(r=>r.json()).then(x=>{
-  document.querySelector("#menu").innerHTML=x.length?x.map(c=>{
-    const ingredients=[...(c.recipe_items||[])]
+let cocktails=[];
+const strengthStars=s=>{
+  const v=String(s||"").toLowerCase();
+  if(v.includes("безалк")) return "—";
+  if(v.includes("лёг")||v.includes("лег")) return "★";
+  if(v.includes("сред")) return "★★";
+  if(v.includes("креп")) return "★★★";
+  return "★";
+};
+const render=highlightId=>{
+  const strength=document.querySelector("#strengthFilter").value;
+  const q=document.querySelector("#ingredientSearch").value.trim().toLowerCase().replace(/ё/g,"е");
+  let list=cocktails.filter(c=>{
+    if(strength&&String(c.strength||"")!==strength)return false;
+    if(q){
+      const names=(c.recipe_items||[]).map(i=>String(i.ingredient_name||i.name||"").toLowerCase().replace(/ё/g,"е"));
+      if(!names.some(n=>n.includes(q)))return false;
+    }
+    return true;
+  });
+  const box=document.querySelector("#menu");
+  if(!list.length){box.innerHTML='<div class="guest-card guest-empty">Ничего не найдено.</div>';return}
+  box.innerHTML=list.map(c=>{
+    const names=[...(c.recipe_items||[])]
       .map(i=>String(i.ingredient_name||i.name||"").trim())
       .filter(Boolean);
-    const uniqueIngredients=[...new Map(ingredients.map(name=>[name.toLowerCase().replace(/ё/g,"е"),name])).values()];
-    return '<article class="card cocktail-card">'+
-      (c.photo_url?'<img class="cocktail-photo" src="'+esc(c.photo_url)+'" alt="Фото '+esc(c.name)+'">':'<div class="cocktail-photo-placeholder">🍸</div>')+
-      '<div class="cocktail-card-body">'+
-        '<h2>'+esc(c.name)+'</h2>'+
-        (c.description?'<p class="muted">'+esc(c.description)+'</p>':"")+
-        '<div class="cocktail-meta"><span class="pill">'+esc(c.strength||"")+'</span><span class="pill">'+Number(c.price_rub||0)+' ₽</span></div>'+
-        (uniqueIngredients.length?'<div class="cocktail-section"><div class="cocktail-section-title">Состав</div><div class="recipe-list">'+uniqueIngredients.map(name=>'<div class="recipe-line"><span class="recipe-name">'+esc(name)+'</span></div>').join("")+'</div></div>':"")+
-      '</div>'+
-    '</article>';
-  }).join(""):'<div class="card">Пока коктейлей нет.</div>';
-});
+    const unique=[...new Map(names.map(n=>[n.toLowerCase().replace(/ё/g,"е"),n])).values()];
+    return '<article class="guest-card" id="cocktail-'+Number(c.id)+'">'+
+      (c.photo_url?'<img class="guest-photo" src="'+esc(c.photo_url)+'" alt="Фото '+esc(c.name)+'">':'<div class="guest-photo-placeholder">🍸</div>')+
+      '<h2>'+esc(c.name)+'</h2>'+
+      '<div class="guest-price">'+Number(c.price_rub||0)+' ₽</div>'+
+      '<div class="guest-strength">Крепость — '+strengthStars(c.strength)+'</div>'+
+      (unique.length?'<div class="guest-ingredients">'+unique.map(esc).join(", ")+'</div>':"")+
+      '</article>';
+  }).join("");
+  if(highlightId){
+    const el=document.querySelector("#cocktail-"+Number(highlightId));
+    if(el){el.scrollIntoView({behavior:"smooth",block:"center"});}
+  }
+};
+document.querySelector("#strengthFilter").onchange=()=>render();
+document.querySelector("#ingredientSearch").oninput=()=>render();
+document.querySelector("#randomCocktail").onclick=()=>{
+  const strength=document.querySelector("#strengthFilter").value;
+  const q=document.querySelector("#ingredientSearch").value.trim().toLowerCase().replace(/ё/g,"е");
+  const list=cocktails.filter(c=>{
+    if(strength&&String(c.strength||"")!==strength)return false;
+    if(q&&!((c.recipe_items||[]).some(i=>String(i.ingredient_name||i.name||"").toLowerCase().replace(/ё/g,"е").includes(q))))return false;
+    return true;
+  });
+  if(!list.length){alert("По выбранным условиям коктейлей нет.");return}
+  render(list[Math.floor(Math.random()*list.length)].id);
+};
+fetch("/api/cocktails").then(r=>r.json()).then(x=>{
+  cocktails=Array.isArray(x)?x:[];
+  render();
+}).catch(()=>{document.querySelector("#menu").innerHTML='<div class="guest-card guest-empty">Не удалось загрузить карту бара.</div>';});
 </script>`);
 
       if (url.pathname === "/bar/shop") return page(`
