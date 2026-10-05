@@ -764,12 +764,12 @@ let draft={shift:null,order:null,items:[]};const load=async()=>{
     ? '<div class="cocktail-grid">'+cocktails.map(c=>'<article class="card cocktail-card">'+
       (c.photo_url?'<img class="cocktail-photo" src="'+esc(c.photo_url)+'" alt="Фото '+esc(c.name)+'">':'<div class="cocktail-photo-placeholder">🍸</div>')+
       '<div class="cocktail-card-body"><div class="cocktail-card-head"><div><h3>'+esc(c.name)+'</h3><div class="muted">'+esc(c.description||"Без описания")+'</div></div><div class="row" style="gap:6px;flex-wrap:nowrap"><button type="button" class="secondary edit-cocktail" data-id="'+c.id+'">✏️</button><button type="button" class="secondary delete-cocktail" data-id="'+c.id+'" title="Удалить коктейль">🗑️</button></div></div>'+
-      '<div class="cocktail-meta">'++(c.strength?'<span class="pill">'+esc(c.strength)+'</span>':"")+(c.glass?'<span class="pill">'+esc(c.glass)+'</span>':"")+'</div>'+
+      '<div class="cocktail-meta">'+(c.strength?'<span class="pill">'+esc(c.strength)+'</span>':"")+(c.glass?'<span class="pill">'+esc(c.glass)+'</span>':"")+'</div>'+
       '<div class="cocktail-price">'+Number(c.price_rub||0)+' ₽</div>'+
       '<div class="cocktail-recipe"><b>Состав</b>'+(c.recipe_items?.length?'<ul style="margin:8px 0 0 18px">'+c.recipe_items.map(i=>'<li>'+esc(i.ingredient_name)+' — '+fmtQty(i.quantity)+' '+unitLabel(i.unit)+' <span class="muted">(ост: '+fmtQty(i.stock_available)+' '+unitLabel(i.unit)+')</span></li>').join("")+'</ul>':' <span class="muted">не указан</span>')+'</div>'+
 
       (c.method?'<div class="muted">🥄 Способ приготовления: '+esc(c.method)+'</div>':"")+
-      +      (c.glass?'<div class="muted" style="margin-top:10px">🧰 Инвентарь:<br><span style="white-space:pre-line">' + esc(c.glass) + '</span></div>':"")+
+      (c.glass?'<div class="muted" style="margin-top:10px">🧰 Инвентарь:<br><span style="white-space:pre-line">' + esc(c.glass) + '</span></div>':"")+
       '</div></article>').join("")+'</div>'
     : '<div class="empty">Пока коктейлей нет. Создай первый 👇</div>';
   document.querySelectorAll(".edit-cocktail").forEach(btn=>btn.onclick=()=>startEdit(cocktails.find(c=>Number(c.id)===Number(btn.dataset.id))));
