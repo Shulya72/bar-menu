@@ -1381,182 +1381,95 @@ const loadStats=async()=>{const box=document.querySelector("#profileContent");co
 loadMe();fetch("/api/cocktails").then(r=>r.json()).then(x=>{cocktails=Array.isArray(x)?x:[];render();}).catch(()=>{document.querySelector("#menu").innerHTML='<div class="guest-card guest-empty">Не удалось загрузить карту бара.</div>';});
 </script>`);
 
-      if (url.pathname === "/bar/shop") return page(`
-<header><h1>🛒 Магазин</h1><div class="sub">Закупки и партии товара</div></header>
-<div class="wrap">
-<div class="row" style="margin-bottom:14px"><a href="/" style="display:inline-block;padding:10px 14px;border:1px solid #333;border-radius:12px;background:#151515">🏠 Главное меню</a><a href="/bar/stock" style="display:inline-block;padding:10px 14px;border:1px solid #333;border-radius:12px;background:#151515">📦 Склад</a></div>
+      if (url.pathname === "/" || url.pathname === "/menu") return page(`
+<style>
+.guest-menu{max-width:980px;margin:auto;padding:10px 12px 24px}
+.guest-title{text-align:center;margin:0 0 14px}
+.guest-top{display:flex;justify-content:space-between;align-items:center;gap:10px;margin-bottom:14px}
+.guest-login{background:#252525;color:#fff;padding:10px 14px;border-radius:14px}
+.guest-user{display:flex;align-items:center;gap:8px}
+.guest-user button{padding:8px 11px;background:#252525;color:#fff}
+.guest-order-controls{display:flex;align-items:center;justify-content:center;gap:12px;margin-top:13px;padding-top:12px;border-top:1px solid #292929}
+.guest-order-controls button{width:48px;height:44px;padding:0;font-size:24px}
+.guest-order-controls span{min-width:38px;text-align:center;font-size:19px;font-weight:900}
+.guest-submit{position:fixed;left:50%;bottom:12px;transform:translateX(-50%);width:min(940px,calc(100% - 24px));z-index:20;display:flex;justify-content:space-between;align-items:center;gap:12px;padding:12px 14px;border:1px solid #3b3b3b;border-radius:17px;background:#151515ee;backdrop-filter:blur(12px);box-shadow:0 12px 40px #000}
+.guest-modal{position:fixed;inset:0;background:rgba(0,0,0,.72);z-index:50;display:flex;align-items:center;justify-content:center;padding:16px}
+.guest-modal>div{width:min(430px,100%);background:#111;border:1px solid #333;border-radius:18px;padding:18px;box-shadow:0 20px 70px #000}
+.guest-profile-nav{display:grid;grid-template-columns:repeat(3,1fr);gap:8px;margin:12px 0}
+.guest-profile-nav button{background:#252525;color:#fff;font-size:13px}
+.guest-history-item{padding:12px 0;border-bottom:1px solid #292929}
+.guest-rating{display:flex;gap:5px;margin-top:7px}
+.guest-rating button{background:#252525;color:#fff;padding:7px 9px}
+.guest-rating button.active{background:#c8ff3d;color:#000}
 
-<div class="card"><h2>Новая закупка</h2><p class="muted">Фиксируем фактически купленную партию.</p>
-<form id="purchaseForm">
-<label>Ингредиент *</label><select name="ingredient_id" id="ingredientSelect" required><option value="">Загрузка...</option></select>
-<label>Магазин / поставщик</label><input name="store" placeholder="Например, Перекрёсток">
-<label>Бренд</label><input name="brand" placeholder="Например, Царская">
-<label>Дата покупки *</label><input name="purchased_at" type="date" required>
-<div class="grid"><div><label>Количество *</label><input name="quantity" type="number" min="0.01" step="0.01" required placeholder="1000"></div><div><label>Цена закупки, ₽ *</label><input name="price_rub" type="number" min="0" step="0.01" required placeholder="650"></div></div>
-<div style="margin-top:16px"><button>🛒 Оприходовать закупку</button></div><p id="msg" class="muted"></p>
-</form></div>
-
-<div style="height:16px"></div>
-<div class="card"><h2>🔎 Фильтр закупок</h2>
-<div class="grid">
-<div><label>С даты</label><input id="filterFrom" type="date"></div>
-<div><label>По дату</label><input id="filterTo" type="date"></div>
+.guest-title span{display:inline-block;padding:7px 20px;border:1px solid #3a3a3a;border-radius:18px;background:#222;color:#eee;font-size:18px;box-shadow:0 2px 12px rgba(0,0,0,.25)}
+.guest-filters{display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-bottom:14px}
+.guest-select,.guest-search{width:100%;height:48px;padding:0 14px;border:1px solid #303030;border-radius:17px;background:#111;color:#aaa;font-size:14px;outline:none}
+.guest-search::placeholder{color:#8c8c8c}
+.guest-random{width:100%;height:54px;margin-bottom:16px;border-radius:19px;background:#6dff00;color:#080808;font-size:19px;font-weight:800;box-shadow:0 5px 16px rgba(109,255,0,.10)}
+.guest-random:active{transform:scale(.985)}
+.guest-card{overflow:hidden;margin-bottom:12px;padding:14px;border:1px solid #292929;border-radius:16px;background:#111;box-shadow:none}
+.guest-photo{width:100%;aspect-ratio:4/3;object-fit:cover;display:block;border-radius:10px;background:#111}
+.guest-photo-placeholder{width:100%;aspect-ratio:4/3;display:flex;align-items:center;justify-content:center;border-radius:12px;background:#181818;color:#777;font-size:38px}
+.guest-card h2{margin:0 0 6px;font-size:20px;line-height:1.15;color:#f4f4f4;letter-spacing:0}
+.guest-price{font-size:18px;color:#6dff00;font-weight:700;margin-bottom:9px}
+.guest-strength{font-size:14px;color:#aaa;margin-bottom:9px}
+.guest-ingredients{font-size:14px;line-height:1.4;color:#e0e0e0}
+.guest-empty{padding:34px;text-align:center;color:#888}
+@media(max-width:600px){
+  .guest-menu{padding:10px 10px 24px}
+  .guest-title{margin-bottom:14px}
+  .guest-title span{font-size:18px;padding:7px 20px}
+  .guest-filters{gap:10px;margin-bottom:14px}
+  .guest-select,.guest-search{height:48px;padding:0 14px;font-size:14px;border-radius:17px}
+  .guest-random{height:54px;font-size:19px;margin-bottom:16px}
+  .guest-card{padding:14px;margin-bottom:12px;border-radius:16px}
+  .guest-photo,.guest-photo-placeholder{border-radius:10px}
+  .guest-card h2{font-size:20px;margin-top:0}
+  .guest-price{font-size:18px}
+  .guest-ingredients{font-size:14px}
+}
+@media(max-width:430px){
+  .guest-card{padding:14px}
+  .guest-card h2{font-size:20px}
+}
+</style>
+<div class="guest-menu">
+  <div class="guest-top"><div class="guest-title" style="margin:0"><span>🍸 Карта бара</span></div><div id="guestAccount"><button class="guest-login" id="loginBtn">👤 Войти</button></div></div>
+  <div class="guest-filters">
+    <select id="strengthFilter" class="guest-select">
+      <option value="">Крепость: все</option>
+      <option value="Безалкогольный">Безалкогольный</option>
+      <option value="Лёгкий">Лёгкий</option>
+      <option value="Средний">Средний</option>
+      <option value="Крепкий">Крепкий</option>
+    </select>
+    <input id="ingredientSearch" class="guest-search" placeholder="Содержит... (водка, апельсины)" autocomplete="off">
+  </div>
+  <button id="randomCocktail" class="guest-random">🥃 Что выпить?</button>
+  <div id="menu"><div class="guest-card guest-empty">Загрузка...</div></div>
 </div>
-<label>Ингредиент</label><select id="filterIngredient"><option value="">Все ингредиенты</option></select>
-<div class="row" style="margin-top:14px"><button type="button" id="applyFilter">🔎 Показать</button><button type="button" class="secondary" id="todayFilter">Сегодня</button><button type="button" class="secondary" id="clearFilter">Сбросить</button></div>
-<p class="muted">Например, выберите «Водка», чтобы увидеть все покупки водки. Чтобы посмотреть покупки только за 5 число — поставьте 5-е число в оба поля.</p>
-</div>
-
-<div style="height:16px"></div><div class="card"><h2>Закупки</h2><div id="history">Загрузка...</div></div>
-</div>
+<div id="guestModal" class="guest-modal" hidden><div><div class="row" style="justify-content:space-between"><h2>Вход</h2><button type="button" class="secondary" id="closeModal">×</button></div><p class="muted">Регистрация добровольная. Имя и номер нужны только для заказов и личной статистики.</p><form id="authForm"><label>Имя</label><input id="authName" required minlength="2" placeholder="Ваше имя"><label>Номер телефона</label><input id="authPhone" required inputmode="tel" placeholder="+7 999 123-45-67"><div style="margin-top:14px"><button style="width:100%">Войти / создать профиль</button></div><p id="authMsg" class="muted"></p></form></div></div>
+<div id="profileModal" class="guest-modal" hidden><div><div class="row" style="justify-content:space-between"><h2>👤 Личный кабинет</h2><button type="button" class="secondary" id="closeProfile">×</button></div><div id="profileBody">Загрузка...</div></div></div>
+<div id="guestSubmit" class="guest-submit" hidden><div><b id="guestOrderCount">0 коктейлей</b><div class="muted" id="guestOrderTotal">0 ₽</div></div><button id="submitGuestOrder">🛒 Сделать заказ</button></div>
 <script>
 const esc=s=>String(s??"").replace(/[&<>"']/g,c=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[c]));
-let ingredients=[];
-const pad=n=>String(n).padStart(2,"0");
-const localDate=()=>{const d=new Date();return d.getFullYear()+"-"+pad(d.getMonth()+1)+"-"+pad(d.getDate())};
-document.querySelector("#purchaseForm [name=purchased_at]").value=localDate();
-const formatDate=s=>{const m=String(s||"").match(/^(\d{4})-(\d{2})-(\d{2})/);return m?m[3]+"."+m[2]+"."+m[1]:String(s||"")};
-const unitPrice=(price,qty)=>qty>0?(Number(price)/Number(qty)).toFixed(4):"0.0000";
-
-async function loadIngredients(){
-  const r=await fetch("/api/ingredients");
-  const data=await r.json();
-  if(!r.ok||!Array.isArray(data)) throw new Error(data?.error||"Не удалось загрузить ингредиенты");
-  ingredients=data;
-  const opts=ingredients.map(i=>'<option value="'+i.id+'">'+esc(i.name)+' ('+esc(i.unit)+')</option>').join("");
-  document.querySelector("#ingredientSelect").innerHTML='<option value="">Выберите ингредиент...</option>'+opts;
-  document.querySelector("#filterIngredient").innerHTML='<option value="">Все ингредиенты</option>'+opts;
-}
-
-async function loadHistory(){
-  const params=new URLSearchParams();
-  const from=document.querySelector("#filterFrom").value, to=document.querySelector("#filterTo").value, ing=document.querySelector("#filterIngredient").value;
-  if(from)params.set("date_from",from); if(to)params.set("date_to",to); if(ing)params.set("ingredient_id",ing);
-  const r=await fetch("/api/shop/purchases?"+params.toString()); const history=await r.json();
-  if(!r.ok||!Array.isArray(history)) throw new Error(history?.error||"Не удалось загрузить закупки");
-  document.querySelector("#history").innerHTML=history.length?history.map(x=>{
-    const consumed=Math.max(0,Number(x.purchased_qty)-Number(x.remaining_qty));
-    return '<div class="purchase-item" data-id="'+x.id+'" style="padding:13px 0;border-bottom:1px solid #292929">'+
-      '<div class="purchase-view"><b>'+esc(x.ingredient_name)+'</b><div class="muted">Дата покупки: '+formatDate(x.purchased_at)+'</div><div class="muted">'+Number(x.purchased_qty)+' '+esc(x.unit)+' · '+Number(x.price_rub).toFixed(2)+' ₽ · '+unitPrice(x.price_rub,x.purchased_qty)+' ₽/'+esc(x.unit)+(x.store?' · '+esc(x.store):'')+(x.brand?' · '+esc(x.brand):'')+'</div>'+
-      '<div class="muted">Осталось: '+Number(x.remaining_qty)+' '+esc(x.unit)+(consumed?' · списано: '+consumed+' '+esc(x.unit):'')+'</div>'+
-      '<div class="row" style="margin-top:9px"><button type="button" class="secondary edit">✏️ Изменить</button><button type="button" class="secondary delete">🗑 Удалить</button></div></div></div>';
-  }).join(""):'<div class="empty">По выбранному фильтру закупок нет.</div>';
-  document.querySelectorAll(".purchase-item .edit").forEach(b=>b.onclick=()=>editPurchase(history,b.closest(".purchase-item").dataset.id));
-  document.querySelectorAll(".purchase-item .delete").forEach(b=>b.onclick=()=>deletePurchase(b.closest(".purchase-item").dataset.id));
-}
-
-function editPurchase(history,id){
-  const item=history.find(x=>String(x.id)===String(id)); if(!item)return;
-  const row=document.querySelector('.purchase-item[data-id="'+id+'"]');
-  const consumed=Math.max(0,Number(item.purchased_qty)-Number(item.remaining_qty));
-  const dt=String(item.purchased_at||"").slice(0,10);
-  row.innerHTML='<div><div class="grid">'+
-    '<div><label>Ингредиент</label><select class="edit-ingredient">'+ingredients.map(i=>'<option value="'+i.id+'"'+(Number(i.id)===Number(item.ingredient_id)?' selected':'')+'>'+esc(i.name)+' ('+esc(i.unit)+')</option>').join("")+'</select></div>'+
-    '<div><label>Магазин / поставщик</label><input class="edit-store" value="'+esc(item.store||"")+'"></div>'+
-    '<div><label>Бренд</label><input class="edit-brand" value="'+esc(item.brand||"")+'"></div>'+
-    '<div><label>Дата покупки</label><input class="edit-date" type="date" value="'+dt+'"></div>'+
-    '<div><label>Количество</label><input class="edit-qty" type="number" min="'+Math.max(0.01,consumed).toString()+'" step="0.01" value="'+Number(item.purchased_qty)+'"></div>'+
-    '<div><label>Цена закупки, ₽</label><input class="edit-price" type="number" min="0" step="0.01" value="'+Number(item.price_rub)+'"></div>'+
-    '</div><p class="muted">Уже списано: '+consumed+' '+esc(item.unit)+'. Количество нельзя уменьшить ниже этого значения.</p>'+
-    '<div class="row"><button type="button" class="save-edit">💾 Сохранить</button><button type="button" class="secondary cancel-edit">Отмена</button><span class="edit-msg muted"></span></div></div>';
-  row.querySelector(".cancel-edit").onclick=loadHistory;
-  row.querySelector(".save-edit").onclick=async()=>{
-    const body={id:Number(id),ingredient_id:Number(row.querySelector(".edit-ingredient").value),store:row.querySelector(".edit-store").value.trim(),brand:row.querySelector(".edit-brand").value.trim(),purchased_at:row.querySelector(".edit-date").value,quantity:Number(row.querySelector(".edit-qty").value),price_rub:Number(row.querySelector(".edit-price").value)};
-    const msg=row.querySelector(".edit-msg");
-    const r=await fetch("/api/shop/purchase",{method:"PUT",headers:{"content-type":"application/json"},body:JSON.stringify(body)}); const d=await r.json();
-    if(!r.ok){msg.textContent="Ошибка: "+(d.error||"не удалось сохранить");return} await loadHistory();
-  };
-}
-
-async function deletePurchase(id){
-  if(!confirm("Удалить эту закупку? Товар и его остаток по этой партии будут удалены из истории магазина."))return;
-  const r=await fetch("/api/shop/purchase?id="+encodeURIComponent(id),{method:"DELETE"}); const d=await r.json();
-  if(!r.ok){alert(d.error||"Не удалось удалить закупку");return} await loadHistory();
-}
-
-document.querySelector("#purchaseForm").onsubmit=async e=>{
-  e.preventDefault(); const body=Object.fromEntries(new FormData(e.target));
-  body.ingredient_id=Number(body.ingredient_id); body.quantity=Number(body.quantity); body.price_rub=Number(body.price_rub);
-  const r=await fetch("/api/shop/purchase",{method:"POST",headers:{"content-type":"application/json"},body:JSON.stringify(body)}); const d=await r.json();
-  document.querySelector("#msg").textContent=r.ok?"Закупка добавлена ✅":"Ошибка: "+(d.error||"не удалось сохранить");
-  if(r.ok){e.target.reset();document.querySelector("#purchaseForm [name=purchased_at]").value=localDate();await loadHistory();}
-};
-
-document.querySelector("#applyFilter").onclick=loadHistory;
-document.querySelector("#clearFilter").onclick=()=>{document.querySelector("#filterFrom").value="";document.querySelector("#filterTo").value="";document.querySelector("#filterIngredient").value="";loadHistory();};
-document.querySelector("#todayFilter").onclick=()=>{const d=new Date();const s=d.getFullYear()+"-"+pad(d.getMonth()+1)+"-"+pad(d.getDate());document.querySelector("#filterFrom").value=s;document.querySelector("#filterTo").value=s;loadHistory();};
-
-(async()=>{
-  try{
-    await loadIngredients();
-    await loadHistory();
-  }catch(e){
-    document.querySelector("#ingredientSelect").innerHTML='<option value="">Ошибка загрузки ингредиентов</option>';
-    document.querySelector("#filterIngredient").innerHTML='<option value="">Не удалось загрузить</option>';
-    document.querySelector("#history").innerHTML='<div class="empty">Ошибка: '+esc(e.message||e)+'</div>';
-  }
-})();
-</script>`, "Магазин");
-
-      if (url.pathname === "/bar/statistics") return page(`<header><h1>📊 Статистика</h1><div class="sub">Смены, заказы и приготовленные коктейли</div></header>
-<div class="wrap">
-<div class="row" style="margin-bottom:14px"><a href="/" style="display:inline-block;padding:10px 14px;border:1px solid #333;border-radius:12px;background:#151515">🏠 Главное меню</a><a href="/bar/recipes" style="display:inline-block;padding:10px 14px;border:1px solid #333;border-radius:12px;background:#151515">🍸 Книга рецептов</a></div>
-<div class="card" id="shiftBox">Загрузка…</div>
-<div style="height:16px"></div>
-<div class="card"><h2>История смен</h2><div id="stats">Загрузка…</div></div>
-</div>
-<script>
-async function loadStats(){
- const r=await fetch("/api/bar/statistics");
- const d=await r.json();
- if(!r.ok){document.querySelector("#stats").textContent=d.error||"Ошибка";return;}
- const open=(d.shifts||[]).find(x=>x.status==="open");
- const box=document.querySelector("#shiftBox");
- box.innerHTML=open?"<h2>Смена №"+open.id+" 🟢</h2><p class=\"muted\">Начало: "+open.started_at+"</p><button id=\"closeShift\" class=\"secondary\">Закрыть смену</button>":"<h2>Смена не открыта</h2><p class=\"muted\">Нажми «＋» у коктейля — смена откроется автоматически.</p><button id=\"openShift\">▶ Открыть смену</button>";
- if(open){document.querySelector("#closeShift").onclick=async()=>{const x=await fetch("/api/bar/shift",{method:"PUT"});const j=await x.json();if(!x.ok){alert(j.error||"Не удалось закрыть смену");return;}loadStats()};}
- else{document.querySelector("#openShift").onclick=async()=>{const x=await fetch("/api/bar/shift",{method:"POST"});if(!x.ok){alert("Не удалось открыть смену");return;}loadStats()};}
- document.querySelector("#stats").innerHTML=(d.shifts||[]).map(x=>"<div style=\"padding:14px 0;border-bottom:1px solid #292929\"><b>Смена №"+x.id+"</b> · "+(x.status==="open"?"🟢 открыта":"закрыта")+"<div class=\"muted\">"+x.started_at+" → "+(x.closed_at||"сейчас")+"</div><div style=\"margin-top:6px\"><b>"+Number(x.orders_count||0)+"</b> заказов · <b>"+Number(x.cocktails_count||0)+"</b> коктейлей · <b>"+Number(x.revenue_rub||0).toFixed(0)+" ₽</b></div></div>").join("")||"<div class=\"empty\">Смен ещё нет.</div>";
-}
-loadStats();
-</script>`, "Статистика");
-
-      if (url.pathname === "/bar/orders") return page(`<header><h1>📋 Текущий заказ</h1><div class="sub">＋ и − меняют заказ. Склад резервируется сразу, окончательное списание — после принятия.</div></header>
-<div class="wrap">
-<div class="row" style="margin-bottom:14px"><a href="/" style="display:inline-block;padding:10px 14px;border:1px solid #333;border-radius:12px;background:#151515">🏠 Главное меню</a><a href="/bar/recipes" style="display:inline-block;padding:10px 14px;border:1px solid #333;border-radius:12px;background:#151515">🍸 Книга рецептов</a></div>
-<div style="height:16px"></div><div class="card"><div class="row" style="justify-content:space-between"><h2>🔔 Заказы гостей</h2><button type="button" class="secondary" id="refreshGuestOrders">Обновить</button></div><div id="guestOrders">Загрузка…</div></div>
-<div class="card"><div id="order">Загрузка…</div></div>
-</div>
-<script>
-async function loadGuestOrders(){
- const r=await fetch("/api/bar/guest-orders",{cache:"no-store"}),d=await r.json(),box=document.querySelector("#guestOrders");
- if(!r.ok){box.textContent=d.error||"Ошибка";return}
- box.innerHTML=(d.orders||[]).map(o=>'<div class="card" style="margin-top:12px;background:#151515"><div><b>Заказ #'+o.id+'</b> · 👤 '+esc(o.guest_name)+' · <span class="muted">'+esc(o.guest_phone)+'</span></div><div style="margin-top:8px">'+o.items.map(i=>'<div>'+esc(i.cocktail_name)+' × <b>'+i.quantity+'</b></div>').join("")+'</div><div style="margin-top:7px"><b>'+Number(o.price_total||0).toFixed(0)+' ₽</b></div><button class="accept-guest" data-id="'+o.id+'" style="margin-top:10px">✅ Принять заказ</button></div>').join("")||'<div class="empty">Новых заказов нет.</div>';
- document.querySelectorAll(".accept-guest").forEach(b=>b.onclick=async()=>{b.disabled=true;const r=await fetch("/api/bar/guest-order/accept",{method:"POST",headers:{"content-type":"application/json"},body:JSON.stringify({order_id:Number(b.dataset.id)})}),d=await r.json();if(!r.ok){b.disabled=false;alert(d.error||"Не удалось принять заказ");return}loadGuestOrders();});
-}
-document.querySelector("#refreshGuestOrders").onclick=loadGuestOrders;
-loadGuestOrders();setInterval(loadGuestOrders,10000);
-async function loadOrder(){
- const r=await fetch("/api/bar/order");const d=await r.json();const box=document.querySelector("#order");
- if(!d.items||!d.items.length){box.innerHTML="<div class=\"empty\">Текущий заказ пуст.<br><a href=\"/bar/recipes\">← Вернуться в книгу рецептов</a></div>";return;}
- box.innerHTML="<h2>Смена №"+(d.shift?.id||"—")+"</h2>"+d.items.map(i=>"<div class=\"row\" style=\"justify-content:space-between;padding:12px 0;border-bottom:1px solid #292929\"><b>"+i.cocktail_name+"</b><span class=\"row\"><button type=\"button\" class=\"secondary minus\" data-id=\""+i.cocktail_id+"\">−</button><b>"+i.quantity+"</b><button type=\"button\" class=\"plus\" data-id=\""+i.cocktail_id+"\">＋</button></span></div>").join("")+"<p style=\"margin-top:14px\">Коктейлей: <b>"+d.total_cocktails+"</b> · Сумма: <b>"+Number(d.total_price||0).toFixed(0)+" ₽</b></p><div class=\"row\"><button id=\"accept\">✅ Принять заказ</button><button id=\"clear\" class=\"secondary\">Очистить</button></div>";
- document.querySelectorAll(".minus").forEach(b=>b.onclick=()=>changeOrder(Number(b.dataset.id),-1));
- document.querySelectorAll(".plus").forEach(b=>b.onclick=()=>changeOrder(Number(b.dataset.id),1));
- document.querySelector("#accept").onclick=async()=>{const r=await fetch("/api/bar/order/accept",{method:"POST"});const d=await r.json();if(!r.ok){alert(d.error||"Ошибка");return;}alert("Заказ №"+d.order_id+" принят ✅");loadOrder()};
- document.querySelector("#clear").onclick=async()=>{if(!confirm("Очистить текущий заказ?"))return;await fetch("/api/bar/order",{method:"DELETE"});loadOrder()};
-}
-async function changeOrder(id,delta){const r=await fetch("/api/bar/order",{method:"POST",headers:{"content-type":"application/json"},body:JSON.stringify({cocktail_id:id,delta})});const d=await r.json();if(!r.ok){alert(d.error||"Ошибка");return;}loadOrder()}
-loadOrder();
-</script>`, "Заказы");
-
-      return new Response("Не найдено",{status:404});
-    } catch (error) {
-      console.error(error);
-      return json({error:"Ошибка сервера",details:String(error?.message||error)},500);
-    }
-  }
-};
-
-
-
-
+let cocktails=[],guest=null,draft=new Map();
+const strengthStars=s=>{const v=String(s||"").toLowerCase();if(v.includes("безалк"))return "—";if(v.includes("лёг")||v.includes("лег"))return "★";if(v.includes("сред"))return "★★";if(v.includes("креп"))return "★★★";return "★";};
+const qty=id=>Number(draft.get(Number(id))||0);
+const filtered=()=>{const strength=document.querySelector("#strengthFilter").value,q=document.querySelector("#ingredientSearch").value.trim().toLowerCase().replace(/ё/g,"е");return cocktails.filter(c=>{if(strength&&String(c.strength||"")!==strength)return false;if(q&&!((c.recipe_items||[]).some(i=>String(i.ingredient_name||i.name||"").toLowerCase().replace(/ё/g,"е").includes(q))))return false;return true;});};
+const renderOrderBar=()=>{const n=[...draft.values()].reduce((a,b)=>a+b,0),total=[...draft.entries()].reduce((sum,[id,q])=>{const c=cocktails.find(x=>Number(x.id)===Number(id));return sum+q*Number(c?.price_rub||0)},0);document.querySelector("#guestSubmit").hidden=!guest||n===0;document.querySelector("#guestOrderCount").textContent=n+" коктейл"+(n===1?"ь":n<5?"я":"ей");document.querySelector("#guestOrderTotal").textContent=total.toFixed(0)+" ₽";};
+const render=highlightId=>{const list=filtered(),box=document.querySelector("#menu");if(!list.length){box.innerHTML='<div class="guest-card guest-empty">Ничего не найдено.</div>';return}box.innerHTML=list.map(c=>{const names=[...(c.recipe_items||[])].map(i=>String(i.ingredient_name||i.name||"").trim()).filter(Boolean);const unique=[...new Map(names.map(n=>[n.toLowerCase().replace(/ё/g,"е"),n])).values()];return '<article class="guest-card" id="cocktail-'+Number(c.id)+'">'+(c.photo_url?'<img class="guest-photo" src="'+esc(c.photo_url)+'" alt="Фото '+esc(c.name)+'">':'<div class="guest-photo-placeholder">🍸</div>')+'<h2>'+esc(c.name)+'</h2>'+(c.description?'<div class="muted" style="margin-bottom:7px">'+esc(c.description)+'</div>':"")+'<div class="guest-price">'+Number(c.price_rub||0)+' ₽</div><div class="guest-strength">Крепость — '+strengthStars(c.strength)+'</div>'+(unique.length?'<div class="guest-ingredients">'+unique.map(esc).join(", ")+'</div>':"")+(guest?'<div class="guest-order-controls"><button type="button" class="secondary minus" data-id="'+c.id+'">−</button><span>'+qty(c.id)+'</span><button type="button" class="plus" data-id="'+c.id+'">+</button></div>':"")+'</article>';}).join("");document.querySelectorAll(".guest-order-controls .plus").forEach(b=>b.onclick=()=>{const id=Number(b.dataset.id);draft.set(id,qty(id)+1);renderOrderBar();render()});document.querySelectorAll(".guest-order-controls .minus").forEach(b=>b.onclick=()=>{const id=Number(b.dataset.id),next=Math.max(0,qty(id)-1);if(next)draft.set(id,next);else draft.delete(id);renderOrderBar();render()});if(highlightId)document.querySelector("#cocktail-"+Number(highlightId))?.scrollIntoView({behavior:"smooth",block:"center"});};
+const loadMe=async()=>{const r=await fetch("/api/guest/me",{cache:"no-store"}),d=await r.json();guest=d.guest||null;document.querySelector("#guestAccount").innerHTML=guest?'<div class="guest-user"><span>👤 '+esc(guest.name)+'</span><button id="profileBtn">ЛК</button></div>':'<button class="guest-login" id="loginBtn">👤 Войти</button>';document.querySelector("#loginBtn")?.addEventListener("click",()=>document.querySelector("#guestModal").hidden=false);document.querySelector("#profileBtn")?.addEventListener("click",openProfile);render();renderOrderBar();};
+document.querySelector("#closeModal").onclick=()=>document.querySelector("#guestModal").hidden=true;
+document.querySelector("#closeProfile").onclick=()=>document.querySelector("#profileModal").hidden=true;
+document.querySelector("#authForm").onsubmit=async e=>{e.preventDefault();const msg=document.querySelector("#authMsg");const r=await fetch("/api/guest/auth",{method:"POST",headers:{"content-type":"application/json"},body:JSON.stringify({name:document.querySelector("#authName").value,phone:document.querySelector("#authPhone").value})});const d=await r.json();if(!r.ok){msg.textContent=d.error||"Не удалось войти";return}guest=d.guest;document.querySelector("#guestModal").hidden=true;msg.textContent="";render();renderOrderBar();loadMe();};
+document.querySelector("#strengthFilter").onchange=()=>render();document.querySelector("#ingredientSearch").oninput=()=>render();
+document.querySelector("#randomCocktail").onclick=()=>{const list=filtered();if(!list.length){alert("По выбранным условиям коктейлей нет.");return}render(list[Math.floor(Math.random()*list.length)].id);};
+document.querySelector("#submitGuestOrder").onclick=async()=>{const items=[...draft.entries()].map(([cocktail_id,quantity])=>({cocktail_id,quantity}));if(!items.length)return;const btn=document.querySelector("#submitGuestOrder");btn.disabled=true;const r=await fetch("/api/guest/order",{method:"POST",headers:{"content-type":"application/json"},body:JSON.stringify({items})});const d=await r.json();btn.disabled=false;if(!r.ok){alert(d.error||"Не удалось отправить заказ");return}draft.clear();renderOrderBar();render();alert("Заказ №"+d.order_id+" отправлен бармену 🍸");};
+const openProfile=async()=>{document.querySelector("#profileModal").hidden=false;const body=document.querySelector("#profileBody");body.innerHTML='<div class="guest-profile-nav"><button id="histBtn">🍸 Заказы</button><button id="statBtn">📊 Статистика</button><button id="logoutBtn">🚪 Выйти</button></div><div id="profileContent">Загрузка...</div>';document.querySelector("#histBtn").onclick=loadHistory;document.querySelector("#statBtn").onclick=loadStats;document.querySelector("#logoutBtn").onclick=async()=>{await fetch("/api/guest/logout",{method:"POST"});guest=null;draft.clear();document.querySelector("#profileModal").hidden=true;render();renderOrderBar();loadMe();};loadHistory();};
+const loadHistory=async()=>{const box=document.querySelector("#profileContent");const r=await fetch("/api/guest/orders",{cache:"no-store"}),d=await r.json();if(!r.ok){box.textContent=d.error||"Ошибка";return}box.innerHTML=(d.orders||[]).map(o=>'<div class="guest-history-item"><b>Заказ #'+o.id+'</b> · '+(o.status==="pending"?"⏳ ожидает бармена":"✅ принят")+'<div class="muted">'+o.items.map(i=>i.cocktail_name+" × "+i.quantity).join(", ")+'</div>'+o.items.filter(i=>o.status==="accepted").map(i=>'<div style="margin-top:8px"><b>'+esc(i.cocktail_name)+'</b><div class="guest-rating">'+[1,2,3,4,5].map(n=>'<button class="'+(Number(i.rating)===n?"active":"")+'" data-order="'+o.id+'" data-cocktail="'+i.cocktail_id+'" data-rating="'+n+'">'+n+'★</button>').join("")+'</div></div>').join("")+'</div>').join("")||'<div class="empty">Заказов пока нет.</div>';document.querySelectorAll(".guest-rating button").forEach(b=>b.onclick=async()=>{const r=await fetch("/api/guest/review",{method:"POST",headers:{"content-type":"application/json"},body:JSON.stringify({order_id:Number(b.dataset.order),cocktail_id:Number(b.dataset.cocktail),rating:Number(b.dataset.rating)})});if(!r.ok){const d=await r.json();alert(d.error||"Не удалось сохранить оценку");return}loadHistory();});};
+const loadStats=async()=>{const box=document.querySelector("#profileContent");const r=await fetch("/api/guest/statistics",{cache:"no-store"}),d=await r.json();if(!r.ok){box.textContent=d.error||"Ошибка";return}box.innerHTML='<div class="card"><h3>📊 Моя статистика</h3><p>🍸 Выпито: <b>'+d.totals.cocktails+'</b></p><p>🧾 Заказов: <b>'+d.totals.orders+'</b></p><p>💰 Потрачено: <b>'+d.totals.spent.toFixed(0)+' ₽</b></p><p>⭐ Средняя оценка: <b>'+(d.rating.count?d.rating.avg:"—")+'</b></p></div><h3 style="margin-top:14px">Любимые коктейли</h3>'+((d.top||[]).map((x,i)=>'<div style="padding:8px 0;border-bottom:1px solid #292929">'+(i+1)+'. '+esc(x.name)+' — <b>'+x.quantity+'</b> шт.</div>').join("")||'<div class="muted">Пока нет истории.</div>');};
+loadMe();fetch("/api/cocktails").then(r=>r.json()).then(x=>{cocktails=Array.isArray(x)?x:[];render();}).catch(()=>{document.querySelector("#menu").innerHTML='<div class="guest-card guest-empty">Не удалось загрузить карту бара.</div>';});
+</script>`);
 
