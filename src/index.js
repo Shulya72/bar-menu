@@ -807,7 +807,6 @@ const fmtQty=v=>{const n=Number(v||0);return Number.isInteger(n)?String(n):n.toF
 let products=[];
 let draft={shift:null,order:null,items:[]};
 let cocktailCatalog=new Map();
-let orderQueue=Promise.resolve();
 const load=async()=>{
   const [cr,pr]=await Promise.all([fetch("/api/cocktails"),fetch("/api/ingredients")]);
   const cocktails=await cr.json(); products=await pr.json();
@@ -886,31 +885,12 @@ function optimisticDraftChange(id,delta){
   draft.total_cocktails=(draft.items||[]).reduce((n,x)=>n+Number(x.quantity||0),0);
   draft.total_price=(draft.items||[]).reduce((n,x)=>n+Number(x.quantity||0)*Number(x.price_rub||0),0);
 }
-async function changeOrder(id,delta){
+function changeOrder(id,delta){
   optimisticOrderVisual(id,delta);
   optimisticDraftChange(id,delta);
   renderOrderSummary();
-  orderQueue=orderQueue.then(async()=>{
-    const r=await fetch("/api/bar/order",{method:"POST",headers:{"content-type":"application/json"},body:JSON.stringify({cocktail_id:id,delta})});
-    const d=await r.json().catch(()=>({}));
-    if(!r.ok){
-      optimisticOrderVisual(id,-delta);
-      optimisticDraftChange(id,-delta);
-      renderOrderSummary();
-      alert(d.error||"Не удалось изменить заказ");
-      return;
-    }
-    // Сервер подтвердил изменение. Ничего не перерисовываем:
-    // все изменения уже показаны пользователю мгновенно.
-  }).catch(async()=>{
-    optimisticOrderVisual(id,-delta);
-    optimisticDraftChange(id,-delta);
-    renderOrderSummary();
-    alert("Не удалось связаться с сервером. Изменение отменено.");
-  });
-  return orderQueue;
 }
-function renderOrderSummary(){const box=document.querySelector("#orderSummary");if(!box)return;const items=draft.items||[];if(!items.length){box.innerHTML="";return}box.innerHTML="";const card=document.createElement("div");card.className="card";card.style.cssText="margin:14px 0;position:sticky;bottom:10px;z-index:5;box-shadow:0 12px 40px #000;border-color:#3b3b3b";const title=document.createElement("h3");title.textContent="📋 Текущий заказ";card.appendChild(title);const sh=document.createElement("div");sh.className="muted";sh.textContent="Смена №"+(draft.shift?.id||"—");card.appendChild(sh);items.forEach(x=>{const row=document.createElement("div");row.style.padding="5px 0";row.textContent=x.cocktail_name+" × "+x.quantity;card.appendChild(row)});const total=document.createElement("div");total.style.marginTop="6px";total.textContent="Всего коктейлей: "+Number(draft.total_cocktails||0)+" · Сумма: "+Number(draft.total_price||0).toFixed(0)+" ₽";card.appendChild(total);const actions=document.createElement("div");actions.className="row";actions.style.marginTop="10px";const accept=document.createElement("button");accept.textContent="✅ Принять заказ";accept.onclick=async()=>{await orderQueue;const r=await fetch("/api/bar/order/accept",{method:"POST"}),d=await r.json().catch(()=>({}));if(!r.ok){alert(d.error||"Не удалось принять заказ");return}alert("Заказ №"+d.order_id+" принят ✅");location.reload()};const clear=document.createElement("button");clear.className="secondary";clear.textContent="Очистить";clear.onclick=async()=>{if(!confirm("Очистить текущий заказ? Резерв ингредиентов будет снят."))return;await orderQueue;const r=await fetch("/api/bar/order",{method:"DELETE"});if(!r.ok){alert("Не удалось очистить заказ");return}for(const item of (draft.items||[])){optimisticOrderVisual(Number(item.cocktail_id),-Number(item.quantity||0));}draft={shift:draft.shift,order:null,items:[],total_cocktails:0,total_price:0};enhanceOrderControls();renderOrderSummary()};actions.append(accept,clear);card.appendChild(actions);box.appendChild(card)}
+function renderOrderSummary(){const box=document.querySelector("#orderSummary");if(!box)return;const items=draft.items||[];if(!items.length){box.innerHTML="";return}box.innerHTML="";const card=document.createElement("div");card.className="card";card.style.cssText="margin:14px 0;position:sticky;bottom:10px;z-index:5;box-shadow:0 12px 40px #000;border-color:#3b3b3b";const title=document.createElement("h3");title.textContent="📋 Текущий заказ";card.appendChild(title);const sh=document.createElement("div");sh.className="muted";sh.textContent="Смена №"+(draft.shift?.id||"—");card.appendChild(sh);items.forEach(x=>{const row=document.createElement("div");row.style.padding="5px 0";row.textContent=x.cocktail_name+" × "+x.quantity;card.appendChild(row)});const total=document.createElement("div");total.style.marginTop="6px";total.textContent="Всего коктейлей: "+Number(draft.total_cocktails||0)+" · Сумма: "+Number(draft.total_price||0).toFixed(0)+" ₽";card.appendChild(total);const actions=document.createElement("div");actions.className="row";actions.style.marginTop="10px";const accept=document.createElement("button");accept.textContent="✅ Принять заказ";accept.onclick=async()=>{if(!(draft.items||[]).length)return;accept.disabled=true;const r=await fetch("/api/bar/order/accept",{method:"POST",headers:{"content-type":"application/json"},body:JSON.stringify({items:(draft.items||[]).map(x=>({cocktail_id:Number(x.cocktail_id),quantity:Number(x.quantity||0)}))})}),d=await r.json().catch(()=>({}));if(!r.ok){accept.disabled=false;alert(d.error||"Не удалось принять заказ");return}location.reload()};const clear=document.createElement("button");clear.className="secondary";clear.textContent="Очистить";clear.onclick=async()=>{if(!confirm("Очистить текущий заказ?"))return;for(const item of (draft.items||[])){optimisticOrderVisual(Number(item.cocktail_id),-Number(item.quantity||0));}draft={shift:draft.shift,order:null,items:[],total_cocktails:0,total_price:0};enhanceOrderControls();renderOrderSummary();fetch("/api/bar/order",{method:"DELETE"}).catch(()=>{});};actions.append(accept,clear);card.appendChild(actions);box.appendChild(card)}
 const showPanel=()=>{
   const panel=document.querySelector("#cocktailPanel");
   panel.hidden=false;
