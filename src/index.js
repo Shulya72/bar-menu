@@ -82,7 +82,7 @@ const ensureBarOrderSystem=async env=>{
 };
 const getOpenBarShift=async env=>{await ensureBarOrderSystem(env);return await env.DB.prepare("SELECT id,status,started_at,closed_at FROM bar_shifts WHERE status='open' ORDER BY id DESC LIMIT 1").first();};
 const ensureOpenBarShift=async env=>{await ensureBarOrderSystem(env);let shift=await getOpenBarShift(env);if(shift)return shift;const r=await env.DB.prepare("INSERT INTO bar_shifts(status) VALUES('open')").run();return await env.DB.prepare("SELECT id,status,started_at,closed_at FROM bar_shifts WHERE id=?").bind(Number(r.meta.last_row_id)).first();};
-const getReservedIngredients=async env=>{await ensureBarOrderSystem(env);const {results}=await env.DB.prepare("SELECT ri.ingredient_id,COALESCE(SUM(ri.quantity*oi.quantity),0) reserved FROM bar_orders o JOIN bar_order_items oi ON oi.order_id=o.id JOIN recipe_ingredients ri ON ri.cocktail_id=oi.cocktail_id WHERE o.status='draft' GROUP BY ri.ingredient_id").all();return new Map((results||[]).map(x=>[Number(x.ingredient_id),Number(x.reserved||0)]));};
+const getReservedIngredients=async env=>{await ensureBarOrderSystem(env);const {results}=await env.DB.prepare("SELECT ri.ingredient_id,COALESCE(SUM(ri.quantity*oi.quantity),0) reserved FROM bar_orders o JOIN bar_order_items oi ON oi.order_id=o.id JOIN recipe_ingredients ri ON ri.cocktail_id=oi.cocktail_id WHERE o.status IN ('draft','pending') GROUP BY ri.ingredient_id").all();return new Map((results||[]).map(x=>[Number(x.ingredient_id),Number(x.reserved||0)]));};
 const getDraftBarOrder=async(env,create=false)=>{
   await ensureBarOrderSystem(env);let shift=await getOpenBarShift(env);if(!shift&&create)shift=await ensureOpenBarShift(env);if(!shift)return {shift:null,order:null,items:[]};
   let order=await env.DB.prepare("SELECT id,shift_id,status,created_at,accepted_at,price_total FROM bar_orders WHERE shift_id=? AND status='draft' ORDER BY id DESC LIMIT 1").bind(shift.id).first();
@@ -110,6 +110,24 @@ const resolveIngredient=async(env,name)=>{
   const r=await env.DB.prepare("INSERT INTO ingredients(name,unit) VALUES(?,?)").bind(n,"ml").run();
   return Number(r.meta.last_row_id);
 };
+
+const ensureGuestSystem=async env=>{
+  await env.DB.prepare("CREATE TABLE IF NOT EXISTS guests (id INTEGER PRIMARY KEY AUTOINCREMENT,name TEXT NOT NULL,phone TEXT NOT NULL UNIQUE,created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,updated_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP)").run();
+  await env.DB.prepare("CREATE TABLE IF NOT EXISTS guest_sessions (token TEXT PRIMARY KEY,guest_id INTEGER NOT NULL REFERENCES guests(id) ON DELETE CASCADE,expires_at TEXT NOT NULL,created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP)").run();
+  await env.DB.prepare("CREATE TABLE IF NOT EXISTS reviews (id INTEGER PRIMARY KEY AUTOINCREMENT,guest_id INTEGER NOT NULL REFERENCES guests(id),cocktail_id INTEGER NOT NULL REFERENCES cocktails(id),order_id INTEGER NOT NULL REFERENCES bar_orders(id),rating INTEGER NOT NULL CHECK(rating BETWEEN 1 AND 5),comment TEXT DEFAULT '',created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,UNIQUE(guest_id,order_id,cocktail_id))").run();
+  try{await env.DB.prepare("ALTER TABLE bar_orders ADD COLUMN guest_id INTEGER").run()}catch(e){}
+  try{await env.DB.prepare("ALTER TABLE bar_orders ADD COLUMN source TEXT NOT NULL DEFAULT 'bar'").run()}catch(e){}
+};
+const normalizePhone=phone=>String(phone||"").replace(/[^0-9+]/g,"").replace(/^8/,"+7");
+const parseCookies=request=>Object.fromEntries(String(request.headers.get("Cookie")||"").split(";").map(x=>x.trim().split("=")).filter(x=>x.length>=2).map(([k,...v])=>[k,decodeURIComponent(v.join("="))]));
+const getGuest=async(request,env)=>{
+  await ensureGuestSystem(env);
+  const token=parseCookies(request).guest_session;
+  if(!token)return null;
+  return await env.DB.prepare("SELECT g.id,g.name,g.phone,s.token FROM guest_sessions s JOIN guests g ON g.id=s.guest_id WHERE s.token=? AND s.expires_at>CURRENT_TIMESTAMP").bind(token).first();
+};
+const guestCookie=token=>"guest_session="+encodeURIComponent(token)+"; Path=/; Max-Age=2592000; HttpOnly; Secure; SameSite=Lax";
+const clearGuestCookie="guest_session=; Path=/; Max-Age=0; HttpOnly; Secure; SameSite=Lax";
 
 const json = (data, status = 200) =>
   Response.json(data, { status, headers: { "cache-control": "no-store" } });
@@ -215,7 +233,7 @@ const refreshCocktailPrice = async (env, cocktailId) => {
   return {cost,price};
 };
 
-const BUILD_VERSION = "2026-10-05-russian-ui-inventory-strength-v2";
+const BUILD_VERSION = "2026-10-05-guest-accounts-orders-reviews-v1";
 
 const calculateCocktailStrength = (recipeItems) => {
   let alcoholMl = 0;
@@ -394,6 +412,63 @@ export default {
         if(!headers.get("content-type")){const ext=key.split(".").pop().toLowerCase();const ct={jpg:"image/jpeg",jpeg:"image/jpeg",png:"image/png",webp:"image/webp",gif:"image/gif"}[ext];if(ct)headers.set("content-type",ct);}
         headers.set("x-content-type-options","nosniff");
         return new Response(object.body,{headers});
+      }
+
+      if (url.pathname === "/api/guest/me" && request.method === "GET") {
+        const guest=await getGuest(request,env); return json({authenticated:!!guest,guest:guest?{id:guest.id,name:guest.name,phone:guest.phone}:null});
+      }
+      if (url.pathname === "/api/guest/auth" && request.method === "POST") {
+        await ensureGuestSystem(env); const data=await request.json().catch(()=>({}));
+        const name=String(data.name||"").trim().replace(/\s+/g," "),phone=normalizePhone(data.phone);
+        if(name.length<2)return json({error:"Укажите имя"},400);
+        if(!/^\+?\d{10,15}$/.test(phone))return json({error:"Укажите корректный номер телефона"},400);
+        let guest=await env.DB.prepare("SELECT id,name,phone FROM guests WHERE phone=?").bind(phone).first();
+        if(guest){await env.DB.prepare("UPDATE guests SET name=?,updated_at=CURRENT_TIMESTAMP WHERE id=?").bind(name,guest.id).run();}
+        else{const r=await env.DB.prepare("INSERT INTO guests(name,phone) VALUES(?,?)").bind(name,phone).run();guest=await env.DB.prepare("SELECT id,name,phone FROM guests WHERE id=?").bind(Number(r.meta.last_row_id)).first();}
+        guest=await env.DB.prepare("SELECT id,name,phone FROM guests WHERE phone=?").bind(phone).first();
+        const token=crypto.randomUUID()+"."+crypto.randomUUID();
+        await env.DB.prepare("INSERT INTO guest_sessions(token,guest_id,expires_at) VALUES(?,?,datetime('now','+30 days'))").bind(token,guest.id).run();
+        const response=json({ok:true,guest}); response.headers.append("Set-Cookie",guestCookie(token)); return response;
+      }
+      if (url.pathname === "/api/guest/logout" && request.method === "POST") {
+        const token=parseCookies(request).guest_session; if(token){await ensureGuestSystem(env);await env.DB.prepare("DELETE FROM guest_sessions WHERE token=?").bind(token).run();}
+        const response=json({ok:true}); response.headers.append("Set-Cookie",clearGuestCookie); return response;
+      }
+      if (url.pathname === "/api/guest/order" && request.method === "POST") {
+        const guest=await getGuest(request,env); if(!guest)return json({error:"Сначала войдите в личный кабинет"},401);
+        await ensureBarOrderSystem(env); const payload=await request.json().catch(()=>({})); const raw=Array.isArray(payload.items)?payload.items:[]; if(!raw.length)return json({error:"В заказе ничего нет"},400);
+        const items=[]; for(const x of raw){const id=Number(x.cocktail_id),q=Math.floor(Number(x.quantity||0));if(!Number.isInteger(id)||id<1||q<=0)continue;const c=await env.DB.prepare("SELECT id,name,price_rub FROM cocktails WHERE id=? AND is_active=1").bind(id).first();if(!c)return json({error:"Коктейль не найден"},400);items.push({cocktail_id:id,quantity:q,price_rub:Number(c.price_rub||0)});}
+        if(!items.length)return json({error:"В заказе ничего нет"},400);
+        const required=new Map(); for(const x of items){const r=await env.DB.prepare("SELECT ingredient_id,quantity FROM recipe_ingredients WHERE cocktail_id=?").bind(x.cocktail_id).all();for(const row of (r.results||[])){const id=Number(row.ingredient_id);required.set(id,Number(required.get(id)||0)+Number(row.quantity||0)*x.quantity);}}
+        const stock=new Map((await getProducts(env)).map(x=>[Number(x.ingredient_id),Number(x.stock||0)])),shortages=[];
+        for(const [id,q] of required){const have=Number(stock.get(id)||0);if(have+0.000001<q){const ing=await env.DB.prepare("SELECT name,unit FROM ingredients WHERE id=?").bind(id).first();shortages.push((ing?.name||("Ингредиент #"+id))+" — доступно "+have.toLocaleString("ru-RU")+" "+formatUnitLabelServer(ing?.unit)+", нужно "+q.toLocaleString("ru-RU")+" "+formatUnitLabelServer(ing?.unit));}}
+        if(shortages.length)return json({error:"Сейчас не хватает: "+shortages.join(", ")},409);
+        const shift=await ensureOpenBarShift(env),total=items.reduce((sum,x)=>sum+x.quantity*x.price_rub,0);
+        const r=await env.DB.prepare("INSERT INTO bar_orders(shift_id,guest_id,source,status,price_total) VALUES(?,?,?,'pending',?)").bind(shift.id,guest.id,"guest",total).run();
+        const orderId=Number(r.meta.last_row_id); await env.DB.batch(items.map(x=>env.DB.prepare("INSERT INTO bar_order_items(order_id,cocktail_id,quantity,price_rub) VALUES(?,?,?,?)").bind(orderId,x.cocktail_id,x.quantity,x.price_rub)));
+        return json({ok:true,order_id:orderId,total_cocktails:items.reduce((n,x)=>n+x.quantity,0),total_price:total},201);
+      }
+      if (url.pathname === "/api/guest/orders" && request.method === "GET") {
+        const guest=await getGuest(request,env); if(!guest)return json({error:"Необходим вход"},401); await ensureGuestSystem(env);
+        const {results}=await env.DB.prepare("SELECT o.id,o.status,o.created_at,o.accepted_at,o.price_total,oi.cocktail_id,oi.quantity,oi.price_rub,c.name cocktail_name,r.id review_id,r.rating,r.comment FROM bar_orders o JOIN bar_order_items oi ON oi.order_id=o.id JOIN cocktails c ON c.id=oi.cocktail_id LEFT JOIN reviews r ON r.order_id=o.id AND r.cocktail_id=oi.cocktail_id AND r.guest_id=o.guest_id WHERE o.guest_id=? AND o.status IN ('pending','accepted') ORDER BY o.id DESC,oi.id").bind(guest.id).all();
+        const map=new Map(); for(const row of (results||[])){if(!map.has(row.id))map.set(row.id,{id:row.id,status:row.status,created_at:row.created_at,accepted_at:row.accepted_at,price_total:Number(row.price_total||0),items:[]});map.get(row.id).items.push({cocktail_id:row.cocktail_id,cocktail_name:row.cocktail_name,quantity:row.quantity,price_rub:Number(row.price_rub||0),review_id:row.review_id,rating:row.rating,comment:row.comment||""});}
+        return json({orders:[...map.values()]});
+      }
+      if (url.pathname === "/api/guest/review" && request.method === "POST") {
+        const guest=await getGuest(request,env); if(!guest)return json({error:"Необходим вход"},401); await ensureGuestSystem(env); const d=await request.json().catch(()=>({}));
+        const orderId=Number(d.order_id),cocktailId=Number(d.cocktail_id),rating=Math.floor(Number(d.rating)),comment=String(d.comment||"").trim();
+        if(!orderId||!cocktailId||rating<1||rating>5)return json({error:"Оценка должна быть от 1 до 5"},400);
+        const owned=await env.DB.prepare("SELECT id FROM bar_orders WHERE id=? AND guest_id=? AND status='accepted'").bind(orderId,guest.id).first(); if(!owned)return json({error:"Этот заказ нельзя оценить"},403);
+        const item=await env.DB.prepare("SELECT id FROM bar_order_items WHERE order_id=? AND cocktail_id=?").bind(orderId,cocktailId).first(); if(!item)return json({error:"Коктейль отсутствует в заказе"},400);
+        await env.DB.prepare("INSERT INTO reviews(guest_id,cocktail_id,order_id,rating,comment) VALUES(?,?,?,?,?) ON CONFLICT(guest_id,order_id,cocktail_id) DO UPDATE SET rating=excluded.rating,comment=excluded.comment").bind(guest.id,cocktailId,orderId,rating,comment).run();
+        return json({ok:true});
+      }
+      if (url.pathname === "/api/guest/statistics" && request.method === "GET") {
+        const guest=await getGuest(request,env); if(!guest)return json({error:"Необходим вход"},401);
+        const totals=await env.DB.prepare("SELECT COALESCE(SUM(oi.quantity),0) cocktails,COALESCE(SUM(oi.quantity*oi.price_rub),0) spent,COUNT(DISTINCT o.id) orders FROM bar_orders o JOIN bar_order_items oi ON oi.order_id=o.id WHERE o.guest_id=? AND o.status='accepted'").bind(guest.id).first();
+        const top=await env.DB.prepare("SELECT c.id,c.name,SUM(oi.quantity) quantity FROM bar_orders o JOIN bar_order_items oi ON oi.order_id=o.id JOIN cocktails c ON c.id=oi.cocktail_id WHERE o.guest_id=? AND o.status='accepted' GROUP BY c.id,c.name ORDER BY quantity DESC,c.name LIMIT 5").bind(guest.id).all();
+        const rating=await env.DB.prepare("SELECT ROUND(AVG(rating),1) avg_rating,COUNT(*) reviews_count FROM reviews WHERE guest_id=?").bind(guest.id).first();
+        return json({totals:{cocktails:Number(totals?.cocktails||0),spent:Number(totals?.spent||0),orders:Number(totals?.orders||0)},top:top.results||[],rating:{avg:Number(rating?.avg_rating||0),count:Number(rating?.reviews_count||0)}});
       }
 
       if (url.pathname === "/api/cocktails" && request.method === "GET") {
