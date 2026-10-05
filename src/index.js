@@ -825,7 +825,7 @@ const load=async()=>{
       '</div></div>'+
       '<div class="cocktail-price">'+Number(c.price_rub||0)+' ₽</div>'+
       '<div class="cocktail-section"><div class="cocktail-section-title">Состав</div>'+
-      (c.recipe_items?.length?'<div class="recipe-list">'+c.recipe_items.map(i=>'<div class="recipe-line" data-ingredient-id="'+i.ingredient_id+'" data-recipe-qty="'+Number(i.quantity||0)+'"><div class="recipe-name">'+esc(i.ingredient_name)+'<span class="recipe-stock" data-stock="'+Number(i.stock_available||0)+'" data-unit="'+esc(unitLabel(i.unit))+'">остаток: '+fmtQty(i.stock_available)+' '+unitLabel(i.unit)+'</span></div><div class="recipe-qty">'+fmtQty(i.quantity)+' '+unitLabel(i.unit)+'</div></div>').join("")+'</div>':'<span class="muted">Не указан</span>')+
+      (c.recipe_items?.length?'<div class="recipe-list">'+c.recipe_items.map(i=>'<div class="recipe-line" data-ingredient-id="'+i.ingredient_id+'" data-recipe-qty="'+Number(i.quantity||0)+'" data-base-stock="'+Number(i.stock_available||0)+'"><div class="recipe-name">'+esc(i.ingredient_name)+'<span class="recipe-stock" data-stock="'+Number(i.stock_available||0)+'" data-unit="'+esc(unitLabel(i.unit))+'">остаток: '+fmtQty(i.stock_available)+' '+unitLabel(i.unit)+'</span></div><div class="recipe-qty">'+fmtQty(i.quantity)+' '+unitLabel(i.unit)+'</div></div>').join("")+'</div>':'<span class="muted">Не указан</span>')+
       '</div>'+
       ((c.method||c.glass)?'<div class="cocktail-info-grid">'+
         (c.method?'<div class="cocktail-info">🥄 <b>Приготовление</b><br>'+esc(c.method)+'</div>':"")+
@@ -854,20 +854,73 @@ const load=async()=>{
 };
 async function loadOrderBar(){const r=await fetch("/api/bar/order");if(!r.ok)return;draft=await r.json();enhanceOrderControls();renderOrderSummary()}
 function draftQty(id){return Number((draft.items||[]).find(x=>Number(x.cocktail_id)===Number(id))?.quantity||0)}
-function enhanceOrderControls(){document.querySelectorAll(".order-controls").forEach(x=>x.remove());document.querySelectorAll(".cocktail-card").forEach(card=>{const edit=card.querySelector(".edit-cocktail");if(!edit)return;const id=Number(edit.dataset.id),qty=draftQty(id);const box=document.createElement("div");box.className="order-controls row";box.style.cssText="justify-content:center";const minus=document.createElement("button");minus.type="button";minus.className="secondary";minus.textContent="−";minus.setAttribute("aria-label","Убрать коктейль");minus.disabled=qty<=0;minus.onclick=()=>changeOrder(id,-1);const count=document.createElement("span");count.textContent=String(qty);count.setAttribute("aria-label","Количество");const plus=document.createElement("button");plus.type="button";plus.textContent="+";plus.setAttribute("aria-label","Добавить коктейль");plus.onclick=()=>changeOrder(id,1);box.append(minus,count,plus);card.querySelector(".cocktail-card-body").appendChild(box)})}
+function enhanceOrderControls(){
+  document.querySelectorAll(".order-controls").forEach(x=>x.remove());
+  document.querySelectorAll(".cocktail-card").forEach(card=>{
+    const edit=card.querySelector(".edit-cocktail"); if(!edit)return;
+    const id=Number(edit.dataset.id),qty=draftQty(id);
+    const box=document.createElement("div");
+    box.className="order-controls row";
+    box.style.cssText="justify-content:center";
+    const minus=document.createElement("button");
+    minus.type="button"; minus.className="secondary"; minus.textContent="−";
+    minus.setAttribute("aria-label","Убрать коктейль");
+    minus.disabled=qty<=0;
+    minus.onclick=()=>changeOrder(id,-1);
+    const count=document.createElement("span");
+    count.textContent=String(qty); count.setAttribute("aria-label","Количество");
+    const plus=document.createElement("button");
+    plus.type="button"; plus.textContent="+";
+    plus.setAttribute("aria-label","Добавить коктейль");
+    plus.onclick=()=>changeOrder(id,1);
+    box.append(minus,count,plus);
+    card.querySelector(".cocktail-card-body").appendChild(box);
+  });
+  refreshOrderAvailability();
+}
+function refreshOrderAvailability(){
+  const reserved=new Map();
+  for(const item of (draft.items||[])){
+    const cocktail=cocktailCatalog.get(Number(item.cocktail_id));
+    for(const ri of (cocktail?.recipe_items||[])){
+      const ingredientId=Number(ri.ingredient_id);
+      const used=Number(ri.quantity||0)*Number(item.quantity||0);
+      reserved.set(ingredientId,Number(reserved.get(ingredientId)||0)+used);
+    }
+  }
+  document.querySelectorAll(".cocktail-card").forEach(card=>{
+    const edit=card.querySelector(".edit-cocktail"); if(!edit)return;
+    const cocktailId=Number(edit.dataset.id);
+    let unavailable=false;
+    card.querySelectorAll(".recipe-line").forEach(line=>{
+      const ingredientId=Number(line.dataset.ingredientId);
+      const recipeQty=Number(line.dataset.recipeQty||0);
+      const base=Number(line.dataset.baseStock||0);
+      const stock=Math.max(0,base-Number(reserved.get(ingredientId)||0));
+      const stockEl=line.querySelector(".recipe-stock");
+      if(stockEl){
+        stockEl.dataset.stock=String(stock);
+        stockEl.textContent="остаток: "+fmtQty(stock)+" "+(stockEl.dataset.unit||"");
+      }
+      if(stock+0.000001<recipeQty) unavailable=true;
+    });
+    card.classList.toggle("unavailable",unavailable);
+    const plus=card.querySelector(".order-controls button:not(.secondary)");
+    if(plus) plus.disabled=unavailable;
+    const minus=card.querySelector(".order-controls button.secondary");
+    const qty=draftQty(cocktailId);
+    if(minus) minus.disabled=qty<=0;
+  });
+}
 function optimisticOrderVisual(id,delta){
   const edit=document.querySelector('.edit-cocktail[data-id="'+id+'"]');
   const card=edit?.closest(".cocktail-card"); if(!card)return;
   const controls=card.querySelector(".order-controls"),count=controls?.querySelector("span");
-  if(count){count.textContent=String(Math.max(0,Number(count.textContent||0)+delta));count.classList.add("order-count-pop");setTimeout(()=>count.classList.remove("order-count-pop"),180)}
-  if(controls){const minus=controls.querySelector("button.secondary");if(minus)minus.disabled=Number(count?.textContent||0)<=0}
-  card.querySelectorAll(".recipe-line").forEach(line=>{
-    const stock=line.querySelector(".recipe-stock"),qty=Number(line.dataset.recipeQty||0);
-    if(!stock||!(qty>0))return;
-    const next=Math.max(0,Number(stock.dataset.stock||0)-delta*qty);
-    stock.dataset.stock=String(next);stock.textContent="остаток: "+fmtQty(next)+" "+(stock.dataset.unit||"");
-  });
-  card.classList.toggle("unavailable",Array.from(card.querySelectorAll(".recipe-stock")).some(x=>Number(x.dataset.stock||0)+.000001<Number(x.closest(".recipe-line")?.dataset.recipeQty||0)));
+  if(count){
+    count.textContent=String(Math.max(0,Number(count.textContent||0)+delta));
+    count.classList.add("order-count-pop");
+    setTimeout(()=>count.classList.remove("order-count-pop"),180);
+  }
 }
 function optimisticDraftChange(id,delta){
   const items=draft.items||[];
@@ -886,11 +939,17 @@ function optimisticDraftChange(id,delta){
   draft.total_price=(draft.items||[]).reduce((n,x)=>n+Number(x.quantity||0)*Number(x.price_rub||0),0);
 }
 function changeOrder(id,delta){
-  optimisticOrderVisual(id,delta);
+  if(delta>0){
+    const card=document.querySelector('.edit-cocktail[data-id="'+id+'"]')?.closest(".cocktail-card");
+    const plus=card?.querySelector(".order-controls button:not(.secondary)");
+    if(plus?.disabled)return;
+  }
   optimisticDraftChange(id,delta);
+  optimisticOrderVisual(id,delta);
+  refreshOrderAvailability();
   renderOrderSummary();
 }
-function renderOrderSummary(){const box=document.querySelector("#orderSummary");if(!box)return;const items=draft.items||[];if(!items.length){box.innerHTML="";return}box.innerHTML="";const card=document.createElement("div");card.className="card";card.style.cssText="margin:14px 0;position:sticky;bottom:10px;z-index:5;box-shadow:0 12px 40px #000;border-color:#3b3b3b";const title=document.createElement("h3");title.textContent="📋 Текущий заказ";card.appendChild(title);const sh=document.createElement("div");sh.className="muted";sh.textContent="Смена №"+(draft.shift?.id||"—");card.appendChild(sh);items.forEach(x=>{const row=document.createElement("div");row.style.padding="5px 0";row.textContent=x.cocktail_name+" × "+x.quantity;card.appendChild(row)});const total=document.createElement("div");total.style.marginTop="6px";total.textContent="Всего коктейлей: "+Number(draft.total_cocktails||0)+" · Сумма: "+Number(draft.total_price||0).toFixed(0)+" ₽";card.appendChild(total);const actions=document.createElement("div");actions.className="row";actions.style.marginTop="10px";const accept=document.createElement("button");accept.textContent="✅ Принять заказ";accept.onclick=async()=>{if(!(draft.items||[]).length)return;accept.disabled=true;const r=await fetch("/api/bar/order/accept",{method:"POST",headers:{"content-type":"application/json"},body:JSON.stringify({items:(draft.items||[]).map(x=>({cocktail_id:Number(x.cocktail_id),quantity:Number(x.quantity||0)}))})}),d=await r.json().catch(()=>({}));if(!r.ok){accept.disabled=false;alert(d.error||"Не удалось принять заказ");return}location.reload()};const clear=document.createElement("button");clear.className="secondary";clear.textContent="Очистить";clear.onclick=async()=>{if(!confirm("Очистить текущий заказ?"))return;for(const item of (draft.items||[])){optimisticOrderVisual(Number(item.cocktail_id),-Number(item.quantity||0));}draft={shift:draft.shift,order:null,items:[],total_cocktails:0,total_price:0};enhanceOrderControls();renderOrderSummary();fetch("/api/bar/order",{method:"DELETE"}).catch(()=>{});};actions.append(accept,clear);card.appendChild(actions);box.appendChild(card)}
+function renderOrderSummary(){const box=document.querySelector("#orderSummary");if(!box)return;const items=draft.items||[];if(!items.length){box.innerHTML="";return}box.innerHTML="";const card=document.createElement("div");card.className="card";card.style.cssText="margin:14px 0;position:sticky;bottom:10px;z-index:5;box-shadow:0 12px 40px #000;border-color:#3b3b3b";const title=document.createElement("h3");title.textContent="📋 Текущий заказ";card.appendChild(title);const sh=document.createElement("div");sh.className="muted";sh.textContent="Смена №"+(draft.shift?.id||"—");card.appendChild(sh);items.forEach(x=>{const row=document.createElement("div");row.style.padding="5px 0";row.textContent=x.cocktail_name+" × "+x.quantity;card.appendChild(row)});const total=document.createElement("div");total.style.marginTop="6px";total.textContent="Всего коктейлей: "+Number(draft.total_cocktails||0)+" · Сумма: "+Number(draft.total_price||0).toFixed(0)+" ₽";card.appendChild(total);const actions=document.createElement("div");actions.className="row";actions.style.marginTop="10px";const accept=document.createElement("button");accept.textContent="✅ Принять заказ";accept.onclick=async()=>{if(!(draft.items||[]).length)return;accept.disabled=true;const r=await fetch("/api/bar/order/accept",{method:"POST",headers:{"content-type":"application/json"},body:JSON.stringify({items:(draft.items||[]).map(x=>({cocktail_id:Number(x.cocktail_id),quantity:Number(x.quantity||0)}))})}),d=await r.json().catch(()=>({}));if(!r.ok){accept.disabled=false;alert(d.error||"Не удалось принять заказ");return}location.reload()};const clear=document.createElement("button");clear.className="secondary";clear.textContent="Очистить";clear.onclick=async()=>{if(!confirm("Очистить текущий заказ?"))return;for(const item of (draft.items||[])){optimisticOrderVisual(Number(item.cocktail_id),-Number(item.quantity||0));}draft={shift:draft.shift,order:null,items:[],total_cocktails:0,total_price:0};enhanceOrderControls();refreshOrderAvailability();renderOrderSummary();fetch("/api/bar/order",{method:"DELETE"}).catch(()=>{});};actions.append(accept,clear);card.appendChild(actions);box.appendChild(card)}
 const showPanel=()=>{
   const panel=document.querySelector("#cocktailPanel");
   panel.hidden=false;
