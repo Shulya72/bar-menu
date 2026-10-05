@@ -129,7 +129,11 @@ h1{margin:0;font-size:22px}h2{margin:0 0 8px}h3{margin:0 0 6px}.sub{color:#999;m
 .wrap{max-width:980px;margin:auto;padding:16px}.grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(270px,1fr));gap:14px}
 .card{border:1px solid #292929;border-radius:18px;padding:18px;background:#111}
 .cocktail-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(310px,1fr));gap:18px;margin-top:4px}
-.cocktail-card{overflow:hidden;padding:0;display:flex;flex-direction:column;background:linear-gradient(180deg,#151515 0%,#101010 100%);border-color:#303030;box-shadow:0 12px 30px rgba(0,0,0,.22)}
+.cocktail-card{overflow:hidden;padding:0;display:flex;flex-direction:column;background:linear-gradient(180deg,#151515 0%,#101010 100%);border-color:#303030;box-shadow:0 12px 30px rgba(0,0,0,.22);transition:filter .2s ease,opacity .2s ease,border-color .2s ease}
+.cocktail-card.unavailable{filter:grayscale(1);opacity:.48;border-color:#242424}
+.cocktail-card.unavailable .cocktail-photo{filter:grayscale(1)}
+.cocktail-card.unavailable .strength-pill{background:#555;color:#ddd}
+.cocktail-unavailable{margin-top:10px;padding:7px 10px;border-radius:10px;background:#242424;color:#999;font-size:13px;font-weight:700}
 .cocktail-photo-wrap{position:relative;overflow:hidden;background:#181818}
 .cocktail-photo-wrap:after{content:"";position:absolute;inset:45% 0 0;background:linear-gradient(180deg,transparent,rgba(0,0,0,.45));pointer-events:none}
 .cocktail-photo{width:100%;aspect-ratio:16/9;object-fit:cover;display:block;background:#181818;transition:transform .25s ease}
@@ -783,7 +787,7 @@ let draft={shift:null,order:null,items:[]};const load=async()=>{
   const cocktails=await cr.json(); products=await pr.json();
   document.querySelector("#cocktailCount").textContent=cocktails.length ? cocktails.length+" шт." : "";
   document.querySelector("#list").innerHTML=cocktails.length
-    ? '<div class="cocktail-grid">'+cocktails.map(c=>'<article class="card cocktail-card">'+
+    ? '<div class="cocktail-grid">'+cocktails.map(c=>{const unavailable=(c.recipe_items||[]).some(i=>Number(i.stock_available||0)<Number(i.quantity||0));return '<article class="card cocktail-card'+(unavailable?' unavailable':'')+'">'+
       (c.photo_url?'<div class="cocktail-photo-wrap"><img class="cocktail-photo" src="'+esc(c.photo_url)+'" alt="Фото '+esc(c.name)+'"></div>':'<div class="cocktail-photo-wrap"><div class="cocktail-photo-placeholder">🍸</div></div>')+
       '<div class="cocktail-card-body"><div class="cocktail-card-head"><div style="min-width:0;flex:1">'+
       '<div class="cocktail-title-row"><h3>'+esc(c.name)+'</h3></div>'+
@@ -801,7 +805,8 @@ let draft={shift:null,order:null,items:[]};const load=async()=>{
         (c.method?'<div class="cocktail-info">🥄 <b>Приготовление</b><br>'+esc(c.method)+'</div>':"")+
         (c.glass?'<div class="cocktail-info">🧰 <b>Инвентарь</b><br><span style="white-space:pre-line">'+esc(c.glass)+'</span></div>':"")+
       '</div>':"")+
-      '</div></article>').join("")+'</div>'
+      (unavailable?'<div class="cocktail-unavailable">⚠️ Недостаточно ингредиентов</div>':"")+
+      '</div></article>'}).join("")+'</div>'
     : '<div class="empty">Пока коктейлей нет. Создай первый 👇</div>';
   document.querySelectorAll(".edit-cocktail").forEach(btn=>btn.onclick=()=>startEdit(cocktails.find(c=>Number(c.id)===Number(btn.dataset.id))));
   document.querySelectorAll(".delete-cocktail").forEach(btn=>btn.onclick=async()=>{
