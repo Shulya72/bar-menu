@@ -597,6 +597,28 @@ export default {
         const totalPrice=Number(draft.total_price||0);await env.DB.prepare("UPDATE bar_orders SET status='accepted',accepted_at=CURRENT_TIMESTAMP,price_total=? WHERE id=?").bind(totalPrice,order.id).run();
         return json({ok:true,order_id:order.id,total_cocktails:draft.total_cocktails,total_price:totalPrice});
       }
+      if (url.pathname === "/api/bar/guest-orders" && request.method === "GET") {
+        await ensureGuestSystem(env);
+        const {results}=await env.DB.prepare("SELECT o.id,o.status,o.created_at,o.price_total,g.name guest_name,g.phone guest_phone,oi.cocktail_id,oi.quantity,oi.price_rub,c.name cocktail_name FROM bar_orders o JOIN guests g ON g.id=o.guest_id JOIN bar_order_items oi ON oi.order_id=o.id JOIN cocktails c ON c.id=oi.cocktail_id WHERE o.source='guest' AND o.status='pending' ORDER BY o.id ASC,oi.id").all();
+        const map=new Map(); for(const row of (results||[])){if(!map.has(row.id))map.set(row.id,{id:row.id,status:row.status,created_at:row.created_at,guest_name:row.guest_name,guest_phone:row.guest_phone,price_total:Number(row.price_total||0),items:[]});map.get(row.id).items.push({cocktail_id:row.cocktail_id,cocktail_name:row.cocktail_name,quantity:row.quantity,price_rub:Number(row.price_rub||0)});}
+        return json({orders:[...map.values()]});
+      }
+      if (url.pathname === "/api/bar/guest-order/accept" && request.method === "POST") {
+        await ensureGuestSystem(env); await ensureBarOrderSystem(env);
+        const d=await request.json().catch(()=>({})),orderId=Number(d.order_id);
+        if(!Number.isInteger(orderId)||orderId<1)return json({error:"Некорректный заказ"},400);
+        const order=await env.DB.prepare("SELECT id,status,price_total FROM bar_orders WHERE id=? AND source='guest'").bind(orderId).first();
+        if(!order)return json({error:"Заказ не найден"},404); if(order.status!=="pending")return json({error:"Заказ уже обработан"},409);
+        const {results:items}=await env.DB.prepare("SELECT cocktail_id,quantity FROM bar_order_items WHERE order_id=?").bind(orderId).all();
+        const required=new Map();
+        for(const oi of (items||[])){const r=await env.DB.prepare("SELECT ingredient_id,quantity FROM recipe_ingredients WHERE cocktail_id=?").bind(oi.cocktail_id).all();for(const row of (r.results||[])){const id=Number(row.ingredient_id);required.set(id,Number(required.get(id)||0)+Number(row.quantity||0)*Number(oi.quantity||0));}}
+        const stock=new Map((await getProducts(env)).map(x=>[Number(x.ingredient_id),Number(x.stock||0)])),shortages=[];
+        for(const [id,q] of required){const net=Number(stock.get(id)||0),have=net+q;if(have+0.000001<q){const ing=await env.DB.prepare("SELECT name,unit FROM ingredients WHERE id=?").bind(id).first();shortages.push((ing?.name||("Ингредиент #"+id))+" — доступно "+net.toLocaleString("ru-RU")+" "+formatUnitLabelServer(ing?.unit)+", нужно "+q.toLocaleString("ru-RU")+" "+formatUnitLabelServer(ing?.unit));}}
+        if(shortages.length)return json({error:"Недостаточно ингредиентов: "+shortages.join(", ")},409);
+        for(const [id,q] of required)await consumeIngredientForBarOrder(env,orderId,id,q);
+        await env.DB.prepare("UPDATE bar_orders SET status='accepted',accepted_at=CURRENT_TIMESTAMP WHERE id=?").bind(orderId).run();
+        return json({ok:true,order_id:orderId});
+      }
       if (url.pathname === "/api/bar/statistics" && request.method === "GET") {
         const {results}=await env.DB.prepare("SELECT s.id,s.status,s.started_at,s.closed_at,COUNT(DISTINCT CASE WHEN o.status='accepted' THEN o.id END) orders_count,COALESCE(SUM(CASE WHEN o.status='accepted' THEN oi.quantity ELSE 0 END),0) cocktails_count,COALESCE(SUM(CASE WHEN o.status='accepted' THEN oi.quantity*oi.price_rub ELSE 0 END),0) revenue_rub FROM bar_shifts s LEFT JOIN bar_orders o ON o.shift_id=s.id LEFT JOIN bar_order_items oi ON oi.order_id=o.id GROUP BY s.id ORDER BY s.id DESC LIMIT 100").all();return json({shifts:results||[]});
       }
