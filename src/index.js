@@ -1207,38 +1207,38 @@ renderStock();
 
       if (url.pathname === "/menu") return page(`
 <style>
-.guest-menu{max-width:980px;margin:auto;padding:16px 16px 32px}
-.guest-title{text-align:center;margin:0 0 20px}
-.guest-title span{display:inline-block;padding:9px 25px;border:1px solid #3a3a3a;border-radius:21px;background:#222;color:#eee;font-size:21px;box-shadow:0 2px 12px rgba(0,0,0,.25)}
-.guest-filters{display:grid;grid-template-columns:1fr 1fr;gap:14px;margin-bottom:20px}
-.guest-select,.guest-search{width:100%;height:58px;padding:0 18px;border:1px solid #303030;border-radius:21px;background:#111;color:#aaa;font-size:16px;outline:none}
+.guest-menu{max-width:980px;margin:auto;padding:10px 12px 24px}
+.guest-title{text-align:center;margin:0 0 14px}
+.guest-title span{display:inline-block;padding:7px 20px;border:1px solid #3a3a3a;border-radius:18px;background:#222;color:#eee;font-size:18px;box-shadow:0 2px 12px rgba(0,0,0,.25)}
+.guest-filters{display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-bottom:14px}
+.guest-select,.guest-search{width:100%;height:48px;padding:0 14px;border:1px solid #303030;border-radius:17px;background:#111;color:#aaa;font-size:14px;outline:none}
 .guest-search::placeholder{color:#8c8c8c}
-.guest-random{width:100%;height:64px;margin-bottom:22px;border-radius:23px;background:#6dff00;color:#080808;font-size:22px;font-weight:850;box-shadow:0 7px 20px rgba(109,255,0,.12)}
+.guest-random{width:100%;height:54px;margin-bottom:16px;border-radius:19px;background:#6dff00;color:#080808;font-size:19px;font-weight:800;box-shadow:0 5px 16px rgba(109,255,0,.10)}
 .guest-random:active{transform:scale(.985)}
-.guest-card{overflow:hidden;margin-bottom:14px;padding:18px;border:1px solid #292929;border-radius:18px;background:#111;box-shadow:none}
-.guest-photo{width:100%;aspect-ratio:4/3;object-fit:cover;display:block;border-radius:12px;background:#111}
+.guest-card{overflow:hidden;margin-bottom:12px;padding:14px;border:1px solid #292929;border-radius:16px;background:#111;box-shadow:none}
+.guest-photo{width:100%;aspect-ratio:4/3;object-fit:cover;display:block;border-radius:10px;background:#111}
 .guest-photo-placeholder{width:100%;aspect-ratio:4/3;display:flex;align-items:center;justify-content:center;border-radius:12px;background:#181818;color:#777;font-size:38px}
-.guest-card h2{margin:0 0 8px;font-size:22px;line-height:1.15;color:#f4f4f4;letter-spacing:0}
-.guest-price{font-size:19px;color:#6dff00;font-weight:700;margin-bottom:12px}
-.guest-strength{font-size:15px;color:#aaa;margin-bottom:12px}
-.guest-ingredients{font-size:15px;line-height:1.45;color:#e0e0e0}
+.guest-card h2{margin:0 0 6px;font-size:20px;line-height:1.15;color:#f4f4f4;letter-spacing:0}
+.guest-price{font-size:18px;color:#6dff00;font-weight:700;margin-bottom:9px}
+.guest-strength{font-size:14px;color:#aaa;margin-bottom:9px}
+.guest-ingredients{font-size:14px;line-height:1.4;color:#e0e0e0}
 .guest-empty{padding:34px;text-align:center;color:#888}
 @media(max-width:600px){
-  .guest-menu{padding:14px 12px 28px}
-  .guest-title{margin-bottom:20px}
-  .guest-title span{font-size:21px;padding:9px 24px}
-  .guest-filters{gap:12px;margin-bottom:20px}
-  .guest-select,.guest-search{height:56px;padding:0 17px;font-size:16px;border-radius:20px}
-  .guest-random{height:62px;font-size:21px;margin-bottom:22px}
-  .guest-card{padding:18px;margin-bottom:14px;border-radius:18px}
-  .guest-photo,.guest-photo-placeholder{border-radius:12px}
-  .guest-card h2{font-size:22px;margin-top:0}
-  .guest-price{font-size:19px}
-  .guest-ingredients{font-size:15px}
+  .guest-menu{padding:10px 10px 24px}
+  .guest-title{margin-bottom:14px}
+  .guest-title span{font-size:18px;padding:7px 20px}
+  .guest-filters{gap:10px;margin-bottom:14px}
+  .guest-select,.guest-search{height:48px;padding:0 14px;font-size:14px;border-radius:17px}
+  .guest-random{height:54px;font-size:19px;margin-bottom:16px}
+  .guest-card{padding:14px;margin-bottom:12px;border-radius:16px}
+  .guest-photo,.guest-photo-placeholder{border-radius:10px}
+  .guest-card h2{font-size:20px;margin-top:0}
+  .guest-price{font-size:18px}
+  .guest-ingredients{font-size:14px}
 }
 @media(max-width:430px){
-  .guest-card{padding:18px}
-  .guest-card h2{font-size:22px}
+  .guest-card{padding:14px}
+  .guest-card h2{font-size:20px}
 }
 </style>
 <div class="guest-menu">
