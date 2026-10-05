@@ -1207,38 +1207,38 @@ renderStock();
 
       if (url.pathname === "/menu") return page(`
 <style>
-.guest-menu{max-width:720px;margin:auto;padding:18px 14px 40px}
-.guest-title{text-align:center;margin:0 0 28px}
-.guest-title span{display:inline-block;padding:12px 30px;border:1px solid #3a3a3a;border-radius:24px;background:#222;color:#eee;font-size:24px;box-shadow:0 2px 12px rgba(0,0,0,.25)}
-.guest-filters{display:grid;grid-template-columns:1fr 1fr;gap:18px;margin-bottom:28px}
-.guest-select,.guest-search{width:100%;height:72px;padding:0 22px;border:1px solid #303030;border-radius:26px;background:#111;color:#aaa;font-size:18px;outline:none}
+.guest-menu{max-width:680px;margin:auto;padding:14px 12px 32px}
+.guest-title{text-align:center;margin:0 0 20px}
+.guest-title span{display:inline-block;padding:9px 25px;border:1px solid #3a3a3a;border-radius:21px;background:#222;color:#eee;font-size:21px;box-shadow:0 2px 12px rgba(0,0,0,.25)}
+.guest-filters{display:grid;grid-template-columns:1fr 1fr;gap:14px;margin-bottom:20px}
+.guest-select,.guest-search{width:100%;height:58px;padding:0 18px;border:1px solid #303030;border-radius:21px;background:#111;color:#aaa;font-size:16px;outline:none}
 .guest-search::placeholder{color:#8c8c8c}
-.guest-random{width:100%;height:86px;margin-bottom:32px;border-radius:30px;background:#6dff00;color:#080808;font-size:27px;font-weight:850;box-shadow:0 7px 20px rgba(109,255,0,.12)}
+.guest-random{width:100%;height:64px;margin-bottom:22px;border-radius:23px;background:#6dff00;color:#080808;font-size:22px;font-weight:850;box-shadow:0 7px 20px rgba(109,255,0,.12)}
 .guest-random:active{transform:scale(.985)}
-.guest-card{overflow:hidden;margin-bottom:24px;padding:36px;border:1px solid #333;border-radius:30px;background:#202020;box-shadow:0 4px 18px rgba(0,0,0,.16)}
-.guest-photo{width:100%;aspect-ratio:16/9;object-fit:cover;display:block;border-radius:24px;background:#111}
-.guest-photo-placeholder{width:100%;aspect-ratio:16/9;display:flex;align-items:center;justify-content:center;border-radius:24px;background:#111;color:#777;font-size:48px}
-.guest-card h2{margin:30px 0 10px;font-size:34px;line-height:1.08;color:#f4f4f4;letter-spacing:-.5px}
-.guest-price{font-size:28px;color:#6dff00;font-weight:500;margin-bottom:26px}
-.guest-strength{font-size:21px;color:#aaa;margin-bottom:24px}
-.guest-ingredients{font-size:22px;line-height:1.45;color:#e0e0e0}
+.guest-card{overflow:hidden;margin-bottom:20px;padding:24px;border:1px solid #333;border-radius:24px;background:#202020;box-shadow:0 4px 18px rgba(0,0,0,.16)}
+.guest-photo{width:100%;aspect-ratio:16/9;object-fit:cover;display:block;border-radius:19px;background:#111}
+.guest-photo-placeholder{width:100%;aspect-ratio:16/9;display:flex;align-items:center;justify-content:center;border-radius:19px;background:#111;color:#777;font-size:40px}
+.guest-card h2{margin:22px 0 8px;font-size:28px;line-height:1.12;color:#f4f4f4;letter-spacing:-.4px}
+.guest-price{font-size:24px;color:#6dff00;font-weight:500;margin-bottom:20px}
+.guest-strength{font-size:18px;color:#aaa;margin-bottom:18px}
+.guest-ingredients{font-size:18px;line-height:1.45;color:#e0e0e0}
 .guest-empty{padding:34px;text-align:center;color:#888}
 @media(max-width:600px){
-  .guest-menu{padding:18px 12px 36px}
-  .guest-title{margin-bottom:26px}
-  .guest-title span{font-size:24px;padding:11px 28px}
-  .guest-filters{gap:14px;margin-bottom:28px}
-  .guest-select,.guest-search{height:70px;padding:0 20px;font-size:17px;border-radius:25px}
-  .guest-random{height:86px;font-size:25px;margin-bottom:32px}
-  .guest-card{padding:36px;margin-bottom:24px;border-radius:30px}
-  .guest-photo,.guest-photo-placeholder{border-radius:23px}
-  .guest-card h2{font-size:32px;margin-top:30px}
-  .guest-price{font-size:28px}
-  .guest-ingredients{font-size:21px}
+  .guest-menu{padding:14px 12px 28px}
+  .guest-title{margin-bottom:20px}
+  .guest-title span{font-size:21px;padding:9px 24px}
+  .guest-filters{gap:12px;margin-bottom:20px}
+  .guest-select,.guest-search{height:56px;padding:0 17px;font-size:16px;border-radius:20px}
+  .guest-random{height:62px;font-size:21px;margin-bottom:22px}
+  .guest-card{padding:24px;margin-bottom:20px;border-radius:24px}
+  .guest-photo,.guest-photo-placeholder{border-radius:19px}
+  .guest-card h2{font-size:28px;margin-top:22px}
+  .guest-price{font-size:24px}
+  .guest-ingredients{font-size:18px}
 }
 @media(max-width:430px){
-  .guest-card{padding:36px 36px}
-  .guest-card h2{font-size:31px}
+  .guest-card{padding:24px}
+  .guest-card h2{font-size:28px}
 }
 </style>
 <div class="guest-menu">
