@@ -1536,9 +1536,18 @@ loadStats();
       if (url.pathname === "/bar/orders") return page(`<header><h1>📋 Текущий заказ</h1><div class="sub">＋ и − меняют заказ. Склад резервируется сразу, окончательное списание — после принятия.</div></header>
 <div class="wrap">
 <div class="row" style="margin-bottom:14px"><a href="/" style="display:inline-block;padding:10px 14px;border:1px solid #333;border-radius:12px;background:#151515">🏠 Главное меню</a><a href="/bar/recipes" style="display:inline-block;padding:10px 14px;border:1px solid #333;border-radius:12px;background:#151515">🍸 Книга рецептов</a></div>
+<div style="height:16px"></div><div class="card"><div class="row" style="justify-content:space-between"><h2>🔔 Заказы гостей</h2><button type="button" class="secondary" id="refreshGuestOrders">Обновить</button></div><div id="guestOrders">Загрузка…</div></div>
 <div class="card"><div id="order">Загрузка…</div></div>
 </div>
 <script>
+async function loadGuestOrders(){
+ const r=await fetch("/api/bar/guest-orders",{cache:"no-store"}),d=await r.json(),box=document.querySelector("#guestOrders");
+ if(!r.ok){box.textContent=d.error||"Ошибка";return}
+ box.innerHTML=(d.orders||[]).map(o=>'<div class="card" style="margin-top:12px;background:#151515"><div><b>Заказ #'+o.id+'</b> · 👤 '+esc(o.guest_name)+' · <span class="muted">'+esc(o.guest_phone)+'</span></div><div style="margin-top:8px">'+o.items.map(i=>'<div>'+esc(i.cocktail_name)+' × <b>'+i.quantity+'</b></div>').join("")+'</div><div style="margin-top:7px"><b>'+Number(o.price_total||0).toFixed(0)+' ₽</b></div><button class="accept-guest" data-id="'+o.id+'" style="margin-top:10px">✅ Принять заказ</button></div>').join("")||'<div class="empty">Новых заказов нет.</div>';
+ document.querySelectorAll(".accept-guest").forEach(b=>b.onclick=async()=>{b.disabled=true;const r=await fetch("/api/bar/guest-order/accept",{method:"POST",headers:{"content-type":"application/json"},body:JSON.stringify({order_id:Number(b.dataset.id)})}),d=await r.json();if(!r.ok){b.disabled=false;alert(d.error||"Не удалось принять заказ");return}loadGuestOrders();});
+}
+document.querySelector("#refreshGuestOrders").onclick=loadGuestOrders;
+loadGuestOrders();setInterval(loadGuestOrders,10000);
 async function loadOrder(){
  const r=await fetch("/api/bar/order");const d=await r.json();const box=document.querySelector("#order");
  if(!d.items||!d.items.length){box.innerHTML="<div class=\"empty\">Текущий заказ пуст.<br><a href=\"/bar/recipes\">← Вернуться в книгу рецептов</a></div>";return;}
