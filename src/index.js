@@ -1473,3 +1473,11 @@ const loadStats=async()=>{const box=document.querySelector("#profileContent");co
 loadMe();fetch("/api/cocktails").then(r=>r.json()).then(x=>{cocktails=Array.isArray(x)?x:[];render();}).catch(()=>{document.querySelector("#menu").innerHTML='<div class="guest-card guest-empty">Не удалось загрузить карту бара.</div>';});
 </script>`);
 
+
+      return new Response("Не найдено",{status:404});
+    } catch (error) {
+      console.error(error);
+      return json({error:"Ошибка сервера",details:String(error?.message||error)},500);
+    }
+  }
+};
