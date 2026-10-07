@@ -111,6 +111,80 @@ const resolveIngredient=async(env,name)=>{
   return Number(r.meta.last_row_id);
 };
 
+const ensureGuestAuthSystem=async env=>{
+  await env.DB.prepare("CREATE TABLE IF NOT EXISTS guests (id INTEGER PRIMARY KEY AUTOINCREMENT,name TEXT NOT NULL,phone TEXT UNIQUE,created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP)").run();
+  try{await env.DB.prepare("ALTER TABLE guests ADD COLUMN pin_salt TEXT").run()}catch(e){}
+  try{await env.DB.prepare("ALTER TABLE guests ADD COLUMN pin_hash TEXT").run()}catch(e){}
+  await env.DB.prepare("CREATE TABLE IF NOT EXISTS guest_sessions (id INTEGER PRIMARY KEY AUTOINCREMENT,guest_id INTEGER NOT NULL REFERENCES guests(id) ON DELETE CASCADE,token_hash TEXT NOT NULL UNIQUE,expires_at TEXT NOT NULL,created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP)").run();
+  await env.DB.prepare("CREATE INDEX IF NOT EXISTS idx_guest_sessions_token ON guest_sessions(token_hash)").run();
+  await env.DB.prepare("CREATE INDEX IF NOT EXISTS idx_guest_sessions_guest ON guest_sessions(guest_id)").run();
+  await env.DB.prepare("CREATE TABLE IF NOT EXISTS guest_login_attempts (phone TEXT PRIMARY KEY,attempts INTEGER NOT NULL DEFAULT 0,window_started_at TEXT NOT NULL)").run();
+};
+const normalizeGuestPhone=phone=>{
+  let p=String(phone||"").trim().replace(/[^\d+]/g,"");
+  if(p.startsWith("8")&&p.length===11)p="7"+p.slice(1);
+  if(p.length===10&&/^9\d{9}$/.test(p))p="7"+p;
+  return p;
+};
+const hexFromBytes=bytes=>Array.from(bytes).map(b=>b.toString(16).padStart(2,"0")).join("");
+const bytesFromHex=hex=>new Uint8Array((String(hex||"").match(/.{1,2}/g)||[]).map(x=>parseInt(x,16)));
+const randomHex=length=>{const b=new Uint8Array(length);crypto.getRandomValues(b);return hexFromBytes(b)};
+const deriveGuestPinHash=async(pin,saltHex)=>{
+  const key=await crypto.subtle.importKey("raw",new TextEncoder().encode(String(pin)),"PBKDF2",false,["deriveBits"]);
+  const bits=await crypto.subtle.deriveBits({name:"PBKDF2",salt:bytesFromHex(saltHex),iterations:100000,hash:"SHA-256"},key,256);
+  return hexFromBytes(new Uint8Array(bits));
+};
+const hashGuestToken=async token=>{
+  const digest=await crypto.subtle.digest("SHA-256",new TextEncoder().encode(String(token)));
+  return hexFromBytes(new Uint8Array(digest));
+};
+const guestCookie=token=>"bar_guest_session="+encodeURIComponent(token)+"; Path=/; HttpOnly; Secure; SameSite=Lax; Max-Age=2592000";
+const clearGuestCookie=()=>"bar_guest_session=; Path=/; HttpOnly; Secure; SameSite=Lax; Max-Age=0";
+const guestResponse=(data,status=200,cookie=null)=>{
+  const headers={"cache-control":"no-store"};
+  if(cookie)headers["set-cookie"]=cookie;
+  return Response.json(data,{status,headers});
+};
+const getGuestFromRequest=async(env,request)=>{
+  await ensureGuestAuthSystem(env);
+  const raw=request.headers.get("Cookie")||"";
+  const m=raw.match(/(?:^|;\s*)bar_guest_session=([^;]+)/);
+  if(!m)return null;
+  let token="";
+  try{token=decodeURIComponent(m[1])}catch(e){return null}
+  if(!token)return null;
+  const tokenHash=await hashGuestToken(token);
+  const session=await env.DB.prepare("SELECT s.id session_id,s.expires_at,g.id,g.name,g.phone,g.created_at FROM guest_sessions s JOIN guests g ON g.id=s.guest_id WHERE s.token_hash=? LIMIT 1").bind(tokenHash).first();
+  if(!session)return null;
+  if(Date.parse(String(session.expires_at))<=Date.now()){await env.DB.prepare("DELETE FROM guest_sessions WHERE id=?").bind(session.session_id).run();return null}
+  return {id:Number(session.id),name:String(session.name||""),phone:String(session.phone||""),created_at:session.created_at,session_id:Number(session.session_id)};
+};
+const createGuestSession=async(env,guestId)=>{
+  const token=randomHex(32),tokenHash=await hashGuestToken(token),expires=new Date(Date.now()+30*24*60*60*1000).toISOString();
+  await env.DB.prepare("INSERT INTO guest_sessions(guest_id,token_hash,expires_at) VALUES(?,?,?)").bind(guestId,tokenHash,expires).run();
+  return token;
+};
+const getGuestOrderStats=async(env,guestId)=>{
+  const stats=await env.DB.prepare("SELECT COUNT(*) orders_count,COALESCE(SUM(oi.quantity),0) cocktails_count,COALESCE(SUM(oi.quantity*oi.unit_price_rub),0) spent_rub FROM orders o LEFT JOIN order_items oi ON oi.order_id=o.id WHERE o.guest_id=? AND o.status='accepted'").bind(guestId).first();
+  return {orders_count:Number(stats?.orders_count||0),cocktails_count:Number(stats?.cocktails_count||0),spent_rub:Number(stats?.spent_rub||0)};
+};
+const getGuestOrders=async(env,guestId)=>{
+  const {results}=await env.DB.prepare("SELECT o.id,o.status,o.total_rub,o.created_at,o.accepted_at,COALESCE(GROUP_CONCAT(c.name||' × '||oi.quantity,', '),'') items FROM orders o LEFT JOIN order_items oi ON oi.order_id=o.id LEFT JOIN cocktails c ON c.id=oi.cocktail_id WHERE o.guest_id=? GROUP BY o.id ORDER BY o.id DESC LIMIT 50").bind(guestId).all();
+  return results||[];
+};
+const getPendingGuestOrdersForBar=async env=>{
+  const {results}=await env.DB.prepare("SELECT o.id,o.status,o.total_rub,o.created_at,g.name guest_name,COALESCE(GROUP_CONCAT(c.name||' × '||oi.quantity,', '),'') items FROM orders o JOIN guests g ON g.id=o.guest_id LEFT JOIN order_items oi ON oi.order_id=o.id LEFT JOIN cocktails c ON c.id=oi.cocktail_id WHERE o.status='pending' GROUP BY o.id ORDER BY o.id ASC").all();
+  return results||[];
+};
+const consumeIngredientForGuestOrder=async(env,orderId,ingredientId,quantity)=>{
+  let left=Number(quantity||0);
+  const {results}=await env.DB.prepare("SELECT pb.id,pb.remaining_qty FROM purchase_batches pb JOIN products p ON p.id=pb.product_id WHERE p.ingredient_id=? AND p.is_active=1 AND pb.remaining_qty>0 ORDER BY pb.purchased_at ASC,pb.id ASC").bind(ingredientId).all();
+  for(const batch of (results||[])){if(left<=0)break;const take=Math.min(left,Number(batch.remaining_qty||0));if(take>0){await env.DB.prepare("UPDATE purchase_batches SET remaining_qty=remaining_qty-? WHERE id=?").bind(take,batch.id).run();left-=take}}
+  if(left>0){await ensureStockAdjustmentSystem(env);await env.DB.prepare("INSERT INTO stock_adjustments(ingredient_id,quantity,unit_price,brand,store) VALUES(?,?,?,?,?)").bind(ingredientId,-left,0,"Заказ гостя #"+orderId,"Списание").run()}
+  const product=await env.DB.prepare("SELECT id FROM products WHERE ingredient_id=? AND is_active=1 ORDER BY id LIMIT 1").bind(ingredientId).first();
+  if(product)await env.DB.prepare("INSERT INTO stock_movements(product_id,batch_id,movement_type,quantity,order_id,note) VALUES(?,?,?,?,?,?)").bind(Number(product.id),null,"guest_order",-Number(quantity||0),orderId,"Заказ гостя #"+orderId).run();
+};
+
 const json = (data, status = 200) =>
   Response.json(data, { status, headers: { "cache-control": "no-store" } });
 
