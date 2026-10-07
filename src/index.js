@@ -741,7 +741,7 @@ export default {
       if (url.pathname === "/bar") return page(`
 <header><h1>👨‍🍳 Меню бармена</h1><div class="sub">Рабочая часть</div></header>
 <div class="wrap">
-<div class="row" style="margin-bottom:14px"><a href="/" style="display:inline-block;padding:10px 14px;border:1px solid #333;border-radius:12px;background:#151515">🏠 Главное меню</a></div>
+<div class="row" style="margin-bottom:14px"><a href="/bar" style="display:inline-block;padding:10px 14px;border:1px solid #333;border-radius:12px;background:#151515">🏠 Главное меню</a></div>
 <div class="grid">
 <a class="card" href="/bar/recipes"><h2>🍸 Книга рецептов</h2><p class="muted">Создание коктейлей и рецептур</p></a>
 <a class="card" href="/bar/ingredients"><h2>🧾 Ингредиенты</h2><p class="muted">Ваш справочник ингредиентов</p></a>
@@ -754,7 +754,7 @@ export default {
       if (url.pathname === "/bar/recipes") return page(`
 <header><h1>🍸 Книга рецептов</h1><div class="sub">Рецепт здесь — источник для гостевой «Карты бара»</div></header>
 <div class="wrap">
-  <div class="row" style="margin-bottom:14px"><a href="/" style="display:inline-block;padding:10px 14px;border:1px solid #333;border-radius:12px;background:#151515">🏠 Главное меню</a></div>
+  <div class="row" style="margin-bottom:14px"><a href="/bar" style="display:inline-block;padding:10px 14px;border:1px solid #333;border-radius:12px;background:#151515">🏠 Главное меню</a></div>
   <div class="row" style="margin-bottom:16px">
     <button type="button" id="newCocktailBtn">＋ Создать коктейль</button>
   </div>
@@ -1057,7 +1057,7 @@ loadOrderBar();
       if (url.pathname === "/bar/ingredients") return page(`
 <header><h1>🧾 Ингредиенты</h1><div class="sub">Системные ингредиенты для рецептов и склада</div></header>
 <div class="wrap">
-<div class="row" style="margin-bottom:14px"><a href="/" style="display:inline-block;padding:10px 14px;border:1px solid #333;border-radius:12px;background:#151515">🏠 Главное меню</a><a href="/bar/recipes" style="display:inline-block;padding:10px 14px;border:1px solid #333;border-radius:12px;background:#151515">🍸 Книга рецептов</a></div>
+<div class="row" style="margin-bottom:14px"><a href="/bar" style="display:inline-block;padding:10px 14px;border:1px solid #333;border-radius:12px;background:#151515">🏠 Главное меню</a><a href="/bar/recipes" style="display:inline-block;padding:10px 14px;border:1px solid #333;border-radius:12px;background:#151515">🍸 Книга рецептов</a></div>
 <div class="card">
 <h2>Добавить ингредиент</h2>
 <p class="muted">Название здесь — это стабильное имя ингредиента. Бренд, магазин и конкретная упаковка сюда не записываются.</p>
@@ -1096,7 +1096,7 @@ document.querySelector("#ingredientForm").onsubmit=async e=>{e.preventDefault();
         return page(`
 <header><h1>📦 Склад</h1><div class="sub">Справочник товаров и текущие остатки</div></header>
 <div class="wrap">
-<div class="row" style="margin-bottom:14px"><a href="/" style="display:inline-block;padding:10px 14px;border:1px solid #333;border-radius:12px;background:#151515">🏠 Главное меню</a></div>
+<div class="row" style="margin-bottom:14px"><a href="/bar" style="display:inline-block;padding:10px 14px;border:1px solid #333;border-radius:12px;background:#151515">🏠 Главное меню</a></div>
 <div class="card">
 <h2>Новый товар</h2>
 <form id="productForm">
@@ -1309,7 +1309,7 @@ fetch("/api/cocktails").then(r=>r.json()).then(x=>{
       if (url.pathname === "/bar/shop") return page(`
 <header><h1>🛒 Магазин</h1><div class="sub">Закупки и партии товара</div></header>
 <div class="wrap">
-<div class="row" style="margin-bottom:14px"><a href="/" style="display:inline-block;padding:10px 14px;border:1px solid #333;border-radius:12px;background:#151515">🏠 Главное меню</a><a href="/bar/stock" style="display:inline-block;padding:10px 14px;border:1px solid #333;border-radius:12px;background:#151515">📦 Склад</a></div>
+<div class="row" style="margin-bottom:14px"><a href="/bar" style="display:inline-block;padding:10px 14px;border:1px solid #333;border-radius:12px;background:#151515">🏠 Главное меню</a><a href="/bar/stock" style="display:inline-block;padding:10px 14px;border:1px solid #333;border-radius:12px;background:#151515">📦 Склад</a></div>
 
 <div class="card"><h2>Новая закупка</h2><p class="muted">Фиксируем фактически купленную партию.</p>
 <form id="purchaseForm">
@@ -1425,7 +1425,7 @@ document.querySelector("#todayFilter").onclick=()=>{const d=new Date();const s=d
 
       if (url.pathname === "/bar/statistics") return page(`<header><h1>📊 Статистика</h1><div class="sub">Смены, заказы и приготовленные коктейли</div></header>
 <div class="wrap">
-<div class="row" style="margin-bottom:14px"><a href="/" style="display:inline-block;padding:10px 14px;border:1px solid #333;border-radius:12px;background:#151515">🏠 Главное меню</a><a href="/bar/recipes" style="display:inline-block;padding:10px 14px;border:1px solid #333;border-radius:12px;background:#151515">🍸 Книга рецептов</a></div>
+<div class="row" style="margin-bottom:14px"><a href="/bar" style="display:inline-block;padding:10px 14px;border:1px solid #333;border-radius:12px;background:#151515">🏠 Главное меню</a><a href="/bar/recipes" style="display:inline-block;padding:10px 14px;border:1px solid #333;border-radius:12px;background:#151515">🍸 Книга рецептов</a></div>
 <div class="card" id="shiftBox">Загрузка…</div>
 <div style="height:16px"></div>
 <div class="card"><h2>История смен</h2><div id="stats">Загрузка…</div></div>
@@ -1447,7 +1447,7 @@ loadStats();
 
       if (url.pathname === "/bar/orders") return page(`<header><h1>📋 Текущий заказ</h1><div class="sub">＋ и − меняют заказ. Склад резервируется сразу, окончательное списание — после принятия.</div></header>
 <div class="wrap">
-<div class="row" style="margin-bottom:14px"><a href="/" style="display:inline-block;padding:10px 14px;border:1px solid #333;border-radius:12px;background:#151515">🏠 Главное меню</a><a href="/bar/recipes" style="display:inline-block;padding:10px 14px;border:1px solid #333;border-radius:12px;background:#151515">🍸 Книга рецептов</a></div>
+<div class="row" style="margin-bottom:14px"><a href="/bar" style="display:inline-block;padding:10px 14px;border:1px solid #333;border-radius:12px;background:#151515">🏠 Главное меню</a><a href="/bar/recipes" style="display:inline-block;padding:10px 14px;border:1px solid #333;border-radius:12px;background:#151515">🍸 Книга рецептов</a></div>
 <div class="card"><div id="order">Загрузка…</div></div>
 </div>
 <script>
@@ -1471,7 +1471,6 @@ loadOrder();
     }
   }
 };
-
 
 
 
