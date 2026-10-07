@@ -1393,6 +1393,7 @@ renderStock();
 </style>
 <div class="guest-menu">
   <div class="guest-title"><span>🍸 Карта бара</span></div>
+  <div id="guestAccount" class="guest-account" style="display:flex;justify-content:center;gap:8px;flex-wrap:wrap;margin-bottom:14px"></div>
   <div class="guest-filters">
     <select id="strengthFilter" class="guest-select">
       <option value="">Крепость: все</option>
@@ -1409,6 +1410,35 @@ renderStock();
 <script>
 const esc=s=>String(s??"").replace(/[&<>"']/g,c=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[c]));
 let cocktails=[];
+let guest=null,cart={};
+const loadGuest=async()=>{const r=await fetch("/api/guest/me");if(r.ok){const d=await r.json();guest=d.guest}else guest=null;renderGuestAccount()};
+const renderGuestAccount=()=>{
+ const box=document.querySelector("#guestAccount");
+ if(!guest){box.innerHTML='<button id="guestLogin">🔐 Войти</button><button class="secondary" id="guestRegister">👤 Регистрация</button>'}
+ else{box.innerHTML='<span class="pill" style="padding:10px 13px">👤 '+esc(guest.name)+'</span><button id="guestCabinet">Личный кабинет</button><button class="secondary" id="guestLogout">Выйти</button>';document.querySelector("#guestCabinet").onclick=guestCabinet;document.querySelector("#guestLogout").onclick=async()=>{await fetch("/api/guest/logout",{method:"POST"});guest=null;cart={};renderGuestAccount();render()}}
+ document.querySelector("#guestLogin")?.addEventListener("click",guestLogin);
+ document.querySelector("#guestRegister")?.addEventListener("click",guestRegister);
+};
+const guestLogin=async()=>{
+ const phone=prompt("Введите номер телефона:");if(phone===null)return;
+ const pin=prompt("Введите PIN-код:");if(pin===null)return;
+ const r=await fetch("/api/guest/login",{method:"POST",headers:{"content-type":"application/json"},body:JSON.stringify({phone,pin})}),d=await r.json().catch(()=>({}));
+ if(!r.ok){alert(d.error||"Не удалось войти");return}guest=d.guest;cart={};renderGuestAccount();render();alert("Вход выполнен ✅");
+};
+const guestRegister=async()=>{
+ const name=prompt("Как вас зовут?");if(name===null)return;
+ const phone=prompt("Номер телефона:");if(phone===null)return;
+ const pin=prompt("Придумайте PIN-код (4–8 цифр):");if(pin===null)return;
+ const r=await fetch("/api/guest/register",{method:"POST",headers:{"content-type":"application/json"},body:JSON.stringify({name,phone,pin})}),d=await r.json().catch(()=>({}));
+ if(!r.ok){alert(d.error||"Не удалось зарегистрироваться");return}guest=d.guest;cart={};renderGuestAccount();render();alert("Аккаунт создан ✅");
+};
+const guestCabinet=async()=>{
+ const r=await fetch("/api/guest/orders"),d=await r.json().catch(()=>({}));if(!r.ok){alert(d.error||"Не удалось открыть кабинет");return}
+ const s=d.stats||{};let msg="👤 "+guest.name+"\n\nЗаказов: "+s.orders_count+"\nКоктейлей: "+s.cocktails_count+"\nПотрачено: "+s.spent_rub+" ₽\n\nИстория:\n";
+ msg+=(d.orders||[]).slice(0,10).map(o=>"№"+o.id+" — "+(o.items||"")+" — "+o.total_rub+" ₽ — "+(o.status==="accepted"?"принят":o.status==="rejected"?"отклонён":"ожидает")).join("\n")||"Пока заказов нет.";
+ alert(msg);
+};
+
 const strengthStars=s=>{
   const v=String(s||"").toLowerCase();
   if(v.includes("безалк")) return "—";
@@ -1441,8 +1471,21 @@ const render=highlightId=>{
       '<div class="guest-price">'+Number(c.price_rub||0)+' ₽</div>'+
       '<div class="guest-strength">Крепость — '+strengthStars(c.strength)+'</div>'+
       (unique.length?'<div class="guest-ingredients">'+unique.map(esc).join(", ")+'</div>':"")+
+      (guest?'<div class="guest-controls" style="display:flex;justify-content:center;align-items:center;gap:12px;margin-top:13px;padding-top:12px;border-top:1px solid #292929"><button class="secondary guest-minus" data-id="'+c.id+'">−</button><span style="min-width:32px;text-align:center;font-weight:900">'+Number(cart[c.id]||0)+'</span><button class="guest-plus" data-id="'+c.id+'">+</button></div>':"")+
       '</article>';
   }).join("");
+  document.querySelectorAll(".guest-minus").forEach(b=>b.onclick=()=>{const id=Number(b.dataset.id);cart[id]=Math.max(0,Number(cart[id]||0)-1);render()});
+  document.querySelectorAll(".guest-plus").forEach(b=>b.onclick=()=>{const id=Number(b.dataset.id);cart[id]=Number(cart[id]||0)+1;render()});
+  const selected=Object.entries(cart).filter(([,q])=>Number(q)>0);
+  if(guest&&selected.length){
+    const old=document.querySelector("#guestOrderBar");if(old)old.remove();
+    const total=selected.reduce((sum,[id,q])=>{const c=cocktails.find(x=>Number(x.id)===Number(id));return sum+Number(c?.price_rub||0)*Number(q)},0);
+    const bar=document.createElement("div");bar.id="guestOrderBar";bar.className="card";bar.style.cssText="position:sticky;bottom:10px;z-index:5;margin:14px 0;background:#111;border-color:#3b3b3b";
+    bar.innerHTML="<h3>📋 Ваш заказ</h3>"+selected.map(([id,q])=>{const c=cocktails.find(x=>Number(x.id)===Number(id));return "<div>"+esc(c?.name||"")+" × "+q+"</div>"}).join("")+"<p>Итого: <b>"+total+" ₽</b></p><button id=\"makeGuestOrder\" style=\"width:100%\">🍸 Сделать заказ</button>";
+    document.querySelector("#menu").after(bar);
+    document.querySelector("#makeGuestOrder").onclick=async()=>{const items=selected.map(([id,q])=>({cocktail_id:Number(id),quantity:Number(q)}));const r=await fetch("/api/guest/order",{method:"POST",headers:{"content-type":"application/json"},body:JSON.stringify({items})}),d=await r.json().catch(()=>({}));if(!r.ok){alert(d.error||"Не удалось оформить заказ");return}cart={};render();alert("Заказ №"+d.order_id+" отправлен бармену ✅")};
+  }
+
   if(highlightId){
     const el=document.querySelector("#cocktail-"+Number(highlightId));
     if(el){el.scrollIntoView({behavior:"smooth",block:"center"});}
@@ -1461,9 +1504,8 @@ document.querySelector("#randomCocktail").onclick=()=>{
   if(!list.length){alert("По выбранным условиям коктейлей нет.");return}
   render(list[Math.floor(Math.random()*list.length)].id);
 };
-fetch("/api/cocktails").then(r=>r.json()).then(x=>{
-  cocktails=Array.isArray(x)?x:[];
-  render();
+Promise.all([fetch("/api/cocktails").then(r=>r.json()),fetch("/api/guest/me").then(r=>r.ok?r.json():null).catch(()=>null)]).then(([x,me])=>{
+  cocktails=Array.isArray(x)?x:[];guest=me?.authenticated?me.guest:null;renderGuestAccount();render();
 }).catch(()=>{document.querySelector("#menu").innerHTML='<div class="guest-card guest-empty">Не удалось загрузить карту бара.</div>';});
 </script>`);
 
