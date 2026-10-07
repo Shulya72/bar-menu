@@ -1471,7 +1471,7 @@ const render=highlightId=>{
       '<div class="guest-price">'+Number(c.price_rub||0)+' ₽</div>'+
       '<div class="guest-strength">Крепость — '+strengthStars(c.strength)+'</div>'+
       (unique.length?'<div class="guest-ingredients">'+unique.map(esc).join(", ")+'</div>':"")+
-      (guest?'<div class="guest-controls" style="display:flex;justify-content:center;align-items:center;gap:12px;margin-top:13px;padding-top:12px;border-top:1px solid #292929"><button class="secondary guest-minus" data-id="'+c.id+'">−</button><span style="min-width:32px;text-align:center;font-weight:900">'+Number(cart[c.id]||0)+'</span><button class="guest-plus" data-id="'+c.id+'">+</button></div>':"")+
+      (guest?'<div class="guest-controls" style="display:flex;justify-content:center;align-items:center;gap:12px;margin-top:13px;padding-top:12px;border-top:1px solid #292929"><button class="secondary guest-minus" data-id="'+c.id+'" '+(Number(cart[c.id]||0)<=0?'disabled':'')+'>−</button><span style="min-width:32px;text-align:center;font-weight:900">'+Number(cart[c.id]||0)+'</span><button class="guest-plus" data-id="'+c.id+'" '+(unavailable?'disabled':'')+'>+</button></div>':"")+
       '</article>';
   }).join("");
   document.querySelectorAll(".guest-minus").forEach(b=>b.onclick=()=>{const id=Number(b.dataset.id);cart[id]=Math.max(0,Number(cart[id]||0)-1);render()});
