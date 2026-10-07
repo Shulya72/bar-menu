@@ -2,6 +2,10 @@ name = "bar-menu"
 main = "src/index.js"
 compatibility_date = "2026-10-04"
 
+[[routes]]
+pattern = "shulya.party"
+custom_domain = true
+
 [[d1_databases]]
 binding = "DB"
 database_name = "bar-menu-db"
