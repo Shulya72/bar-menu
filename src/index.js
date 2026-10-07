@@ -82,7 +82,7 @@ const ensureBarOrderSystem=async env=>{
 };
 const getOpenBarShift=async env=>{await ensureBarOrderSystem(env);return await env.DB.prepare("SELECT id,status,started_at,closed_at FROM bar_shifts WHERE status='open' ORDER BY id DESC LIMIT 1").first();};
 const ensureOpenBarShift=async env=>{await ensureBarOrderSystem(env);let shift=await getOpenBarShift(env);if(shift)return shift;const r=await env.DB.prepare("INSERT INTO bar_shifts(status) VALUES('open')").run();return await env.DB.prepare("SELECT id,status,started_at,closed_at FROM bar_shifts WHERE id=?").bind(Number(r.meta.last_row_id)).first();};
-const getReservedIngredients=async env=>{await ensureBarOrderSystem(env);const {results}=await env.DB.prepare("SELECT ri.ingredient_id,COALESCE(SUM(ri.quantity*oi.quantity),0) reserved FROM bar_orders o JOIN bar_order_items oi ON oi.order_id=o.id JOIN recipe_ingredients ri ON ri.cocktail_id=oi.cocktail_id WHERE o.status='draft' GROUP BY ri.ingredient_id").all();return new Map((results||[]).map(x=>[Number(x.ingredient_id),Number(x.reserved||0)]));};
+const getReservedIngredients=async env=>{await ensureBarOrderSystem(env);await ensureGuestAuthSystem(env);const {results}=await env.DB.prepare("SELECT ingredient_id,SUM(reserved) reserved FROM (SELECT ri.ingredient_id,ri.quantity*oi.quantity reserved FROM bar_orders o JOIN bar_order_items oi ON oi.order_id=o.id JOIN recipe_ingredients ri ON ri.cocktail_id=oi.cocktail_id WHERE o.status='draft' UNION ALL SELECT ri.ingredient_id,ri.quantity*oi.quantity reserved FROM orders o JOIN order_items oi ON oi.order_id=o.id JOIN recipe_ingredients ri ON ri.cocktail_id=oi.cocktail_id WHERE o.status='pending') GROUP BY ingredient_id").all();return new Map((results||[]).map(x=>[Number(x.ingredient_id),Number(x.reserved||0)]));};
 const getDraftBarOrder=async(env,create=false)=>{
   await ensureBarOrderSystem(env);let shift=await getOpenBarShift(env);if(!shift&&create)shift=await ensureOpenBarShift(env);if(!shift)return {shift:null,order:null,items:[]};
   let order=await env.DB.prepare("SELECT id,shift_id,status,created_at,accepted_at,price_total FROM bar_orders WHERE shift_id=? AND status='draft' ORDER BY id DESC LIMIT 1").bind(shift.id).first();
@@ -808,6 +808,93 @@ export default {
            WHERE ri.cocktail_id=? ORDER BY ri.id`
         ).bind(id).all();
         return json({...cocktail,recipe_items:results});
+      }
+
+
+      if (url.pathname === "/api/guest/me" && request.method === "GET") {
+        const guest=await getGuestFromRequest(env,request);
+        if(!guest)return guestResponse({authenticated:false},401);
+        return guestResponse({authenticated:true,guest:{id:guest.id,name:guest.name,phone:guest.phone},stats:await getGuestOrderStats(env,guest.id)});
+      }
+      if (url.pathname === "/api/guest/register" && request.method === "POST") {
+        const data=await request.json().catch(()=>({})),name=String(data.name||"").trim().replace(/\s+/g," "),phone=normalizeGuestPhone(data.phone),pin=String(data.pin||"").trim();
+        if(name.length<2||name.length>80)return guestResponse({error:"Введите имя от 2 до 80 символов"},400);
+        if(!/^\d{10,15}$/.test(phone))return guestResponse({error:"Введите корректный номер телефона"},400);
+        if(!/^\d{4,8}$/.test(pin))return guestResponse({error:"PIN должен содержать 4–8 цифр"},400);
+        const exists=await env.DB.prepare("SELECT id FROM guests WHERE phone=? LIMIT 1").bind(phone).first();
+        if(exists)return guestResponse({error:"Этот номер уже зарегистрирован. Войдите в личный кабинет."},409);
+        const salt=randomHex(16),hash=await deriveGuestPinHash(pin,salt),r=await env.DB.prepare("INSERT INTO guests(name,phone,pin_salt,pin_hash) VALUES(?,?,?,?)").bind(name,phone,salt,hash).run(),guestId=Number(r.meta.last_row_id),token=await createGuestSession(env,guestId);
+        return guestResponse({ok:true,guest:{id:guestId,name,phone},stats:{orders_count:0,cocktails_count:0,spent_rub:0}},201,guestCookie(token));
+      }
+      if (url.pathname === "/api/guest/login" && request.method === "POST") {
+        const data=await request.json().catch(()=>({})),phone=normalizeGuestPhone(data.phone),pin=String(data.pin||"").trim();
+        if(!/^\d{10,15}$/.test(phone)||!/^\d{4,8}$/.test(pin))return guestResponse({error:"Неверный телефон или PIN"},401);
+        const now=Date.now(),attempt=await env.DB.prepare("SELECT attempts,window_started_at FROM guest_login_attempts WHERE phone=?").bind(phone).first();
+        if(attempt){const started=Date.parse(String(attempt.window_started_at));if(Number.isFinite(started)&&now-started<600000&&Number(attempt.attempts||0)>=5)return guestResponse({error:"Слишком много попыток. Повторите через 10 минут."},429);if(!Number.isFinite(started)||now-started>=600000)await env.DB.prepare("DELETE FROM guest_login_attempts WHERE phone=?").bind(phone).run()}
+        const guest=await env.DB.prepare("SELECT id,name,phone,pin_salt,pin_hash FROM guests WHERE phone=? LIMIT 1").bind(phone).first();
+        const valid=!!(guest?.pin_salt&&guest?.pin_hash)&&((await deriveGuestPinHash(pin,guest.pin_salt))===String(guest.pin_hash));
+        if(!valid){
+          const current=await env.DB.prepare("SELECT attempts,window_started_at FROM guest_login_attempts WHERE phone=?").bind(phone).first(),started=current&&Date.parse(String(current.window_started_at))>now-600000?String(current.window_started_at):new Date(now).toISOString(),count=current&&started===current.window_started_at?Number(current.attempts||0)+1:1;
+          await env.DB.prepare("INSERT OR REPLACE INTO guest_login_attempts(phone,attempts,window_started_at) VALUES(?,?,?)").bind(phone,count,started).run();
+          return guestResponse({error:"Неверный телефон или PIN"},401);
+        }
+        await env.DB.prepare("DELETE FROM guest_login_attempts WHERE phone=?").bind(phone).run();
+        const token=await createGuestSession(env,Number(guest.id));
+        return guestResponse({ok:true,guest:{id:Number(guest.id),name:String(guest.name||""),phone:String(guest.phone||"")},stats:await getGuestOrderStats(env,Number(guest.id))},200,guestCookie(token));
+      }
+      if (url.pathname === "/api/guest/logout" && request.method === "POST") {
+        const guest=await getGuestFromRequest(env,request);
+        if(guest)await env.DB.prepare("DELETE FROM guest_sessions WHERE id=?").bind(guest.session_id).run();
+        return guestResponse({ok:true},200,clearGuestCookie());
+      }
+      if (url.pathname === "/api/guest/orders" && request.method === "GET") {
+        const guest=await getGuestFromRequest(env,request);
+        if(url.searchParams.get("pending")==="1"&&!guest)return json({orders:await getPendingGuestOrdersForBar(env)});
+        if(!guest)return guestResponse({error:"Требуется вход"},401);
+        return guestResponse({orders:await getGuestOrders(env,guest.id),stats:await getGuestOrderStats(env,guest.id)});
+      }
+      if (url.pathname === "/api/guest/order" && request.method === "POST") {
+        const guest=await getGuestFromRequest(env,request);
+        if(!guest)return guestResponse({error:"Сначала войдите в личный кабинет"},401);
+        const data=await request.json().catch(()=>({})),rawItems=Array.isArray(data.items)?data.items:[],items=rawItems.map(x=>({cocktail_id:Number(x.cocktail_id),quantity:Math.floor(Number(x.quantity||0))})).filter(x=>Number.isInteger(x.cocktail_id)&&x.cocktail_id>0&&x.quantity>0&&x.quantity<=20);
+        if(!items.length||items.length>30)return guestResponse({error:"Заказ пуст или слишком большой"},400);
+        const merged=new Map();for(const x of items)merged.set(x.cocktail_id,Number(merged.get(x.cocktail_id)||0)+x.quantity);
+        const finalItems=[...merged.entries()].map(([cocktail_id,quantity])=>({cocktail_id,quantity})),required=new Map(),details=[];let total=0;
+        for(const item of finalItems){
+          const cocktail=await env.DB.prepare("SELECT id,name,price_rub FROM cocktails WHERE id=? AND is_active=1").bind(item.cocktail_id).first();
+          if(!cocktail)return guestResponse({error:"Один из коктейлей больше недоступен"},409);
+          total+=Number(cocktail.price_rub||0)*item.quantity;
+          const recipe=await env.DB.prepare("SELECT ri.ingredient_id,ri.quantity,i.name,i.unit FROM recipe_ingredients ri JOIN ingredients i ON i.id=ri.ingredient_id WHERE ri.cocktail_id=?").bind(item.cocktail_id).all();
+          if(!(recipe.results||[]).length)return guestResponse({error:"У коктейля «"+cocktail.name+"» не указан рецепт"},409);
+          for(const r of (recipe.results||[])){const id=Number(r.ingredient_id),qty=Number(r.quantity||0)*item.quantity;required.set(id,Number(required.get(id)||0)+qty);details.push({id,name:r.name,unit:r.unit})}
+        }
+        const stockRows=await getProducts(env),stockMap=new Map((stockRows||[]).map(x=>[Number(x.ingredient_id),Number(x.stock||0)])),shortages=[];
+        for(const [id,qty] of required){const available=Number(stockMap.get(id)||0);if(available+0.000001<qty){const ing=details.find(x=>x.id===id);shortages.push((ing?.name||("Ингредиент #"+id))+" — доступно "+available.toLocaleString("ru-RU")+" "+formatUnitLabelServer(ing?.unit)+", нужно "+qty.toLocaleString("ru-RU")+" "+formatUnitLabelServer(ing?.unit))}}
+        if(shortages.length)return guestResponse({error:"Сейчас не хватает: "+shortages.join(", ")},409);
+        const orderRes=await env.DB.prepare("INSERT INTO orders(guest_id,status,total_rub) VALUES(?,'pending',?)").bind(guest.id,total).run(),orderId=Number(orderRes.meta.last_row_id);
+        for(const item of finalItems){const cocktail=await env.DB.prepare("SELECT price_rub FROM cocktails WHERE id=?").bind(item.cocktail_id).first();await env.DB.prepare("INSERT INTO order_items(order_id,cocktail_id,quantity,unit_price_rub) VALUES(?,?,?,?,?)").bind(orderId,item.cocktail_id,item.quantity,Number(cocktail?.price_rub||0)).run()}
+        return guestResponse({ok:true,order_id:orderId,total_rub:total});
+      }
+      if (url.pathname === "/api/guest/orders/accept" && request.method === "POST") {
+        const id=Number((await request.json().catch(()=>({}))).order_id);
+        if(!Number.isInteger(id)||id<1)return json({error:"Некорректный заказ"},400);
+        const order=await env.DB.prepare("SELECT id,status,total_rub FROM orders WHERE id=?").bind(id).first();
+        if(!order||order.status!=="pending")return json({error:"Заказ уже обработан или не найден"},409);
+        const {results:items}=await env.DB.prepare("SELECT cocktail_id,quantity FROM order_items WHERE order_id=?").bind(id).all(),required=new Map();
+        for(const oi of (items||[])){const r=await env.DB.prepare("SELECT ingredient_id,quantity FROM recipe_ingredients WHERE cocktail_id=?").bind(oi.cocktail_id).all();for(const row of (r.results||[])){const iid=Number(row.ingredient_id);required.set(iid,Number(required.get(iid)||0)+Number(row.quantity||0)*Number(oi.quantity||0))}}
+        const stockRows=await getProducts(env),available=new Map((stockRows||[]).map(x=>[Number(x.ingredient_id),Number(x.stock||0)]));for(const [iid,qty] of required)available.set(iid,Number(available.get(iid)||0)+qty);
+        const shortages=[];for(const [iid,qty] of required)if(Number(available.get(iid)||0)+0.000001<qty){const ing=await env.DB.prepare("SELECT name,unit FROM ingredients WHERE id=?").bind(iid).first();shortages.push((ing?.name||("Ингредиент #"+iid))+" — доступно "+Number(available.get(iid)||0).toLocaleString("ru-RU")+" "+formatUnitLabelServer(ing?.unit)+", нужно "+qty.toLocaleString("ru-RU")+" "+formatUnitLabelServer(ing?.unit))}
+        if(shortages.length)return json({error:"Недостаточно ингредиентов: "+shortages.join(", ")},409);
+        for(const [iid,qty] of required)await consumeIngredientForGuestOrder(env,id,iid,qty);
+        await env.DB.prepare("UPDATE orders SET status='accepted',accepted_at=CURRENT_TIMESTAMP WHERE id=?").bind(id).run();
+        return json({ok:true,order_id:id});
+      }
+      if (url.pathname === "/api/guest/orders/reject" && request.method === "POST") {
+        const id=Number((await request.json().catch(()=>({}))).order_id);
+        if(!Number.isInteger(id)||id<1)return json({error:"Некорректный заказ"},400);
+        const r=await env.DB.prepare("UPDATE orders SET status='rejected' WHERE id=? AND status='pending'").bind(id).run();
+        if(!Number(r.meta.changes||0))return json({error:"Заказ уже обработан или не найден"},409);
+        return json({ok:true,order_id:id});
       }
 
       if (url.pathname === "/") return Response.redirect(new URL("/menu", url), 302);
