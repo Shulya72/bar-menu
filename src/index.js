@@ -1650,10 +1650,22 @@ loadStats();
 
       if (url.pathname === "/bar/orders") return page(`<header><h1>📋 Текущий заказ</h1><div class="sub">＋ и − меняют заказ. Склад резервируется сразу, окончательное списание — после принятия.</div></header>
 <div class="wrap">
+<div class="card"><h2>👤 Заказы гостей</h2><div id="guestOrders">Загрузка…</div></div>
+<div style="height:16px"></div>
 <div class="row" style="margin-bottom:14px"><a href="/bar" style="display:inline-block;padding:10px 14px;border:1px solid #333;border-radius:12px;background:#151515">🏠 Главное меню</a><a href="/bar/recipes" style="display:inline-block;padding:10px 14px;border:1px solid #333;border-radius:12px;background:#151515">🍸 Книга рецептов</a></div>
 <div class="card"><div id="order">Загрузка…</div></div>
 </div>
 <script>
+
+async function loadGuestOrders(){
+ const r=await fetch("/api/guest/orders?pending=1"),d=await r.json().catch(()=>({})),box=document.querySelector("#guestOrders");
+ if(!r.ok){box.textContent="Не удалось загрузить заказы гостей";return}
+ const list=d.orders||[];
+ if(!list.length){box.innerHTML='<div class="empty">Новых заказов гостей нет.</div>';return}
+ box.innerHTML=list.map(o=>'<div class="card" style="margin-bottom:10px;padding:14px"><div class="row" style="justify-content:space-between"><div><b>Заказ №'+o.id+'</b><div class="muted">Гость: '+esc(o.guest_name||"Гость")+'</div></div><span class="pill">ожидает</span></div><div style="margin-top:10px">'+esc(o.items||"")+'</div><div style="margin-top:8px;font-weight:800">'+Number(o.total_rub||0)+' ₽</div><div class="row" style="margin-top:10px"><button class="accept-guest" data-id="'+o.id+'">✅ Принять</button><button class="secondary reject-guest" data-id="'+o.id+'">Отклонить</button></div></div>').join("");
+ document.querySelectorAll(".accept-guest").forEach(b=>b.onclick=async()=>{b.disabled=true;const r=await fetch("/api/guest/orders/accept",{method:"POST",headers:{"content-type":"application/json"},body:JSON.stringify({order_id:Number(b.dataset.id)})}),d=await r.json().catch(()=>({}));if(!r.ok){b.disabled=false;alert(d.error||"Не удалось принять заказ");return}await loadGuestOrders()});
+ document.querySelectorAll(".reject-guest").forEach(b=>b.onclick=async()=>{if(!confirm("Отклонить заказ гостя?"))return;b.disabled=true;const r=await fetch("/api/guest/orders/reject",{method:"POST",headers:{"content-type":"application/json"},body:JSON.stringify({order_id:Number(b.dataset.id)})}),d=await r.json().catch(()=>({}));if(!r.ok){b.disabled=false;alert(d.error||"Не удалось отклонить заказ");return}await loadGuestOrders()});
+}
 async function loadOrder(){
  const r=await fetch("/api/bar/order");const d=await r.json();const box=document.querySelector("#order");
  if(!d.items||!d.items.length){box.innerHTML="<div class=\"empty\">Текущий заказ пуст.<br><a href=\"/bar/recipes\">← Вернуться в книгу рецептов</a></div>";return;}
@@ -1664,7 +1676,7 @@ async function loadOrder(){
  document.querySelector("#clear").onclick=async()=>{if(!confirm("Очистить текущий заказ?"))return;await fetch("/api/bar/order",{method:"DELETE"});loadOrder()};
 }
 async function changeOrder(id,delta){const r=await fetch("/api/bar/order",{method:"POST",headers:{"content-type":"application/json"},body:JSON.stringify({cocktail_id:id,delta})});const d=await r.json();if(!r.ok){alert(d.error||"Ошибка");return;}loadOrder()}
-loadOrder();
+loadGuestOrders();loadOrder();setInterval(loadGuestOrders,5000);
 </script>`, "Заказы");
 
       return new Response("Не найдено",{status:404});
