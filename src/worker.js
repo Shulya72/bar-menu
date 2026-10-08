@@ -1,164 +1,19 @@
 import App from "./index.js";
 
-const SESSION_TABLE_SQL = `
-CREATE TABLE IF NOT EXISTS guest_sessions (
-  token TEXT PRIMARY KEY,
-  guest_id INTEGER NOT NULL,
-  created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
-  expires_at TEXT NOT NULL
-)`;
-
-const GUEST_TABLE_SQL = `
-CREATE TABLE IF NOT EXISTS guests (
-  id INTEGER PRIMARY KEY AUTOINCREMENT,
-  name TEXT NOT NULL,
-  phone TEXT UNIQUE,
-  pin_salt TEXT NOT NULL,
-  pin_hash TEXT NOT NULL,
-  created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP
-)`;
-
-const json = (data, status = 200) =>
-  Response.json(data, { status, headers: { "cache-control": "no-store" } });
-
-const normalizePhone = value => {
-  let s = String(value || "").trim();
-  if (!s) return "";
-  const plus = s.startsWith("+") ? "+" : "";
-  s = s.replace(/\D/g, "");
-  return plus + s;
-};
-
-const bytesToBase64Url = bytes => {
-  let binary = "";
-  for (const b of bytes) binary += String.fromCharCode(b);
-  return btoa(binary).replace(/\+/g, "-").replace(/\//g, "_").replace(/=+$/g, "");
-};
-
-const hashPin = async pin => {
-  const enc = new TextEncoder();
-  const salt = crypto.getRandomValues(new Uint8Array(16));
-  const key = await crypto.subtle.importKey("raw", enc.encode(pin), "PBKDF2", false, ["deriveBits"]);
-  const bits = await crypto.subtle.deriveBits(
-    { name: "PBKDF2", salt, iterations: 100000, hash: "SHA-256" },
-    key, 256
-  );
-  return { salt: bytesToBase64Url(salt), hash: bytesToBase64Url(new Uint8Array(bits)) };
-};
-
-const ensureGuestsTable = async env => {
-  await env.DB.prepare(GUEST_TABLE_SQL).run();
-  await env.DB.prepare(SESSION_TABLE_SQL).run();
-};
-
-const createGuestSession = async (env, guestId) => {
-  const bytes = crypto.getRandomValues(new Uint8Array(32));
-  const token = bytesToBase64Url(bytes);
-  const expires = new Date(Date.now() + 30 * 24 * 60 * 60 * 1000).toISOString();
-  await env.DB.prepare("INSERT INTO guest_sessions(token,guest_id,expires_at) VALUES(?,?,?)").bind(token, guestId, expires).run();
-  return token;
-};
-
-const registerGuest = async (request, env) => {
-  let body;
-  try { body = await request.json(); }
-  catch { return json({ error: "Некорректные данные формы" }, 400); }
-
-  const name = String(body?.name || "").trim();
-  const phone = normalizePhone(body?.phone);
-  const pin = String(body?.pin || "");
-
-  if (name.length < 2 || name.length > 80)
-    return json({ error: "Имя должно быть от 2 до 80 символов" }, 400);
-
-  if (!/^\+?\d{7,15}$/.test(phone))
-    return json({ error: "Введите корректный номер телефона" }, 400);
-
-  if (!/^\d{4,12}$/.test(pin))
-    return json({ error: "PIN должен содержать от 4 до 12 цифр" }, 400);
-
-  await ensureGuestsTable(env);
-
-  const existing = await env.DB.prepare("SELECT id FROM guests WHERE phone=? LIMIT 1").bind(phone).first();
-  if (existing) return json({ error: "Этот номер уже зарегистрирован" }, 409);
-
-  const { salt, hash } = await hashPin(pin);
-
-  try {
-    const result = await env.DB.prepare(
-      "INSERT INTO guests(name,phone,pin_salt,pin_hash) VALUES(?,?,?,?)"
-    ).bind(name, phone, salt, hash).run();
-
-    const guestId = Number(result.meta.last_row_id);
-    const token = await createGuestSession(env, guestId);
-    const response = json({
-      ok: true,
-      guest_id: guestId,
-      message: "Регистрация успешно сохранена"
-    });
-    response.headers.set("Set-Cookie", `bar_guest_session=${token}; HttpOnly; Secure; SameSite=Lax; Path=/; Max-Age=2592000`);
-    return response;
-  } catch (error) {
-    if (String(error?.message || "").toLowerCase().includes("unique"))
-      return json({ error: "Этот номер уже зарегистрирован" }, 409);
-    throw error;
-  }
-};
-
-const injectRegistrationHandler = async response => {
-  if (!response || !response.ok) return response;
-  const contentType = response.headers.get("content-type") || "";
-  if (!contentType.includes("text/html")) return response;
-
-  const html = await response.text();
-  const oldHandler = `guestRegisterForm.onsubmit=e=>{
-  e.preventDefault();
-  guestRegisterMessage.textContent="Форма готова. Подключение сохранения регистрации — следующим шагом.";
-};`;
-
-  if (!html.includes(oldHandler)) return new Response(html, { status: response.status, headers: response.headers });
-
-  const newHandler = `guestRegisterForm.onsubmit=async e=>{
-  e.preventDefault();
-  guestRegisterMessage.textContent="Сохраняем…";
-  const form=new FormData(e.target);
-  try{
-    const r=await fetch("/api/guest/register",{
-      method:"POST",
-      headers:{"content-type":"application/json"},
-      body:JSON.stringify({
-        name:String(form.get("name")||"").trim(),
-        phone:String(form.get("phone")||"").trim(),
-        pin:String(form.get("pin")||"")
-      })
-    });
-    const d=await r.json();
-    if(!r.ok){guestRegisterMessage.textContent=d.error||"Не удалось зарегистрироваться";return;}
-    guestRegisterMessage.textContent=d.message||"Регистрация успешно сохранена ✅";
-    e.target.reset();
-    setTimeout(()=>location.reload(),500);
-  }catch(error){guestRegisterMessage.textContent="Не удалось связаться с сервером";}
-};`;
-
-  return new Response(html.replace(oldHandler, newHandler), { status: response.status, headers: response.headers });
-};
-
-export default {
-  async fetch(request, env, ctx) {
-    const url = new URL(request.url);
-
-    if (url.pathname === "/api/guest/register" && request.method === "POST") {
-      try { return await registerGuest(request, env); }
-      catch (error) {
-        console.error("guest registration", error);
-        return json({ error: "Ошибка сервера при регистрации" }, 500);
-      }
-    }
-
-    const response = await App.fetch(request, env, ctx);
-    if (url.pathname === "/menu" && request.method === "GET")
-      return await injectRegistrationHandler(response);
-
-    return response;
-  }
-};
+const GUEST_SQL = "CREATE TABLE IF NOT EXISTS guests (id INTEGER PRIMARY KEY AUTOINCREMENT,name TEXT NOT NULL,phone TEXT UNIQUE,pin_salt TEXT NOT NULL,pin_hash TEXT NOT NULL,created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP)";
+const SESSION_SQL = "CREATE TABLE IF NOT EXISTS guest_sessions (token TEXT PRIMARY KEY,guest_id INTEGER NOT NULL,created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,expires_at TEXT NOT NULL)";
+const json=(d,s=200)=>Response.json(d,{status:s,headers:{"cache-control":"no-store"}});
+const norm=v=>{let s=String(v||"").trim();const p=s.startsWith("+")?"+":"";return p+s.replace(/\D/g,"")};
+const b64=b=>{let x="";for(const n of b)x+=String.fromCharCode(n);return btoa(x).replace(/\+/g,"-").replace(/\//g,"_").replace(/=+$/g,"")};
+const ensure=async e=>{await e.DB.prepare(GUEST_SQL).run();await e.DB.prepare(SESSION_SQL).run()};
+const session=async(e,id)=>{const t=b64(crypto.getRandomValues(new Uint8Array(32)));await e.DB.prepare("INSERT INTO guest_sessions(token,guest_id,expires_at) VALUES(?,?,datetime('now','+30 days'))").bind(t,id).run();return t};
+const register=async(r,e)=>{let b;try{b=await r.json()}catch{return json({error:"Некорректные данные формы"},400)}const name=String(b?.name||"").trim(),phone=norm(b?.phone),pin=String(b?.pin||"");if(name.length<2||name.length>80)return json({error:"Имя должно быть от 2 до 80 символов"},400);if(!/^\+?\d{7,15}$/.test(phone))return json({error:"Введите корректный номер телефона"},400);if(!/^\d{4,12}$/.test(pin))return json({error:"PIN должен содержать от 4 до 12 цифр"},400);await ensure(e);if(await e.DB.prepare("SELECT id FROM guests WHERE phone=?").bind(phone).first())return json({error:"Этот номер уже зарегистрирован"},409);const enc=new TextEncoder(),salt=crypto.getRandomValues(new Uint8Array(16)),key=await crypto.subtle.importKey("raw",enc.encode(pin),"PBKDF2",false,["deriveBits"]),bits=await crypto.subtle.deriveBits({name:"PBKDF2",salt,iterations:100000,hash:"SHA-256"},key,256),q=await e.DB.prepare("INSERT INTO guests(name,phone,pin_salt,pin_hash) VALUES(?,?,?,?)").bind(name,phone,b64(salt),b64(new Uint8Array(bits))).run(),t=await session(e,Number(q.meta.last_row_id)),o=json({ok:true,message:"Регистрация успешно сохранена"});o.headers.set("Set-Cookie","bar_guest_session="+t+"; HttpOnly; Secure; SameSite=Lax; Path=/; Max-Age=2592000");return o};
+const login=async(r,e)=>{let b;try{b=await r.json()}catch{return json({error:"Некорректные данные формы"},400)}const phone=norm(b?.phone),pin=String(b?.pin||"");await ensure(e);const g=await e.DB.prepare("SELECT id,name,pin_salt,pin_hash FROM guests WHERE phone=?").bind(phone).first();if(!g)return json({error:"Неверный телефон или PIN"},401);const enc=new TextEncoder(),key=await crypto.subtle.importKey("raw",enc.encode(pin),"PBKDF2",false,["deriveBits"]);let z=String(g.pin_salt).replace(/-/g,"+").replace(/_/g,"/");while(z.length%4)z+="=";const salt=Uint8Array.from(atob(z),c=>c.charCodeAt(0)),bits=await crypto.subtle.deriveBits({name:"PBKDF2",salt,iterations:100000,hash:"SHA-256"},key,256);if(b64(new Uint8Array(bits))!==g.pin_hash)return json({error:"Неверный телефон или PIN"},401);const t=await session(e,Number(g.id)),o=json({ok:true,name:g.name});o.headers.set("Set-Cookie","bar_guest_session="+t+"; HttpOnly; Secure; SameSite=Lax; Path=/; Max-Age=2592000");return o};
+const me=async(r,e)=>{const m=(r.headers.get("Cookie")||"").match(/(?:^|;\s*)bar_guest_session=([^;]+)/);if(!m)return null;return await e.DB.prepare("SELECT g.id,g.name FROM guest_sessions s JOIN guests g ON g.id=s.guest_id WHERE s.token=? AND s.expires_at>datetime('now')").bind(m[1]).first()};
+const page=async response=>{if(!response.ok)return response;let h=await response.text();h=h.replace('id="guestRegisterButton" class="secondary">👤 Регистрация','id="guestRegisterButton" class="secondary">👤 Войти');const modal='<div id="guestLoginModal" style="display:none;position:fixed;inset:0;background:rgba(0,0,0,.72);z-index:1002;padding:24px 14px;overflow:auto"><div style="max-width:430px;margin:8vh auto 0;background:#151515;border:1px solid #333;border-radius:18px;padding:20px"><div style="display:flex;justify-content:space-between"><h2 style="margin:0;color:#f4f4f4">👤 Вход</h2><button type="button" id="guestLoginClose" class="secondary">✕</button></div><form id="guestLoginForm" style="margin-top:16px"><label>Телефон</label><input name="phone" required placeholder="+7 900 123-45-67"><label>PIN-код</label><input name="pin" required inputmode="numeric" pattern="[0-9]{4,12}"><button type="submit" style="width:100%;margin-top:12px">Войти</button><div id="guestLoginMessage" style="margin-top:12px;color:#aaa"></div></form><div style="margin-top:16px;text-align:center;color:#999">Нет аккаунта? <button type="button" id="guestGoRegister" class="secondary">Зарегистрироваться</button></div></div></div>';
+h=h.replace("</div>\n</div>\n<script>", "</div>\n</div>"+modal+"\n<script>");
+const js='<script>const ab=document.querySelector("#guestRegisterButton"),lm=document.querySelector("#guestLoginModal"),lc=document.querySelector("#guestLoginClose"),lf=document.querySelector("#guestLoginForm"),lg=document.querySelector("#guestLoginMessage");ab.onclick=()=>lm.style.display="block";lc.onclick=()=>lm.style.display="none";document.querySelector("#guestGoRegister").onclick=()=>{lm.style.display="none";document.querySelector("#guestRegisterButton").textContent="👤 Регистрация";document.querySelector("#guestRegisterButton").onclick=()=>document.querySelector("#guestRegisterModal").style.display="block"};lf.onsubmit=async e=>{e.preventDefault();lg.textContent="Входим…";const f=new FormData(e.target);const r=await fetch("/api/guest/login",{method:"POST",headers:{"content-type":"application/json"},body:JSON.stringify({phone:f.get("phone"),pin:f.get("pin")})});const d=await r.json();if(!r.ok){lg.textContent=d.error||"Ошибка входа";return}location.reload()};fetch("/api/guest/me").then(r=>r.json()).then(d=>{if(d.guest){ab.textContent="👤 "+d.guest.name}});</script>';
+const old='guestRegisterForm.onsubmit=e=>{\n  e.preventDefault();\n  guestRegisterMessage.textContent="Форма готова. Подключение сохранения регистрации — следующим шагом.";\n};';
+const nh='guestRegisterForm.onsubmit=async e=>{e.preventDefault();guestRegisterMessage.textContent="Сохраняем…";const f=new FormData(e.target);const r=await fetch("/api/guest/register",{method:"POST",headers:{"content-type":"application/json"},body:JSON.stringify({name:f.get("name"),phone:f.get("phone"),pin:f.get("pin")})});const d=await r.json();if(!r.ok){guestRegisterMessage.textContent=d.error||"Ошибка регистрации";return}guestRegisterMessage.textContent="Готово ✅";setTimeout(()=>location.reload(),500)};';
+h=h.replace(old,nh).replace("</body>",js+"</body>");return new Response(h,{status:response.status,headers:response.headers})};
+export default {async fetch(r,e,c){const u=new URL(r.url);if(u.pathname==="/api/guest/register"&&r.method==="POST")return register(r,e);if(u.pathname==="/api/guest/login"&&r.method==="POST")return login(r,e);if(u.pathname==="/api/guest/me"&&r.method==="GET")return json({guest:await me(r,e)});const x=await App.fetch(r,e,c);if(u.pathname==="/menu"&&r.method==="GET")return page(x);return x}};
