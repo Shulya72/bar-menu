@@ -251,7 +251,7 @@ const refreshCocktailStrength = async (env, cocktailId) => {
   return calculated;
 };
 
-const getCocktails = async (env) => {
+const getCocktails = async (env, includeStock = true) => {
   const { results } = await env.DB.prepare(
     "SELECT id,name,description,category,strength,price_rub,photo_url,glass,ice,method,garnish,is_active,created_at,updated_at FROM cocktails WHERE is_active=1 ORDER BY name"
   ).all();
@@ -268,8 +268,10 @@ const getCocktails = async (env) => {
       "SELECT ri.ingredient_id,ri.quantity,i.name ingredient_name,i.unit,i.strength_percent FROM recipe_ingredients ri JOIN ingredients i ON i.id=ri.ingredient_id WHERE ri.cocktail_id=? ORDER BY ri.id"
     ).bind(c.id).all();
     c.recipe_items=r.results||[];
-    const stockRows=await getProducts(env),stockMap=new Map((stockRows||[]).map(x=>[Number(x.ingredient_id),Number(x.stock||0)]));
-    c.recipe_items=c.recipe_items.map(i=>({...i,stock_available:Number(stockMap.get(Number(i.ingredient_id))||0)}));
+    if(includeStock){
+      const stockRows=await getProducts(env),stockMap=new Map((stockRows||[]).map(x=>[Number(x.ingredient_id),Number(x.stock||0)]));
+      c.recipe_items=c.recipe_items.map(i=>({...i,stock_available:Number(stockMap.get(Number(i.ingredient_id))||0)}));
+    }
     const calculated=calculateCocktailStrength(c.recipe_items);
     c.strength=calculated.strength;
     c.strength_abv=Number(calculated.abv.toFixed(2));
@@ -397,7 +399,7 @@ export default {
       }
 
       if (url.pathname === "/api/cocktails" && request.method === "GET") {
-        return json(await getCocktails(env));
+        return json(await getCocktails(env, url.searchParams.get("include_stock") !== "0"));
       }
 
       if (url.pathname === "/api/cocktails" && request.method === "PUT") {
@@ -1312,7 +1314,7 @@ document.querySelector("#randomCocktail").onclick=()=>{
   if(!list.length){alert("По выбранным условиям коктейлей нет.");return}
   render(list[Math.floor(Math.random()*list.length)].id);
 };
-fetch("/api/cocktails").then(r=>r.json()).then(x=>{
+fetch("/api/cocktails?include_stock=0").then(r=>r.json()).then(x=>{
   cocktails=Array.isArray(x)?x:[];
   render();
 }).catch(()=>{document.querySelector("#menu").innerHTML='<div class="guest-card guest-empty">Не удалось загрузить карту бара.</div>';});
