@@ -329,6 +329,10 @@ const getCocktails = async (env) => {
   const { results } = await env.DB.prepare(
     "SELECT id,name,description,category,strength,price_rub,photo_url,glass,ice,method,garnish,is_active,created_at,updated_at FROM cocktails WHERE is_active=1 ORDER BY name"
   ).all();
+  // Получаем склад один раз. Раньше getProducts() вызывался для каждого коктейля,
+  // из-за чего /api/cocktails резко замедлялся и рецепты зависали на «Загрузка…».
+  const stockRows = await getProducts(env);
+  const stockMap = new Map((stockRows||[]).map(x=>[Number(x.ingredient_id),Number(x.stock||0)]));
   for(const c of results){
     // Normalize legacy photo URLs and keep the database independent from the public route.
     if(c.photo_url){
@@ -342,7 +346,6 @@ const getCocktails = async (env) => {
       "SELECT ri.ingredient_id,ri.quantity,i.name ingredient_name,i.unit,i.strength_percent FROM recipe_ingredients ri JOIN ingredients i ON i.id=ri.ingredient_id WHERE ri.cocktail_id=? ORDER BY ri.id"
     ).bind(c.id).all();
     c.recipe_items=r.results||[];
-    const stockRows=await getProducts(env),stockMap=new Map((stockRows||[]).map(x=>[Number(x.ingredient_id),Number(x.stock||0)]));
     c.recipe_items=c.recipe_items.map(i=>({...i,stock_available:Number(stockMap.get(Number(i.ingredient_id))||0)}));
     const calculated=calculateCocktailStrength(c.recipe_items);
     c.strength=calculated.strength;
@@ -1686,7 +1689,6 @@ loadGuestOrders();loadOrder();setInterval(loadGuestOrders,5000);
     }
   }
 };
-
 
 
 
