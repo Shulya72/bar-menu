@@ -1246,6 +1246,25 @@ renderStock();
 <div class="guest-menu">
   <div class="guest-title"><span>🍸 Карта бара</span></div>
   <div style="display:flex;justify-content:flex-end;margin:-4px 0 12px"><button type="button" id="guestRegisterButton" class="secondary">👤 Регистрация</button></div>
+<div id="guestRegisterModal" style="display:none;position:fixed;inset:0;background:rgba(0,0,0,.72);z-index:1000;padding:24px 14px;overflow:auto">
+  <div style="max-width:430px;margin:8vh auto 0;background:#151515;border:1px solid #333;border-radius:18px;padding:20px;box-shadow:0 10px 40px rgba(0,0,0,.45)">
+    <div style="display:flex;justify-content:space-between;align-items:center;gap:12px;margin-bottom:14px">
+      <h2 style="margin:0;color:#f4f4f4">👤 Регистрация гостя</h2>
+      <button type="button" id="guestRegisterClose" class="secondary">✕</button>
+    </div>
+    <div style="color:#999;font-size:13px;line-height:1.4;margin-bottom:14px">Регистрация добровольная. После входа появится возможность делать заказы.</div>
+    <form id="guestRegisterForm">
+      <label>Имя</label>
+      <input name="name" required maxlength="80" placeholder="Ваше имя" autocomplete="name">
+      <label>Телефон</label>
+      <input name="phone" required maxlength="30" placeholder="+7 900 123-45-67" autocomplete="tel">
+      <label>PIN-код</label>
+      <input name="pin" required minlength="4" maxlength="12" inputmode="numeric" pattern="[0-9]{4,12}" placeholder="4–12 цифр" autocomplete="new-password">
+      <button type="submit" style="width:100%;margin-top:12px">Зарегистрироваться</button>
+      <div id="guestRegisterMessage" style="margin-top:12px;color:#aaa;font-size:14px"></div>
+    </form>
+  </div>
+</div>
   <div class="guest-filters">
     <select id="strengthFilter" class="guest-select">
       <option value="">Крепость: все</option>
@@ -1300,6 +1319,19 @@ const render=highlightId=>{
     const el=document.querySelector("#cocktail-"+Number(highlightId));
     if(el){el.scrollIntoView({behavior:"smooth",block:"center"});}
   }
+};
+const guestRegisterButton=document.querySelector("#guestRegisterButton");
+const guestRegisterModal=document.querySelector("#guestRegisterModal");
+const guestRegisterClose=document.querySelector("#guestRegisterClose");
+const guestRegisterForm=document.querySelector("#guestRegisterForm");
+const guestRegisterMessage=document.querySelector("#guestRegisterMessage");
+const closeGuestRegister=()=>{guestRegisterModal.style.display="none";guestRegisterMessage.textContent="";};
+guestRegisterButton.onclick=()=>{guestRegisterModal.style.display="block";guestRegisterForm.elements.name.focus();};
+guestRegisterClose.onclick=closeGuestRegister;
+guestRegisterModal.onclick=e=>{if(e.target===guestRegisterModal)closeGuestRegister();};
+guestRegisterForm.onsubmit=e=>{
+  e.preventDefault();
+  guestRegisterMessage.textContent="Форма готова. Подключение сохранения регистрации — следующим шагом.";
 };
 document.querySelector("#strengthFilter").onchange=()=>render();
 document.querySelector("#ingredientSearch").oninput=()=>render();
