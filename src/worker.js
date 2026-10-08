@@ -1,5 +1,13 @@
 import App from "./index.js";
 
+const SESSION_TABLE_SQL = `
+CREATE TABLE IF NOT EXISTS guest_sessions (
+  token TEXT PRIMARY KEY,
+  guest_id INTEGER NOT NULL,
+  created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  expires_at TEXT NOT NULL
+)`;
+
 const GUEST_TABLE_SQL = `
 CREATE TABLE IF NOT EXISTS guests (
   id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -40,6 +48,15 @@ const hashPin = async pin => {
 
 const ensureGuestsTable = async env => {
   await env.DB.prepare(GUEST_TABLE_SQL).run();
+  await env.DB.prepare(SESSION_TABLE_SQL).run();
+};
+
+const createGuestSession = async (env, guestId) => {
+  const bytes = crypto.getRandomValues(new Uint8Array(32));
+  const token = bytesToBase64Url(bytes);
+  const expires = new Date(Date.now() + 30 * 24 * 60 * 60 * 1000).toISOString();
+  await env.DB.prepare("INSERT INTO guest_sessions(token,guest_id,expires_at) VALUES(?,?,?)").bind(token, guestId, expires).run();
+  return token;
 };
 
 const registerGuest = async (request, env) => {
@@ -72,11 +89,15 @@ const registerGuest = async (request, env) => {
       "INSERT INTO guests(name,phone,pin_salt,pin_hash) VALUES(?,?,?,?)"
     ).bind(name, phone, salt, hash).run();
 
-    return json({
+    const guestId = Number(result.meta.last_row_id);
+    const token = await createGuestSession(env, guestId);
+    const response = json({
       ok: true,
-      guest_id: Number(result.meta.last_row_id),
+      guest_id: guestId,
       message: "Регистрация успешно сохранена"
     });
+    response.headers.set("Set-Cookie", `bar_guest_session=${token}; HttpOnly; Secure; SameSite=Lax; Path=/; Max-Age=2592000`);
+    return response;
   } catch (error) {
     if (String(error?.message || "").toLowerCase().includes("unique"))
       return json({ error: "Этот номер уже зарегистрирован" }, 409);
@@ -115,6 +136,7 @@ const injectRegistrationHandler = async response => {
     if(!r.ok){guestRegisterMessage.textContent=d.error||"Не удалось зарегистрироваться";return;}
     guestRegisterMessage.textContent=d.message||"Регистрация успешно сохранена ✅";
     e.target.reset();
+    setTimeout(()=>location.reload(),500);
   }catch(error){guestRegisterMessage.textContent="Не удалось связаться с сервером";}
 };`;
 
