@@ -82,7 +82,7 @@ const ensureBarOrderSystem=async env=>{
 };
 const getOpenBarShift=async env=>{await ensureBarOrderSystem(env);return await env.DB.prepare("SELECT id,status,started_at,closed_at FROM bar_shifts WHERE status='open' ORDER BY id DESC LIMIT 1").first();};
 const ensureOpenBarShift=async env=>{await ensureBarOrderSystem(env);let shift=await getOpenBarShift(env);if(shift)return shift;const r=await env.DB.prepare("INSERT INTO bar_shifts(status) VALUES('open')").run();return await env.DB.prepare("SELECT id,status,started_at,closed_at FROM bar_shifts WHERE id=?").bind(Number(r.meta.last_row_id)).first();};
-const getReservedIngredients=async env=>{await ensureBarOrderSystem(env);const {results}=await env.DB.prepare("SELECT ri.ingredient_id,COALESCE(SUM(ri.quantity*oi.quantity),0) reserved FROM bar_orders o JOIN bar_order_items oi ON oi.order_id=o.id JOIN recipe_ingredients ri ON ri.cocktail_id=oi.cocktail_id WHERE o.status='draft' GROUP BY ri.ingredient_id").all();return new Map((results||[]).map(x=>[Number(x.ingredient_id),Number(x.reserved||0)]));};
+const getReservedIngredients=async env=>{await ensureBarOrderSystem(env);await ensureGuestAuthSystem(env);const {results}=await env.DB.prepare("SELECT ingredient_id,SUM(reserved) reserved FROM (SELECT ri.ingredient_id,ri.quantity*oi.quantity reserved FROM bar_orders o JOIN bar_order_items oi ON oi.order_id=o.id JOIN recipe_ingredients ri ON ri.cocktail_id=oi.cocktail_id WHERE o.status='draft' UNION ALL SELECT ri.ingredient_id,ri.quantity*oi.quantity reserved FROM orders o JOIN order_items oi ON oi.order_id=o.id JOIN recipe_ingredients ri ON ri.cocktail_id=oi.cocktail_id WHERE o.status='pending') GROUP BY ingredient_id").all();return new Map((results||[]).map(x=>[Number(x.ingredient_id),Number(x.reserved||0)]));};
 const getDraftBarOrder=async(env,create=false)=>{
   await ensureBarOrderSystem(env);let shift=await getOpenBarShift(env);if(!shift&&create)shift=await ensureOpenBarShift(env);if(!shift)return {shift:null,order:null,items:[]};
   let order=await env.DB.prepare("SELECT id,shift_id,status,created_at,accepted_at,price_total FROM bar_orders WHERE shift_id=? AND status='draft' ORDER BY id DESC LIMIT 1").bind(shift.id).first();
@@ -109,6 +109,80 @@ const resolveIngredient=async(env,name)=>{
   if(hit)return Number(hit.id);
   const r=await env.DB.prepare("INSERT INTO ingredients(name,unit) VALUES(?,?)").bind(n,"ml").run();
   return Number(r.meta.last_row_id);
+};
+
+const ensureGuestAuthSystem=async env=>{
+  await env.DB.prepare("CREATE TABLE IF NOT EXISTS guests (id INTEGER PRIMARY KEY AUTOINCREMENT,name TEXT NOT NULL,phone TEXT UNIQUE,created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP)").run();
+  try{await env.DB.prepare("ALTER TABLE guests ADD COLUMN pin_salt TEXT").run()}catch(e){}
+  try{await env.DB.prepare("ALTER TABLE guests ADD COLUMN pin_hash TEXT").run()}catch(e){}
+  await env.DB.prepare("CREATE TABLE IF NOT EXISTS guest_sessions (id INTEGER PRIMARY KEY AUTOINCREMENT,guest_id INTEGER NOT NULL REFERENCES guests(id) ON DELETE CASCADE,token_hash TEXT NOT NULL UNIQUE,expires_at TEXT NOT NULL,created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP)").run();
+  await env.DB.prepare("CREATE INDEX IF NOT EXISTS idx_guest_sessions_token ON guest_sessions(token_hash)").run();
+  await env.DB.prepare("CREATE INDEX IF NOT EXISTS idx_guest_sessions_guest ON guest_sessions(guest_id)").run();
+  await env.DB.prepare("CREATE TABLE IF NOT EXISTS guest_login_attempts (phone TEXT PRIMARY KEY,attempts INTEGER NOT NULL DEFAULT 0,window_started_at TEXT NOT NULL)").run();
+};
+const normalizeGuestPhone=phone=>{
+  let p=String(phone||"").trim().replace(/[^\d+]/g,"");
+  if(p.startsWith("8")&&p.length===11)p="7"+p.slice(1);
+  if(p.length===10&&/^9\d{9}$/.test(p))p="7"+p;
+  return p;
+};
+const hexFromBytes=bytes=>Array.from(bytes).map(b=>b.toString(16).padStart(2,"0")).join("");
+const bytesFromHex=hex=>new Uint8Array((String(hex||"").match(/.{1,2}/g)||[]).map(x=>parseInt(x,16)));
+const randomHex=length=>{const b=new Uint8Array(length);crypto.getRandomValues(b);return hexFromBytes(b)};
+const deriveGuestPinHash=async(pin,saltHex)=>{
+  const key=await crypto.subtle.importKey("raw",new TextEncoder().encode(String(pin)),"PBKDF2",false,["deriveBits"]);
+  const bits=await crypto.subtle.deriveBits({name:"PBKDF2",salt:bytesFromHex(saltHex),iterations:100000,hash:"SHA-256"},key,256);
+  return hexFromBytes(new Uint8Array(bits));
+};
+const hashGuestToken=async token=>{
+  const digest=await crypto.subtle.digest("SHA-256",new TextEncoder().encode(String(token)));
+  return hexFromBytes(new Uint8Array(digest));
+};
+const guestCookie=token=>"bar_guest_session="+encodeURIComponent(token)+"; Path=/; HttpOnly; Secure; SameSite=Lax; Max-Age=2592000";
+const clearGuestCookie=()=>"bar_guest_session=; Path=/; HttpOnly; Secure; SameSite=Lax; Max-Age=0";
+const guestResponse=(data,status=200,cookie=null)=>{
+  const headers={"cache-control":"no-store"};
+  if(cookie)headers["set-cookie"]=cookie;
+  return Response.json(data,{status,headers});
+};
+const getGuestFromRequest=async(env,request)=>{
+  await ensureGuestAuthSystem(env);
+  const raw=request.headers.get("Cookie")||"";
+  const m=raw.match(/(?:^|;\s*)bar_guest_session=([^;]+)/);
+  if(!m)return null;
+  let token="";
+  try{token=decodeURIComponent(m[1])}catch(e){return null}
+  if(!token)return null;
+  const tokenHash=await hashGuestToken(token);
+  const session=await env.DB.prepare("SELECT s.id session_id,s.expires_at,g.id,g.name,g.phone,g.created_at FROM guest_sessions s JOIN guests g ON g.id=s.guest_id WHERE s.token_hash=? LIMIT 1").bind(tokenHash).first();
+  if(!session)return null;
+  if(Date.parse(String(session.expires_at))<=Date.now()){await env.DB.prepare("DELETE FROM guest_sessions WHERE id=?").bind(session.session_id).run();return null}
+  return {id:Number(session.id),name:String(session.name||""),phone:String(session.phone||""),created_at:session.created_at,session_id:Number(session.session_id)};
+};
+const createGuestSession=async(env,guestId)=>{
+  const token=randomHex(32),tokenHash=await hashGuestToken(token),expires=new Date(Date.now()+30*24*60*60*1000).toISOString();
+  await env.DB.prepare("INSERT INTO guest_sessions(guest_id,token_hash,expires_at) VALUES(?,?,?)").bind(guestId,tokenHash,expires).run();
+  return token;
+};
+const getGuestOrderStats=async(env,guestId)=>{
+  const stats=await env.DB.prepare("SELECT COUNT(*) orders_count,COALESCE(SUM(oi.quantity),0) cocktails_count,COALESCE(SUM(oi.quantity*oi.unit_price_rub),0) spent_rub FROM orders o LEFT JOIN order_items oi ON oi.order_id=o.id WHERE o.guest_id=? AND o.status='accepted'").bind(guestId).first();
+  return {orders_count:Number(stats?.orders_count||0),cocktails_count:Number(stats?.cocktails_count||0),spent_rub:Number(stats?.spent_rub||0)};
+};
+const getGuestOrders=async(env,guestId)=>{
+  const {results}=await env.DB.prepare("SELECT o.id,o.status,o.total_rub,o.created_at,o.accepted_at,COALESCE(GROUP_CONCAT(c.name||' × '||oi.quantity,', '),'') items FROM orders o LEFT JOIN order_items oi ON oi.order_id=o.id LEFT JOIN cocktails c ON c.id=oi.cocktail_id WHERE o.guest_id=? GROUP BY o.id ORDER BY o.id DESC LIMIT 50").bind(guestId).all();
+  return results||[];
+};
+const getPendingGuestOrdersForBar=async env=>{
+  const {results}=await env.DB.prepare("SELECT o.id,o.status,o.total_rub,o.created_at,g.name guest_name,COALESCE(GROUP_CONCAT(c.name||' × '||oi.quantity,', '),'') items FROM orders o JOIN guests g ON g.id=o.guest_id LEFT JOIN order_items oi ON oi.order_id=o.id LEFT JOIN cocktails c ON c.id=oi.cocktail_id WHERE o.status='pending' GROUP BY o.id ORDER BY o.id ASC").all();
+  return results||[];
+};
+const consumeIngredientForGuestOrder=async(env,orderId,ingredientId,quantity)=>{
+  let left=Number(quantity||0);
+  const {results}=await env.DB.prepare("SELECT pb.id,pb.remaining_qty FROM purchase_batches pb JOIN products p ON p.id=pb.product_id WHERE p.ingredient_id=? AND p.is_active=1 AND pb.remaining_qty>0 ORDER BY pb.purchased_at ASC,pb.id ASC").bind(ingredientId).all();
+  for(const batch of (results||[])){if(left<=0)break;const take=Math.min(left,Number(batch.remaining_qty||0));if(take>0){await env.DB.prepare("UPDATE purchase_batches SET remaining_qty=remaining_qty-? WHERE id=?").bind(take,batch.id).run();left-=take}}
+  if(left>0){await ensureStockAdjustmentSystem(env);await env.DB.prepare("INSERT INTO stock_adjustments(ingredient_id,quantity,unit_price,brand,store) VALUES(?,?,?,?,?)").bind(ingredientId,-left,0,"Заказ гостя #"+orderId,"Списание").run()}
+  const product=await env.DB.prepare("SELECT id FROM products WHERE ingredient_id=? AND is_active=1 ORDER BY id LIMIT 1").bind(ingredientId).first();
+  if(product)await env.DB.prepare("INSERT INTO stock_movements(product_id,batch_id,movement_type,quantity,order_id,note) VALUES(?,?,?,?,?,?)").bind(Number(product.id),null,"guest_order",-Number(quantity||0),orderId,"Заказ гостя #"+orderId).run();
 };
 
 const json = (data, status = 200) =>
@@ -736,23 +810,99 @@ export default {
         return json({...cocktail,recipe_items:results});
       }
 
-      if (url.pathname === "/") return page(`
-<header><h1>🍸 Карты Бара</h1><div class="sub">Cloudflare + D1</div></header>
-<div class="wrap">
-  <div class="card">
-    <h2>Система запущена</h2>
-    <p class="muted">База данных подключена. Теперь приложение можно наполнять реальными данными.</p>
-    <div class="row">
-      <a href="/bar">👨‍🍳 Меню бармена</a>
-      <a href="/menu">🥂 Карта бара</a>
-    </div>
-  </div>
-</div>`);
+
+      if (url.pathname === "/api/guest/me" && request.method === "GET") {
+        const guest=await getGuestFromRequest(env,request);
+        if(!guest)return guestResponse({authenticated:false},401);
+        return guestResponse({authenticated:true,guest:{id:guest.id,name:guest.name,phone:guest.phone},stats:await getGuestOrderStats(env,guest.id)});
+      }
+      if (url.pathname === "/api/guest/register" && request.method === "POST") {
+        const data=await request.json().catch(()=>({})),name=String(data.name||"").trim().replace(/\s+/g," "),phone=normalizeGuestPhone(data.phone),pin=String(data.pin||"").trim();
+        if(name.length<2||name.length>80)return guestResponse({error:"Введите имя от 2 до 80 символов"},400);
+        if(!/^\d{10,15}$/.test(phone))return guestResponse({error:"Введите корректный номер телефона"},400);
+        if(!/^\d{4,8}$/.test(pin))return guestResponse({error:"PIN должен содержать 4–8 цифр"},400);
+        const exists=await env.DB.prepare("SELECT id FROM guests WHERE phone=? LIMIT 1").bind(phone).first();
+        if(exists)return guestResponse({error:"Этот номер уже зарегистрирован. Войдите в личный кабинет."},409);
+        const salt=randomHex(16),hash=await deriveGuestPinHash(pin,salt),r=await env.DB.prepare("INSERT INTO guests(name,phone,pin_salt,pin_hash) VALUES(?,?,?,?)").bind(name,phone,salt,hash).run(),guestId=Number(r.meta.last_row_id),token=await createGuestSession(env,guestId);
+        return guestResponse({ok:true,guest:{id:guestId,name,phone},stats:{orders_count:0,cocktails_count:0,spent_rub:0}},201,guestCookie(token));
+      }
+      if (url.pathname === "/api/guest/login" && request.method === "POST") {
+        const data=await request.json().catch(()=>({})),phone=normalizeGuestPhone(data.phone),pin=String(data.pin||"").trim();
+        if(!/^\d{10,15}$/.test(phone)||!/^\d{4,8}$/.test(pin))return guestResponse({error:"Неверный телефон или PIN"},401);
+        const now=Date.now(),attempt=await env.DB.prepare("SELECT attempts,window_started_at FROM guest_login_attempts WHERE phone=?").bind(phone).first();
+        if(attempt){const started=Date.parse(String(attempt.window_started_at));if(Number.isFinite(started)&&now-started<600000&&Number(attempt.attempts||0)>=5)return guestResponse({error:"Слишком много попыток. Повторите через 10 минут."},429);if(!Number.isFinite(started)||now-started>=600000)await env.DB.prepare("DELETE FROM guest_login_attempts WHERE phone=?").bind(phone).run()}
+        const guest=await env.DB.prepare("SELECT id,name,phone,pin_salt,pin_hash FROM guests WHERE phone=? LIMIT 1").bind(phone).first();
+        const valid=!!(guest?.pin_salt&&guest?.pin_hash)&&((await deriveGuestPinHash(pin,guest.pin_salt))===String(guest.pin_hash));
+        if(!valid){
+          const current=await env.DB.prepare("SELECT attempts,window_started_at FROM guest_login_attempts WHERE phone=?").bind(phone).first(),started=current&&Date.parse(String(current.window_started_at))>now-600000?String(current.window_started_at):new Date(now).toISOString(),count=current&&started===current.window_started_at?Number(current.attempts||0)+1:1;
+          await env.DB.prepare("INSERT OR REPLACE INTO guest_login_attempts(phone,attempts,window_started_at) VALUES(?,?,?)").bind(phone,count,started).run();
+          return guestResponse({error:"Неверный телефон или PIN"},401);
+        }
+        await env.DB.prepare("DELETE FROM guest_login_attempts WHERE phone=?").bind(phone).run();
+        const token=await createGuestSession(env,Number(guest.id));
+        return guestResponse({ok:true,guest:{id:Number(guest.id),name:String(guest.name||""),phone:String(guest.phone||"")},stats:await getGuestOrderStats(env,Number(guest.id))},200,guestCookie(token));
+      }
+      if (url.pathname === "/api/guest/logout" && request.method === "POST") {
+        const guest=await getGuestFromRequest(env,request);
+        if(guest)await env.DB.prepare("DELETE FROM guest_sessions WHERE id=?").bind(guest.session_id).run();
+        return guestResponse({ok:true},200,clearGuestCookie());
+      }
+      if (url.pathname === "/api/guest/orders" && request.method === "GET") {
+        const guest=await getGuestFromRequest(env,request);
+        if(url.searchParams.get("pending")==="1"&&!guest)return json({orders:await getPendingGuestOrdersForBar(env)});
+        if(!guest)return guestResponse({error:"Требуется вход"},401);
+        return guestResponse({orders:await getGuestOrders(env,guest.id),stats:await getGuestOrderStats(env,guest.id)});
+      }
+      if (url.pathname === "/api/guest/order" && request.method === "POST") {
+        const guest=await getGuestFromRequest(env,request);
+        if(!guest)return guestResponse({error:"Сначала войдите в личный кабинет"},401);
+        const data=await request.json().catch(()=>({})),rawItems=Array.isArray(data.items)?data.items:[],items=rawItems.map(x=>({cocktail_id:Number(x.cocktail_id),quantity:Math.floor(Number(x.quantity||0))})).filter(x=>Number.isInteger(x.cocktail_id)&&x.cocktail_id>0&&x.quantity>0&&x.quantity<=20);
+        if(!items.length||items.length>30)return guestResponse({error:"Заказ пуст или слишком большой"},400);
+        const merged=new Map();for(const x of items)merged.set(x.cocktail_id,Number(merged.get(x.cocktail_id)||0)+x.quantity);
+        const finalItems=[...merged.entries()].map(([cocktail_id,quantity])=>({cocktail_id,quantity})),required=new Map(),details=[];let total=0;
+        for(const item of finalItems){
+          const cocktail=await env.DB.prepare("SELECT id,name,price_rub FROM cocktails WHERE id=? AND is_active=1").bind(item.cocktail_id).first();
+          if(!cocktail)return guestResponse({error:"Один из коктейлей больше недоступен"},409);
+          total+=Number(cocktail.price_rub||0)*item.quantity;
+          const recipe=await env.DB.prepare("SELECT ri.ingredient_id,ri.quantity,i.name,i.unit FROM recipe_ingredients ri JOIN ingredients i ON i.id=ri.ingredient_id WHERE ri.cocktail_id=?").bind(item.cocktail_id).all();
+          if(!(recipe.results||[]).length)return guestResponse({error:"У коктейля «"+cocktail.name+"» не указан рецепт"},409);
+          for(const r of (recipe.results||[])){const id=Number(r.ingredient_id),qty=Number(r.quantity||0)*item.quantity;required.set(id,Number(required.get(id)||0)+qty);details.push({id,name:r.name,unit:r.unit})}
+        }
+        const stockRows=await getProducts(env),stockMap=new Map((stockRows||[]).map(x=>[Number(x.ingredient_id),Number(x.stock||0)])),shortages=[];
+        for(const [id,qty] of required){const available=Number(stockMap.get(id)||0);if(available+0.000001<qty){const ing=details.find(x=>x.id===id);shortages.push((ing?.name||("Ингредиент #"+id))+" — доступно "+available.toLocaleString("ru-RU")+" "+formatUnitLabelServer(ing?.unit)+", нужно "+qty.toLocaleString("ru-RU")+" "+formatUnitLabelServer(ing?.unit))}}
+        if(shortages.length)return guestResponse({error:"Сейчас не хватает: "+shortages.join(", ")},409);
+        const orderRes=await env.DB.prepare("INSERT INTO orders(guest_id,status,total_rub) VALUES(?,'pending',?)").bind(guest.id,total).run(),orderId=Number(orderRes.meta.last_row_id);
+        for(const item of finalItems){const cocktail=await env.DB.prepare("SELECT price_rub FROM cocktails WHERE id=?").bind(item.cocktail_id).first();await env.DB.prepare("INSERT INTO order_items(order_id,cocktail_id,quantity,unit_price_rub) VALUES(?,?,?,?,?)").bind(orderId,item.cocktail_id,item.quantity,Number(cocktail?.price_rub||0)).run()}
+        return guestResponse({ok:true,order_id:orderId,total_rub:total});
+      }
+      if (url.pathname === "/api/guest/orders/accept" && request.method === "POST") {
+        const id=Number((await request.json().catch(()=>({}))).order_id);
+        if(!Number.isInteger(id)||id<1)return json({error:"Некорректный заказ"},400);
+        const order=await env.DB.prepare("SELECT id,status,total_rub FROM orders WHERE id=?").bind(id).first();
+        if(!order||order.status!=="pending")return json({error:"Заказ уже обработан или не найден"},409);
+        const {results:items}=await env.DB.prepare("SELECT cocktail_id,quantity FROM order_items WHERE order_id=?").bind(id).all(),required=new Map();
+        for(const oi of (items||[])){const r=await env.DB.prepare("SELECT ingredient_id,quantity FROM recipe_ingredients WHERE cocktail_id=?").bind(oi.cocktail_id).all();for(const row of (r.results||[])){const iid=Number(row.ingredient_id);required.set(iid,Number(required.get(iid)||0)+Number(row.quantity||0)*Number(oi.quantity||0))}}
+        const stockRows=await getProducts(env),available=new Map((stockRows||[]).map(x=>[Number(x.ingredient_id),Number(x.stock||0)]));for(const [iid,qty] of required)available.set(iid,Number(available.get(iid)||0)+qty);
+        const shortages=[];for(const [iid,qty] of required)if(Number(available.get(iid)||0)+0.000001<qty){const ing=await env.DB.prepare("SELECT name,unit FROM ingredients WHERE id=?").bind(iid).first();shortages.push((ing?.name||("Ингредиент #"+iid))+" — доступно "+Number(available.get(iid)||0).toLocaleString("ru-RU")+" "+formatUnitLabelServer(ing?.unit)+", нужно "+qty.toLocaleString("ru-RU")+" "+formatUnitLabelServer(ing?.unit))}
+        if(shortages.length)return json({error:"Недостаточно ингредиентов: "+shortages.join(", ")},409);
+        for(const [iid,qty] of required)await consumeIngredientForGuestOrder(env,id,iid,qty);
+        await env.DB.prepare("UPDATE orders SET status='accepted',accepted_at=CURRENT_TIMESTAMP WHERE id=?").bind(id).run();
+        return json({ok:true,order_id:id});
+      }
+      if (url.pathname === "/api/guest/orders/reject" && request.method === "POST") {
+        const id=Number((await request.json().catch(()=>({}))).order_id);
+        if(!Number.isInteger(id)||id<1)return json({error:"Некорректный заказ"},400);
+        const r=await env.DB.prepare("UPDATE orders SET status='rejected' WHERE id=? AND status='pending'").bind(id).run();
+        if(!Number(r.meta.changes||0))return json({error:"Заказ уже обработан или не найден"},409);
+        return json({ok:true,order_id:id});
+      }
+
+      if (url.pathname === "/") return Response.redirect(new URL("/menu", url), 302);
 
       if (url.pathname === "/bar") return page(`
 <header><h1>👨‍🍳 Меню бармена</h1><div class="sub">Рабочая часть</div></header>
 <div class="wrap">
-<div class="row" style="margin-bottom:14px"><a href="/" style="display:inline-block;padding:10px 14px;border:1px solid #333;border-radius:12px;background:#151515">🏠 Главное меню</a></div>
+<div class="row" style="margin-bottom:14px"><a href="/bar" style="display:inline-block;padding:10px 14px;border:1px solid #333;border-radius:12px;background:#151515">🏠 Главное меню</a></div>
 <div class="grid">
 <a class="card" href="/bar/recipes"><h2>🍸 Книга рецептов</h2><p class="muted">Создание коктейлей и рецептур</p></a>
 <a class="card" href="/bar/ingredients"><h2>🧾 Ингредиенты</h2><p class="muted">Ваш справочник ингредиентов</p></a>
@@ -765,7 +915,7 @@ export default {
       if (url.pathname === "/bar/recipes") return page(`
 <header><h1>🍸 Книга рецептов</h1><div class="sub">Рецепт здесь — источник для гостевой «Карты бара»</div></header>
 <div class="wrap">
-  <div class="row" style="margin-bottom:14px"><a href="/" style="display:inline-block;padding:10px 14px;border:1px solid #333;border-radius:12px;background:#151515">🏠 Главное меню</a></div>
+  <div class="row" style="margin-bottom:14px"><a href="/bar" style="display:inline-block;padding:10px 14px;border:1px solid #333;border-radius:12px;background:#151515">🏠 Главное меню</a></div>
   <div class="row" style="margin-bottom:16px">
     <button type="button" id="newCocktailBtn">＋ Создать коктейль</button>
   </div>
@@ -1068,7 +1218,7 @@ loadOrderBar();
       if (url.pathname === "/bar/ingredients") return page(`
 <header><h1>🧾 Ингредиенты</h1><div class="sub">Системные ингредиенты для рецептов и склада</div></header>
 <div class="wrap">
-<div class="row" style="margin-bottom:14px"><a href="/" style="display:inline-block;padding:10px 14px;border:1px solid #333;border-radius:12px;background:#151515">🏠 Главное меню</a><a href="/bar/recipes" style="display:inline-block;padding:10px 14px;border:1px solid #333;border-radius:12px;background:#151515">🍸 Книга рецептов</a></div>
+<div class="row" style="margin-bottom:14px"><a href="/bar" style="display:inline-block;padding:10px 14px;border:1px solid #333;border-radius:12px;background:#151515">🏠 Главное меню</a><a href="/bar/recipes" style="display:inline-block;padding:10px 14px;border:1px solid #333;border-radius:12px;background:#151515">🍸 Книга рецептов</a></div>
 <div class="card">
 <h2>Добавить ингредиент</h2>
 <p class="muted">Название здесь — это стабильное имя ингредиента. Бренд, магазин и конкретная упаковка сюда не записываются.</p>
@@ -1107,7 +1257,7 @@ document.querySelector("#ingredientForm").onsubmit=async e=>{e.preventDefault();
         return page(`
 <header><h1>📦 Склад</h1><div class="sub">Справочник товаров и текущие остатки</div></header>
 <div class="wrap">
-<div class="row" style="margin-bottom:14px"><a href="/" style="display:inline-block;padding:10px 14px;border:1px solid #333;border-radius:12px;background:#151515">🏠 Главное меню</a></div>
+<div class="row" style="margin-bottom:14px"><a href="/bar" style="display:inline-block;padding:10px 14px;border:1px solid #333;border-radius:12px;background:#151515">🏠 Главное меню</a></div>
 <div class="card">
 <h2>Новый товар</h2>
 <form id="productForm">
@@ -1243,6 +1393,7 @@ renderStock();
 </style>
 <div class="guest-menu">
   <div class="guest-title"><span>🍸 Карта бара</span></div>
+  <div id="guestAccount" class="guest-account" style="display:flex;justify-content:center;gap:8px;flex-wrap:wrap;margin-bottom:14px"></div>
   <div class="guest-filters">
     <select id="strengthFilter" class="guest-select">
       <option value="">Крепость: все</option>
@@ -1259,6 +1410,35 @@ renderStock();
 <script>
 const esc=s=>String(s??"").replace(/[&<>"']/g,c=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[c]));
 let cocktails=[];
+let guest=null,cart={};
+const loadGuest=async()=>{const r=await fetch("/api/guest/me");if(r.ok){const d=await r.json();guest=d.guest}else guest=null;renderGuestAccount()};
+const renderGuestAccount=()=>{
+ const box=document.querySelector("#guestAccount");
+ if(!guest){box.innerHTML='<button id="guestLogin">🔐 Войти</button><button class="secondary" id="guestRegister">👤 Регистрация</button>'}
+ else{box.innerHTML='<span class="pill" style="padding:10px 13px">👤 '+esc(guest.name)+'</span><button id="guestCabinet">Личный кабинет</button><button class="secondary" id="guestLogout">Выйти</button>';document.querySelector("#guestCabinet").onclick=guestCabinet;document.querySelector("#guestLogout").onclick=async()=>{await fetch("/api/guest/logout",{method:"POST"});guest=null;cart={};renderGuestAccount();render()}}
+ document.querySelector("#guestLogin")?.addEventListener("click",guestLogin);
+ document.querySelector("#guestRegister")?.addEventListener("click",guestRegister);
+};
+const guestLogin=async()=>{
+ const phone=prompt("Введите номер телефона:");if(phone===null)return;
+ const pin=prompt("Введите PIN-код:");if(pin===null)return;
+ const r=await fetch("/api/guest/login",{method:"POST",headers:{"content-type":"application/json"},body:JSON.stringify({phone,pin})}),d=await r.json().catch(()=>({}));
+ if(!r.ok){alert(d.error||"Не удалось войти");return}guest=d.guest;cart={};renderGuestAccount();render();alert("Вход выполнен ✅");
+};
+const guestRegister=async()=>{
+ const name=prompt("Как вас зовут?");if(name===null)return;
+ const phone=prompt("Номер телефона:");if(phone===null)return;
+ const pin=prompt("Придумайте PIN-код (4–8 цифр):");if(pin===null)return;
+ const r=await fetch("/api/guest/register",{method:"POST",headers:{"content-type":"application/json"},body:JSON.stringify({name,phone,pin})}),d=await r.json().catch(()=>({}));
+ if(!r.ok){alert(d.error||"Не удалось зарегистрироваться");return}guest=d.guest;cart={};renderGuestAccount();render();alert("Аккаунт создан ✅");
+};
+const guestCabinet=async()=>{
+ const r=await fetch("/api/guest/orders"),d=await r.json().catch(()=>({}));if(!r.ok){alert(d.error||"Не удалось открыть кабинет");return}
+ const s=d.stats||{};let msg="👤 "+guest.name+"\n\nЗаказов: "+s.orders_count+"\nКоктейлей: "+s.cocktails_count+"\nПотрачено: "+s.spent_rub+" ₽\n\nИстория:\n";
+ msg+=(d.orders||[]).slice(0,10).map(o=>"№"+o.id+" — "+(o.items||"")+" — "+o.total_rub+" ₽ — "+(o.status==="accepted"?"принят":o.status==="rejected"?"отклонён":"ожидает")).join("\n")||"Пока заказов нет.";
+ alert(msg);
+};
+
 const strengthStars=s=>{
   const v=String(s||"").toLowerCase();
   if(v.includes("безалк")) return "—";
@@ -1291,8 +1471,21 @@ const render=highlightId=>{
       '<div class="guest-price">'+Number(c.price_rub||0)+' ₽</div>'+
       '<div class="guest-strength">Крепость — '+strengthStars(c.strength)+'</div>'+
       (unique.length?'<div class="guest-ingredients">'+unique.map(esc).join(", ")+'</div>':"")+
+      (guest?'<div class="guest-controls" style="display:flex;justify-content:center;align-items:center;gap:12px;margin-top:13px;padding-top:12px;border-top:1px solid #292929"><button class="secondary guest-minus" data-id="'+c.id+'">−</button><span style="min-width:32px;text-align:center;font-weight:900">'+Number(cart[c.id]||0)+'</span><button class="guest-plus" data-id="'+c.id+'">+</button></div>':"")+
       '</article>';
   }).join("");
+  document.querySelectorAll(".guest-minus").forEach(b=>b.onclick=()=>{const id=Number(b.dataset.id);cart[id]=Math.max(0,Number(cart[id]||0)-1);render()});
+  document.querySelectorAll(".guest-plus").forEach(b=>b.onclick=()=>{const id=Number(b.dataset.id);cart[id]=Number(cart[id]||0)+1;render()});
+  const selected=Object.entries(cart).filter(([,q])=>Number(q)>0);
+  if(guest&&selected.length){
+    const old=document.querySelector("#guestOrderBar");if(old)old.remove();
+    const total=selected.reduce((sum,[id,q])=>{const c=cocktails.find(x=>Number(x.id)===Number(id));return sum+Number(c?.price_rub||0)*Number(q)},0);
+    const bar=document.createElement("div");bar.id="guestOrderBar";bar.className="card";bar.style.cssText="position:sticky;bottom:10px;z-index:5;margin:14px 0;background:#111;border-color:#3b3b3b";
+    bar.innerHTML="<h3>📋 Ваш заказ</h3>"+selected.map(([id,q])=>{const c=cocktails.find(x=>Number(x.id)===Number(id));return "<div>"+esc(c?.name||"")+" × "+q+"</div>"}).join("")+"<p>Итого: <b>"+total+" ₽</b></p><button id=\"makeGuestOrder\" style=\"width:100%\">🍸 Сделать заказ</button>";
+    document.querySelector("#menu").after(bar);
+    document.querySelector("#makeGuestOrder").onclick=async()=>{const items=selected.map(([id,q])=>({cocktail_id:Number(id),quantity:Number(q)}));const r=await fetch("/api/guest/order",{method:"POST",headers:{"content-type":"application/json"},body:JSON.stringify({items})}),d=await r.json().catch(()=>({}));if(!r.ok){alert(d.error||"Не удалось оформить заказ");return}cart={};render();alert("Заказ №"+d.order_id+" отправлен бармену ✅")};
+  }
+
   if(highlightId){
     const el=document.querySelector("#cocktail-"+Number(highlightId));
     if(el){el.scrollIntoView({behavior:"smooth",block:"center"});}
@@ -1311,16 +1504,15 @@ document.querySelector("#randomCocktail").onclick=()=>{
   if(!list.length){alert("По выбранным условиям коктейлей нет.");return}
   render(list[Math.floor(Math.random()*list.length)].id);
 };
-fetch("/api/cocktails").then(r=>r.json()).then(x=>{
-  cocktails=Array.isArray(x)?x:[];
-  render();
+Promise.all([fetch("/api/cocktails").then(r=>r.json()),fetch("/api/guest/me").then(r=>r.ok?r.json():null).catch(()=>null)]).then(([x,me])=>{
+  cocktails=Array.isArray(x)?x:[];guest=me?.authenticated?me.guest:null;renderGuestAccount();render();
 }).catch(()=>{document.querySelector("#menu").innerHTML='<div class="guest-card guest-empty">Не удалось загрузить карту бара.</div>';});
 </script>`);
 
       if (url.pathname === "/bar/shop") return page(`
 <header><h1>🛒 Магазин</h1><div class="sub">Закупки и партии товара</div></header>
 <div class="wrap">
-<div class="row" style="margin-bottom:14px"><a href="/" style="display:inline-block;padding:10px 14px;border:1px solid #333;border-radius:12px;background:#151515">🏠 Главное меню</a><a href="/bar/stock" style="display:inline-block;padding:10px 14px;border:1px solid #333;border-radius:12px;background:#151515">📦 Склад</a></div>
+<div class="row" style="margin-bottom:14px"><a href="/bar" style="display:inline-block;padding:10px 14px;border:1px solid #333;border-radius:12px;background:#151515">🏠 Главное меню</a><a href="/bar/stock" style="display:inline-block;padding:10px 14px;border:1px solid #333;border-radius:12px;background:#151515">📦 Склад</a></div>
 
 <div class="card"><h2>Новая закупка</h2><p class="muted">Фиксируем фактически купленную партию.</p>
 <form id="purchaseForm">
@@ -1436,7 +1628,7 @@ document.querySelector("#todayFilter").onclick=()=>{const d=new Date();const s=d
 
       if (url.pathname === "/bar/statistics") return page(`<header><h1>📊 Статистика</h1><div class="sub">Смены, заказы и приготовленные коктейли</div></header>
 <div class="wrap">
-<div class="row" style="margin-bottom:14px"><a href="/" style="display:inline-block;padding:10px 14px;border:1px solid #333;border-radius:12px;background:#151515">🏠 Главное меню</a><a href="/bar/recipes" style="display:inline-block;padding:10px 14px;border:1px solid #333;border-radius:12px;background:#151515">🍸 Книга рецептов</a></div>
+<div class="row" style="margin-bottom:14px"><a href="/bar" style="display:inline-block;padding:10px 14px;border:1px solid #333;border-radius:12px;background:#151515">🏠 Главное меню</a><a href="/bar/recipes" style="display:inline-block;padding:10px 14px;border:1px solid #333;border-radius:12px;background:#151515">🍸 Книга рецептов</a></div>
 <div class="card" id="shiftBox">Загрузка…</div>
 <div style="height:16px"></div>
 <div class="card"><h2>История смен</h2><div id="stats">Загрузка…</div></div>
@@ -1458,7 +1650,7 @@ loadStats();
 
       if (url.pathname === "/bar/orders") return page(`<header><h1>📋 Текущий заказ</h1><div class="sub">＋ и − меняют заказ. Склад резервируется сразу, окончательное списание — после принятия.</div></header>
 <div class="wrap">
-<div class="row" style="margin-bottom:14px"><a href="/" style="display:inline-block;padding:10px 14px;border:1px solid #333;border-radius:12px;background:#151515">🏠 Главное меню</a><a href="/bar/recipes" style="display:inline-block;padding:10px 14px;border:1px solid #333;border-radius:12px;background:#151515">🍸 Книга рецептов</a></div>
+<div class="row" style="margin-bottom:14px"><a href="/bar" style="display:inline-block;padding:10px 14px;border:1px solid #333;border-radius:12px;background:#151515">🏠 Главное меню</a><a href="/bar/recipes" style="display:inline-block;padding:10px 14px;border:1px solid #333;border-radius:12px;background:#151515">🍸 Книга рецептов</a></div>
 <div class="card"><div id="order">Загрузка…</div></div>
 </div>
 <script>
@@ -1482,7 +1674,6 @@ loadOrder();
     }
   }
 };
-
 
 
 
