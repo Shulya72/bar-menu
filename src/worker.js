@@ -17,35 +17,25 @@ const normalizePhone = value => {
   let s = String(value || "").trim();
   if (!s) return "";
   const plus = s.startsWith("+") ? "+" : "";
-  s = s.replace(/\\D/g, "");
+  s = s.replace(/\D/g, "");
   return plus + s;
 };
 
 const bytesToBase64Url = bytes => {
   let binary = "";
   for (const b of bytes) binary += String.fromCharCode(b);
-  return btoa(binary).replace(/\\+/g, "-").replace(/\\//g, "_").replace(/=+$/g, "");
+  return btoa(binary).replace(/\+/g, "-").replace(/\//g, "_").replace(/=+$/g, "");
 };
 
 const hashPin = async pin => {
   const enc = new TextEncoder();
   const salt = crypto.getRandomValues(new Uint8Array(16));
-  const key = await crypto.subtle.importKey(
-    "raw",
-    enc.encode(pin),
-    "PBKDF2",
-    false,
-    ["deriveBits"]
-  );
+  const key = await crypto.subtle.importKey("raw", enc.encode(pin), "PBKDF2", false, ["deriveBits"]);
   const bits = await crypto.subtle.deriveBits(
     { name: "PBKDF2", salt, iterations: 100000, hash: "SHA-256" },
-    key,
-    256
+    key, 256
   );
-  return {
-    salt: bytesToBase64Url(salt),
-    hash: bytesToBase64Url(new Uint8Array(bits))
-  };
+  return { salt: bytesToBase64Url(salt), hash: bytesToBase64Url(new Uint8Array(bits)) };
 };
 
 const ensureGuestsTable = async env => {
@@ -54,11 +44,8 @@ const ensureGuestsTable = async env => {
 
 const registerGuest = async (request, env) => {
   let body;
-  try {
-    body = await request.json();
-  } catch {
-    return json({ error: "Некорректные данные формы" }, 400);
-  }
+  try { body = await request.json(); }
+  catch { return json({ error: "Некорректные данные формы" }, 400); }
 
   const name = String(body?.name || "").trim();
   const phone = normalizePhone(body?.phone);
@@ -67,20 +54,16 @@ const registerGuest = async (request, env) => {
   if (name.length < 2 || name.length > 80)
     return json({ error: "Имя должно быть от 2 до 80 символов" }, 400);
 
-  if (!/^\\+?\\d{7,15}$/.test(phone))
+  if (!/^\+?\d{7,15}$/.test(phone))
     return json({ error: "Введите корректный номер телефона" }, 400);
 
-  if (!/^\\d{4,12}$/.test(pin))
+  if (!/^\d{4,12}$/.test(pin))
     return json({ error: "PIN должен содержать от 4 до 12 цифр" }, 400);
 
   await ensureGuestsTable(env);
 
-  const existing = await env.DB.prepare(
-    "SELECT id FROM guests WHERE phone=? LIMIT 1"
-  ).bind(phone).first();
-
-  if (existing)
-    return json({ error: "Этот номер уже зарегистрирован" }, 409);
+  const existing = await env.DB.prepare("SELECT id FROM guests WHERE phone=? LIMIT 1").bind(phone).first();
+  if (existing) return json({ error: "Этот номер уже зарегистрирован" }, 409);
 
   const { salt, hash } = await hashPin(pin);
 
@@ -112,10 +95,7 @@ const injectRegistrationHandler = async response => {
   guestRegisterMessage.textContent="Форма готова. Подключение сохранения регистрации — следующим шагом.";
 };`;
 
-  if (!html.includes(oldHandler)) return new Response(html, {
-    status: response.status,
-    headers: response.headers
-  });
+  if (!html.includes(oldHandler)) return new Response(html, { status: response.status, headers: response.headers });
 
   const newHandler = `guestRegisterForm.onsubmit=async e=>{
   e.preventDefault();
@@ -132,21 +112,13 @@ const injectRegistrationHandler = async response => {
       })
     });
     const d=await r.json();
-    if(!r.ok){
-      guestRegisterMessage.textContent=d.error||"Не удалось зарегистрироваться";
-      return;
-    }
+    if(!r.ok){guestRegisterMessage.textContent=d.error||"Не удалось зарегистрироваться";return;}
     guestRegisterMessage.textContent=d.message||"Регистрация успешно сохранена ✅";
     e.target.reset();
-  }catch(error){
-    guestRegisterMessage.textContent="Не удалось связаться с сервером";
-  }
+  }catch(error){guestRegisterMessage.textContent="Не удалось связаться с сервером";}
 };`;
 
-  return new Response(html.replace(oldHandler, newHandler), {
-    status: response.status,
-    headers: response.headers
-  });
+  return new Response(html.replace(oldHandler, newHandler), { status: response.status, headers: response.headers });
 };
 
 export default {
@@ -154,19 +126,16 @@ export default {
     const url = new URL(request.url);
 
     if (url.pathname === "/api/guest/register" && request.method === "POST") {
-      try {
-        return await registerGuest(request, env);
-      } catch (error) {
+      try { return await registerGuest(request, env); }
+      catch (error) {
         console.error("guest registration", error);
         return json({ error: "Ошибка сервера при регистрации" }, 500);
       }
     }
 
     const response = await App.fetch(request, env, ctx);
-
-    if (url.pathname === "/menu" && request.method === "GET") {
+    if (url.pathname === "/menu" && request.method === "GET")
       return await injectRegistrationHandler(response);
-    }
 
     return response;
   }
