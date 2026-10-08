@@ -9,7 +9,7 @@ custom_domain = true
 [[d1_databases]]
 binding = "DB"
 database_name = "bar-menu-db"
-database_id = "370d49fa-99b0-4497-861e-db1a77a710a0a0"
+database_id = "370d49fa-99b0-4497-861e-db1a77a710a0"
 
 [[r2_buckets]]
 binding = "PHOTOS"
