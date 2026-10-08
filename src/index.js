@@ -1243,6 +1243,7 @@ renderStock();
 </style>
 <div class="guest-menu">
   <div class="guest-title"><span>🍸 Карта бара</span></div>
+  <div style="display:flex;justify-content:flex-end;margin:-4px 0 12px"><button type="button" id="guestRegisterButton" class="secondary">👤 Регистрация</button></div>
   <div class="guest-filters">
     <select id="strengthFilter" class="guest-select">
       <option value="">Крепость: все</option>
