@@ -1209,38 +1209,38 @@ renderStock();
 
       if (url.pathname === "/menu") return page(`
 <style>
-.guest-menu{max-width:980px;margin:auto;padding:10px 12px 24px}
-.guest-title{text-align:center;margin:0 0 14px}
-.guest-title span{display:inline-block;padding:7px 20px;border:1px solid #3a3a3a;border-radius:18px;background:#222;color:#eee;font-size:18px;box-shadow:0 2px 12px rgba(0,0,0,.25)}
-.guest-filters{display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-bottom:14px}
-.guest-select,.guest-search{width:100%;height:48px;padding:0 14px;border:1px solid #303030;border-radius:17px;background:#111;color:#aaa;font-size:14px;outline:none}
-.guest-search::placeholder{color:#8c8c8c}
-.guest-random{width:100%;height:54px;margin-bottom:16px;border-radius:19px;background:#6dff00;color:#080808;font-size:19px;font-weight:800;box-shadow:0 5px 16px rgba(109,255,0,.10)}
+.guest-menu{max-width:540px;margin:auto;padding:22px 18px 34px;color:#f3f4f6}
+.guest-title{text-align:center;margin:0 0 22px;padding-top:8px}
+.guest-title span{display:inline-block;padding:0;border:0;background:transparent;color:#e5b958;font-family:Georgia,'Times New Roman',serif;font-size:30px;font-weight:800;letter-spacing:2.5px;box-shadow:none}
+.guest-title span:after{content:"HOUSE COCKTAIL ROOM";display:block;margin-top:8px;color:#9ca3af;font:600 10px/1.5 system-ui,sans-serif;letter-spacing:2.4px}
+.guest-filters{display:grid;grid-template-columns:1fr 1.3fr;gap:10px;margin-bottom:14px}
+.guest-select,.guest-search{width:100%;height:48px;padding:0 14px;border:1px solid rgba(229,185,88,.2);border-radius:14px;background:rgba(22,24,35,.86);color:#f3f4f6;font-size:13px;outline:none;box-shadow:0 6px 22px rgba(0,0,0,.15)}
+.guest-select:focus,.guest-search:focus{border-color:#e5b958;box-shadow:0 0 16px rgba(229,185,88,.12)}
+.guest-search::placeholder{color:#9ca3af}
+.guest-random{width:100%;height:52px;margin-bottom:18px;border:1px solid rgba(229,185,88,.4);border-radius:15px;background:linear-gradient(135deg,rgba(229,185,88,.2),rgba(255,138,61,.12));color:#f5d88f;font-size:15px;font-weight:800;letter-spacing:.3px;box-shadow:0 5px 18px rgba(229,185,88,.08)}
 .guest-random:active{transform:scale(.985)}
-.guest-card{overflow:hidden;margin-bottom:12px;padding:14px;border:1px solid #292929;border-radius:16px;background:#111;box-shadow:none}
-.guest-photo{width:100%;aspect-ratio:4/3;object-fit:cover;display:block;border-radius:10px;background:#111}
-.guest-photo-placeholder{width:100%;aspect-ratio:4/3;display:flex;align-items:center;justify-content:center;border-radius:12px;background:#181818;color:#777;font-size:38px}
-.guest-card h2{margin:0 0 6px;font-size:20px;line-height:1.15;color:#f4f4f4;letter-spacing:0}
-.guest-price{font-size:18px;color:#6dff00;font-weight:700;margin-bottom:9px}
-.guest-strength{font-size:14px;color:#aaa;margin-bottom:9px}
-.guest-ingredients{font-size:14px;line-height:1.4;color:#e0e0e0}
-.guest-empty{padding:34px;text-align:center;color:#888}
-@media(max-width:600px){
-  .guest-menu{padding:10px 10px 24px}
-  .guest-title{margin-bottom:14px}
-  .guest-title span{font-size:18px;padding:7px 20px}
-  .guest-filters{gap:10px;margin-bottom:14px}
-  .guest-select,.guest-search{height:48px;padding:0 14px;font-size:14px;border-radius:17px}
-  .guest-random{height:54px;font-size:19px;margin-bottom:16px}
-  .guest-card{padding:14px;margin-bottom:12px;border-radius:16px}
-  .guest-photo,.guest-photo-placeholder{border-radius:10px}
-  .guest-card h2{font-size:20px;margin-top:0}
-  .guest-price{font-size:18px}
-  .guest-ingredients{font-size:14px}
-}
+.guest-card{overflow:hidden;margin-bottom:14px;padding:14px;border:1px solid rgba(229,185,88,.18);border-radius:20px;background:linear-gradient(135deg,rgba(22,24,35,.96),rgba(12,14,21,.94));box-shadow:0 10px 28px rgba(0,0,0,.22)}
+#menu .guest-card:not(.guest-empty){display:grid;grid-template-columns:88px minmax(0,1fr);grid-template-rows:auto auto auto 1fr;column-gap:14px;align-items:start}
+.guest-photo{grid-column:1;grid-row:1/5;width:88px;height:100px;aspect-ratio:auto;object-fit:cover;display:block;border-radius:14px;background:#111;border:1px solid rgba(229,185,88,.22)}
+.guest-photo-placeholder{grid-column:1;grid-row:1/5;width:88px;height:100px;aspect-ratio:auto;display:flex;align-items:center;justify-content:center;border-radius:14px;background:radial-gradient(circle,rgba(229,185,88,.14),rgba(20,22,30,.9));color:#e5b958;font-size:34px;border:1px solid rgba(229,185,88,.22)}
+.guest-card h2{grid-column:2;margin:1px 0 7px;font-family:Georgia,'Times New Roman',serif;font-size:17px;line-height:1.2;color:#fff;letter-spacing:.25px}
+.guest-price{grid-column:2;font-size:17px;color:#e5b958;font-weight:800;margin:0 0 7px}
+.guest-strength{grid-column:2;font-size:12px;color:#c2c5cd;margin:0 0 7px}
+.guest-ingredients{grid-column:1/-1;font-size:12px;line-height:1.55;color:#aeb3c0;margin-top:12px;padding-top:10px;border-top:1px solid rgba(255,255,255,.07)}
+.guest-empty{display:block!important;padding:34px;text-align:center;color:#9ca3af}
+#guestRegisterButton{border:1px solid rgba(229,185,88,.3)!important;border-radius:12px!important;background:rgba(229,185,88,.08)!important;color:#e5b958!important;padding:10px 14px!important}
+#guestRegisterModal>div{background:#13151f!important;border:1px solid rgba(229,185,88,.25)!important;border-radius:22px!important}
+#guestRegisterModal h2{font-family:Georgia,'Times New Roman',serif}
+#guestRegisterForm input{width:100%;margin:5px 0 12px;background:#0b0d13;border:1px solid #343541;border-radius:12px;color:#fff;padding:13px;font:inherit}
+#guestRegisterForm button[type=submit]{background:linear-gradient(135deg,#e5b958,#ff8a3d);color:#111;border:0;border-radius:13px;padding:14px;font-weight:800}
 @media(max-width:430px){
-  .guest-card{padding:14px}
-  .guest-card h2{font-size:20px}
+ .guest-menu{padding:18px 14px 28px}
+ .guest-title span{font-size:27px;letter-spacing:2px}
+ .guest-filters{grid-template-columns:1fr 1.15fr;gap:8px}
+ .guest-select,.guest-search{height:46px;padding:0 10px;font-size:12px}
+ #menu .guest-card:not(.guest-empty){grid-template-columns:78px minmax(0,1fr);column-gap:12px;padding:12px}
+ .guest-photo,.guest-photo-placeholder{width:78px;height:92px}
+ .guest-card h2{font-size:16px}
 }
 </style>
 <div class="guest-menu">
