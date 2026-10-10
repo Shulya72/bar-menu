@@ -1268,9 +1268,9 @@ renderStock();
   <path d="M520 545 L650 545" stroke-width="25"/>
 </g>
 </svg>
-<div class="via-family-pill">Shulmin Private Lounge</div><h1 class="via-brand-title">VIA BAR</h1><p class="via-brand-hosts">Коктейльный салон <span>Владимира</span> & <span>Анастасии</span></p>
+<div class="via-family-pill">Shulmin Private Lounge</div><h1 class="via-brand-title">VIA BAR</h1>
 </header>
-<section class="via-guest-card"><div class="via-guest-avatar">🥂</div><div class="via-guest-info"><div class="via-guest-label">Гость салона</div><div class="via-guest-name" id="viaGuestName">Дорогой гость</div></div><div class="via-guest-score"><div class="via-score-value" id="drinks-counter">0</div><div class="via-score-caption">бокалов</div></div></section>
+
 <div style="display:flex;justify-content:flex-end;margin:-8px 0 14px"><button type="button" id="guestRegisterButton" class="secondary">👤 Войти</button></div>
 <div class="via-search-wrap"><span class="via-search-icon">🔍</span><input id="ingredientSearch" class="via-search" placeholder="Поиск (джин, сауэр, виски)..." autocomplete="off"></div>
 <div class="via-filters" id="viaFilters"><button class="via-filter active" type="button" data-filter="all">Все меню</button><button class="via-filter" type="button" data-filter="duo">✨ Дуэт VIA</button><button class="via-filter" type="button" data-filter="vladimir">🥃 Выбор Владимира</button><button class="via-filter" type="button" data-filter="anastasia">🍸 Выбор Анастасии</button><button class="via-filter" type="button" data-filter="mocktail">🍃 Без алкоголя</button></div>
@@ -1288,8 +1288,8 @@ document.querySelectorAll(".via-filter").forEach(b=>b.addEventListener("click",(
 const guestRegisterButton=document.querySelector("#guestRegisterButton"),guestRegisterModal=document.querySelector("#guestRegisterModal"),guestRegisterClose=document.querySelector("#guestRegisterClose"),guestRegisterForm=document.querySelector("#guestRegisterForm"),guestRegisterMessage=document.querySelector("#guestRegisterMessage");
 const closeGuestRegister=()=>{guestRegisterModal.style.display="none";guestRegisterMessage.textContent=""};
 guestRegisterButton.onclick=()=>{guestRegisterModal.style.display="block";guestRegisterForm.elements.name.focus()};guestRegisterClose.onclick=closeGuestRegister;guestRegisterModal.onclick=e=>{if(e.target===guestRegisterModal)closeGuestRegister()};
-guestRegisterForm.onsubmit=async e=>{e.preventDefault();guestRegisterMessage.textContent="Подключаем…";try{const body=Object.fromEntries(new FormData(guestRegisterForm));const r=await fetch("/api/guest/register",{method:"POST",headers:{"content-type":"application/json"},body:JSON.stringify(body)});const d=await r.json();if(!r.ok){guestRegisterMessage.textContent=d.error||"Не удалось зарегистрироваться";return}guestRegisterMessage.textContent="Готово!";if(d.guest?.name)document.querySelector("#viaGuestName").textContent=d.guest.name;setTimeout(closeGuestRegister,900)}catch(err){guestRegisterMessage.textContent="Ошибка соединения. Попробуйте ещё раз."}};
-fetch("/api/guest/me").then(r=>r.json()).then(x=>{if(x.guest){document.querySelector("#viaGuestName").textContent=x.guest.name;document.querySelector("#drinks-counter").textContent="✓";document.querySelector("#guestRegisterButton").textContent="👤 "+x.guest.name}}).catch(()=>{});
+guestRegisterForm.onsubmit=async e=>{e.preventDefault();guestRegisterMessage.textContent="Подключаем…";try{const body=Object.fromEntries(new FormData(guestRegisterForm));const r=await fetch("/api/guest/register",{method:"POST",headers:{"content-type":"application/json"},body:JSON.stringify(body)});const d=await r.json();if(!r.ok){guestRegisterMessage.textContent=d.error||"Не удалось зарегистрироваться";return}guestRegisterMessage.textContent="Готово!";setTimeout(closeGuestRegister,900)}catch(err){guestRegisterMessage.textContent="Ошибка соединения. Попробуйте ещё раз."}};
+fetch("/api/guest/me").then(r=>r.json()).then(x=>{if(x.guest){document.querySelector("#guestRegisterButton").textContent="👤 "+x.guest.name}}).catch(()=>{});
 fetch("/api/cocktails?include_stock=0").then(r=>r.json()).then(x=>{cocktails=Array.isArray(x)?x:[];render()}).catch(()=>{document.querySelector("#menu").innerHTML='<div class="guest-card guest-empty">Не удалось загрузить меню. Попробуйте обновить страницу.</div>'});
 </script>`);
 
