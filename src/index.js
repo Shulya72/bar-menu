@@ -1210,7 +1210,7 @@ renderStock();
       if (url.pathname === "/menu") return page(`
 <style>
 @import url('https://fonts.googleapis.com/css2?family=Cinzel:wght@600;700;900&family=Plus+Jakarta+Sans:wght@400;500;600;700;800&display=swap');
-:root{--via-gold:#e5b958;--via-light:#fbe29f;--via-muted:#9ca3af;--via-green:#c8ff3d}
+:root{--via-gold:#e5b958;--via-light:#fbe29f;--via-muted:#9ca3af;--via-green:#e5b958}
 .guest-menu{max-width:520px;margin:auto;padding:24px 18px 100px;color:#f3f4f6;font-family:'Plus Jakarta Sans',system-ui,sans-serif}
 .guest-menu *{box-sizing:border-box}
 .via-brand{text-align:center;margin:0 0 24px;padding-top:4px}
@@ -1238,7 +1238,7 @@ renderStock();
 #menu .guest-ingredients{grid-column:1/-1;font-size:12px;line-height:1.55;color:#aeb3c0;margin-top:13px;padding-top:11px;border-top:1px solid rgba(255,255,255,.08)}
 #menu .guest-empty{display:block!important;padding:28px;text-align:center;color:var(--via-muted);background:rgba(20,22,32,.88);border:1px solid rgba(229,185,88,.24);border-radius:20px}
 #menu .guest-order-controls{grid-column:1/-1!important;display:flex!important;align-items:center;gap:12px!important;margin-top:13px!important;padding-top:12px!important;border-top:1px solid rgba(255,255,255,.08)!important}
-#menu .guest-order-controls button{width:54px;min-width:54px;height:50px;border-radius:15px;font-size:25px;font-weight:900;padding:0;background:var(--via-green);color:#080a0e}
+#menu .guest-order-controls button{width:54px;min-width:54px;height:50px;border-radius:15px;font-size:25px;font-weight:900;padding:0;background:linear-gradient(135deg,var(--via-gold),#ff8a3d);color:#111}
 #menu .guest-order-controls button.secondary{background:#24252a;color:#fff}
 #menu .guest-order-controls span{min-width:44px;text-align:center;font-size:20px;font-weight:900;color:#f3f4f6}
 #guestRegisterModal>div{background:#131520!important;border:1px solid rgba(229,185,88,.24)!important;border-radius:22px!important}
