@@ -1249,18 +1249,24 @@ renderStock();
 </style>
 <div class="guest-menu">
 <header class="via-brand">
-<svg class="via-monogram" viewBox="0 0 140 140" fill="none" xmlns="http://www.w3.org/2000/svg" aria-label="Герб семьи Шульминых">
+<svg class="via-monogram" viewBox="0 0 1000 1000" fill="none" xmlns="http://www.w3.org/2000/svg" role="img" aria-label="Золотой герб VA семьи Шульминых">
 <defs>
-<linearGradient id="goldGradient" x1="20" y1="20" x2="120" y2="120" gradientUnits="userSpaceOnUse">
-<stop offset="0%" stop-color="#ffffff"/><stop offset="25%" stop-color="#fbe29f"/><stop offset="65%" stop-color="#e5b958"/><stop offset="100%" stop-color="#b8832a"/>
-</linearGradient>
-<filter id="glow" x="-20%" y="-20%" width="140%" height="140%"><feGaussianBlur stdDeviation="4" result="blur"/><feComposite in="SourceGraphic" in2="blur" operator="over"/></filter>
+  <linearGradient id="viaCrestGold" x1="170" y1="180" x2="820" y2="850" gradientUnits="userSpaceOnUse">
+    <stop offset="0" stop-color="#fff5c7"/><stop offset=".22" stop-color="#fbe29f"/><stop offset=".52" stop-color="#e5b958"/><stop offset=".78" stop-color="#c89132"/><stop offset="1" stop-color="#fbe29f"/>
+  </linearGradient>
+  <filter id="viaCrestGlow" x="-30%" y="-30%" width="160%" height="160%">
+    <feGaussianBlur stdDeviation="9" result="blur"/><feMerge><feMergeNode in="blur"/><feMergeNode in="SourceGraphic"/></feMerge>
+  </filter>
 </defs>
-<circle cx="70" cy="70" r="64" stroke="url(#goldGradient)" stroke-width="1.2" stroke-dasharray="3 3" opacity="0.35"/>
-<circle cx="70" cy="70" r="58" stroke="url(#goldGradient)" stroke-width="0.75" opacity="0.55"/>
-<path d="M 28 34 L 54 104 L 84 24 L 112 104" stroke="url(#goldGradient)" stroke-width="7.5" stroke-linecap="round" stroke-linejoin="round" filter="url(#glow)"/>
-<path d="M 72 72 L 102 72" stroke="url(#goldGradient)" stroke-width="6.5" stroke-linecap="round" filter="url(#glow)"/>
-<circle cx="84" cy="24" r="2.5" fill="#ffffff"/>
+<!-- Evenly spaced dotted outer seal and precise concentric rings -->
+<circle cx="500" cy="500" r="365" stroke="url(#viaCrestGold)" stroke-width="15" stroke-linecap="round" stroke-dasharray="1 27" opacity=".95"/>
+<circle cx="500" cy="500" r="329" stroke="url(#viaCrestGold)" stroke-width="8" opacity=".95"/>
+<circle cx="500" cy="500" r="305" stroke="url(#viaCrestGold)" stroke-width="3.5" opacity=".72"/>
+<!-- Clean geometric VA monogram, inspired by the chosen crest -->
+<g stroke="url(#viaCrestGold)" stroke-linecap="butt" stroke-linejoin="miter" filter="url(#viaCrestGlow)">
+  <path d="M285 330 L445 680 L590 285 L745 680" stroke-width="30"/>
+  <path d="M520 545 L650 545" stroke-width="25"/>
+</g>
 </svg>
 <div class="via-family-pill">Shulmin Private Lounge</div><h1 class="via-brand-title">VIA BAR</h1><p class="via-brand-hosts">Коктейльный салон <span>Владимира</span> & <span>Анастасии</span></p>
 </header>
