@@ -1209,147 +1209,73 @@ renderStock();
 
       if (url.pathname === "/menu") return page(`
 <style>
-.guest-menu{max-width:540px;margin:auto;padding:22px 18px 34px;color:#f3f4f6}
-.guest-title{text-align:center;margin:0 0 22px;padding-top:8px}
-.guest-title span{display:inline-block;padding:0;border:0;background:transparent;color:#e5b958;font-family:Georgia,'Times New Roman',serif;font-size:30px;font-weight:800;letter-spacing:2.5px;box-shadow:none}
-.guest-title span:after{content:"HOUSE COCKTAIL ROOM";display:block;margin-top:8px;color:#9ca3af;font:600 10px/1.5 system-ui,sans-serif;letter-spacing:2.4px}
-.guest-filters{display:grid;grid-template-columns:1fr 1.3fr;gap:10px;margin-bottom:14px}
-.guest-select,.guest-search{width:100%;height:48px;padding:0 14px;border:1px solid rgba(229,185,88,.2);border-radius:14px;background:rgba(22,24,35,.86);color:#f3f4f6;font-size:13px;outline:none;box-shadow:0 6px 22px rgba(0,0,0,.15)}
-.guest-select:focus,.guest-search:focus{border-color:#e5b958;box-shadow:0 0 16px rgba(229,185,88,.12)}
-.guest-search::placeholder{color:#9ca3af}
-.guest-random{width:100%;height:52px;margin-bottom:18px;border:1px solid rgba(229,185,88,.4);border-radius:15px;background:linear-gradient(135deg,rgba(229,185,88,.2),rgba(255,138,61,.12));color:#f5d88f;font-size:15px;font-weight:800;letter-spacing:.3px;box-shadow:0 5px 18px rgba(229,185,88,.08)}
-.guest-random:active{transform:scale(.985)}
-.guest-card{overflow:hidden;margin-bottom:14px;padding:14px;border:1px solid rgba(229,185,88,.18);border-radius:20px;background:linear-gradient(135deg,rgba(22,24,35,.96),rgba(12,14,21,.94));box-shadow:0 10px 28px rgba(0,0,0,.22)}
-#menu .guest-card:not(.guest-empty){display:grid;grid-template-columns:88px minmax(0,1fr);grid-template-rows:auto auto auto 1fr;column-gap:14px;align-items:start}
-.guest-photo{grid-column:1;grid-row:1/5;width:88px;height:100px;aspect-ratio:auto;object-fit:cover;display:block;border-radius:14px;background:#111;border:1px solid rgba(229,185,88,.22)}
-.guest-photo-placeholder{grid-column:1;grid-row:1/5;width:88px;height:100px;aspect-ratio:auto;display:flex;align-items:center;justify-content:center;border-radius:14px;background:radial-gradient(circle,rgba(229,185,88,.14),rgba(20,22,30,.9));color:#e5b958;font-size:34px;border:1px solid rgba(229,185,88,.22)}
-.guest-card h2{grid-column:2;margin:1px 0 7px;font-family:Georgia,'Times New Roman',serif;font-size:17px;line-height:1.2;color:#fff;letter-spacing:.25px}
-.guest-price{grid-column:2;font-size:17px;color:#e5b958;font-weight:800;margin:0 0 7px}
-.guest-strength{grid-column:2;font-size:12px;color:#c2c5cd;margin:0 0 7px}
-.guest-ingredients{grid-column:1/-1;font-size:12px;line-height:1.55;color:#aeb3c0;margin-top:12px;padding-top:10px;border-top:1px solid rgba(255,255,255,.07)}
-.guest-empty{display:block!important;padding:34px;text-align:center;color:#9ca3af}
-#guestRegisterButton{border:1px solid rgba(229,185,88,.3)!important;border-radius:12px!important;background:rgba(229,185,88,.08)!important;color:#e5b958!important;padding:10px 14px!important}
-#guestRegisterModal>div{background:#13151f!important;border:1px solid rgba(229,185,88,.25)!important;border-radius:22px!important}
-#guestRegisterModal h2{font-family:Georgia,'Times New Roman',serif}
+@import url('https://fonts.googleapis.com/css2?family=Cinzel:wght@600;700;900&family=Plus+Jakarta+Sans:wght@400;500;600;700;800&display=swap');
+:root{--via-gold:#e5b958;--via-light:#fbe29f;--via-muted:#9ca3af;--via-green:#c8ff3d}
+.guest-menu{max-width:520px;margin:auto;padding:24px 18px 100px;color:#f3f4f6;font-family:'Plus Jakarta Sans',system-ui,sans-serif}
+.guest-menu *{box-sizing:border-box}
+.via-brand{text-align:center;margin:0 0 24px;padding-top:4px}
+.via-monogram{width:76px;height:76px;display:block;margin:0 auto 14px;filter:drop-shadow(0 0 16px rgba(229,185,88,.35))}
+.via-family-pill{display:inline-flex;align-items:center;gap:7px;padding:5px 14px;background:rgba(229,185,88,.08);border:1px solid rgba(229,185,88,.28);border-radius:999px;font-size:10px;font-weight:700;letter-spacing:2px;color:var(--via-gold);text-transform:uppercase;margin-bottom:10px}
+.via-family-pill:before{content:'●';color:#10b981;font-size:8px}
+.via-brand-title{font-family:'Cinzel',Georgia,serif;font-size:34px;font-weight:900;letter-spacing:4px;background:linear-gradient(135deg,#fff 20%,var(--via-light) 60%,var(--via-gold));-webkit-background-clip:text;-webkit-text-fill-color:transparent;line-height:1.1;margin:0 0 7px}
+.via-brand-hosts{font-size:13px;letter-spacing:.5px;color:var(--via-muted);font-weight:500}.via-brand-hosts span{color:var(--via-gold);font-weight:700}
+.via-guest-card{background:rgba(20,22,32,.88);border:1px solid rgba(229,185,88,.24);border-radius:20px;padding:14px 16px;display:flex;align-items:center;gap:12px;margin-bottom:20px;box-shadow:0 8px 30px rgba(0,0,0,.35)}
+.via-guest-avatar{width:44px;height:44px;border-radius:50%;background:linear-gradient(135deg,var(--via-gold),#ff8a3d);display:flex;align-items:center;justify-content:center;font-size:22px;flex-shrink:0}
+.via-guest-info{flex:1;min-width:0;text-align:left}.via-guest-label{font-size:10px;text-transform:uppercase;letter-spacing:1px;color:var(--via-muted);margin-bottom:3px}.via-guest-name{font-size:15px;font-weight:800;color:#fff}
+.via-guest-score{text-align:right}.via-score-value{font-size:20px;font-weight:800;color:var(--via-gold)}.via-score-caption{font-size:10px;color:var(--via-muted);text-transform:uppercase}
+#guestRegisterButton{border:1px solid rgba(229,185,88,.3)!important;border-radius:12px!important;background:rgba(229,185,88,.08)!important;color:var(--via-gold)!important;padding:10px 12px!important;font-size:12px!important;font-weight:800!important}
+.via-search-wrap{position:relative;margin-bottom:14px}.via-search-icon{position:absolute;left:14px;top:50%;transform:translateY(-50%);opacity:.55;pointer-events:none}
+.via-search{width:100%;height:48px;background:rgba(255,255,255,.05);border:1px solid rgba(255,255,255,.1);padding:0 15px 0 42px;border-radius:14px;color:#fff;font-size:14px;outline:none;font-family:inherit}.via-search:focus{border-color:var(--via-gold)}.via-search::placeholder{color:var(--via-muted)}
+.via-filters{display:flex;gap:8px;overflow-x:auto;padding:0 0 9px;margin-bottom:17px;scrollbar-width:none}.via-filters::-webkit-scrollbar{display:none}
+.via-filter{flex-shrink:0;padding:9px 13px;background:rgba(255,255,255,.04);border:1px solid rgba(255,255,255,.08);border-radius:12px;font-size:12px;font-weight:700;color:var(--via-muted);cursor:pointer;font-family:inherit;white-space:nowrap}
+.via-filter.active{background:linear-gradient(135deg,rgba(229,185,88,.25),rgba(255,138,61,.15));border-color:var(--via-gold);color:#fff;box-shadow:0 4px 14px rgba(229,185,88,.18)}
+#menu{display:flex;flex-direction:column;gap:15px}
+#menu .guest-card:not(.guest-empty){display:grid;grid-template-columns:88px minmax(0,1fr);grid-template-rows:auto auto auto;column-gap:14px;align-items:start;overflow:hidden;margin:0;padding:16px;background:rgba(20,22,32,.88);border:1px solid rgba(229,185,88,.24);border-radius:20px;box-shadow:0 8px 30px rgba(0,0,0,.28)}
+#menu .guest-photo,#menu .guest-photo-placeholder{grid-column:1;grid-row:1/4;width:88px;height:100px;object-fit:cover;display:flex;align-items:center;justify-content:center;border-radius:16px;background:radial-gradient(circle,rgba(229,185,88,.15),rgba(20,22,32,.8));border:1px solid rgba(229,185,88,.25);color:var(--via-gold);font-size:32px}
+#menu .guest-card h2{grid-column:2;margin:1px 0 7px;font-family:'Cinzel',Georgia,serif;font-size:16px;line-height:1.2;color:#fff}
+#menu .guest-price{grid-column:2;font-size:18px;color:var(--via-gold);font-weight:800;margin:0 0 7px}
+#menu .guest-strength{grid-column:2;font-size:12px;color:#c2c5cd;margin:0 0 6px}
+#menu .guest-ingredients{grid-column:1/-1;font-size:12px;line-height:1.55;color:#aeb3c0;margin-top:13px;padding-top:11px;border-top:1px solid rgba(255,255,255,.08)}
+#menu .guest-empty{display:block!important;padding:28px;text-align:center;color:var(--via-muted);background:rgba(20,22,32,.88);border:1px solid rgba(229,185,88,.24);border-radius:20px}
+#menu .guest-order-controls{grid-column:1/-1!important;display:flex!important;align-items:center;gap:12px!important;margin-top:13px!important;padding-top:12px!important;border-top:1px solid rgba(255,255,255,.08)!important}
+#menu .guest-order-controls button{width:54px;min-width:54px;height:50px;border-radius:15px;font-size:25px;font-weight:900;padding:0;background:var(--via-green);color:#080a0e}
+#menu .guest-order-controls button.secondary{background:#24252a;color:#fff}
+#menu .guest-order-controls span{min-width:44px;text-align:center;font-size:20px;font-weight:900;color:#f3f4f6}
+#guestRegisterModal>div{background:#131520!important;border:1px solid rgba(229,185,88,.24)!important;border-radius:22px!important}
+#guestRegisterModal h2{font-family:'Cinzel',Georgia,serif}
 #guestRegisterForm input{width:100%;margin:5px 0 12px;background:#0b0d13;border:1px solid #343541;border-radius:12px;color:#fff;padding:13px;font:inherit}
-#guestRegisterForm button[type=submit]{background:linear-gradient(135deg,#e5b958,#ff8a3d);color:#111;border:0;border-radius:13px;padding:14px;font-weight:800}
-@media(max-width:430px){
- .guest-menu{padding:18px 14px 28px}
- .guest-title span{font-size:27px;letter-spacing:2px}
- .guest-filters{grid-template-columns:1fr 1.15fr;gap:8px}
- .guest-select,.guest-search{height:46px;padding:0 10px;font-size:12px}
- #menu .guest-card:not(.guest-empty){grid-template-columns:78px minmax(0,1fr);column-gap:12px;padding:12px}
- .guest-photo,.guest-photo-placeholder{width:78px;height:92px}
- .guest-card h2{font-size:16px}
-}
+#guestRegisterForm button[type=submit]{background:linear-gradient(135deg,var(--via-gold),#ff8a3d);color:#111;border:0;border-radius:13px;padding:14px;font-weight:800}
+@media(max-width:430px){.guest-menu{padding:20px 14px 100px}.via-brand-title{font-size:31px;letter-spacing:3px}.via-monogram{width:72px;height:72px}.via-guest-card{padding:12px;gap:9px}#guestRegisterButton{padding:9px 10px!important;font-size:11px!important}#menu .guest-card:not(.guest-empty){grid-template-columns:78px minmax(0,1fr);column-gap:12px;padding:12px}#menu .guest-photo,#menu .guest-photo-placeholder{width:78px;height:92px}#menu .guest-card h2{font-size:15px}}
 </style>
 <div class="guest-menu">
-  <div class="guest-title"><span>🍸 Карта бара</span></div>
-  <div style="display:flex;justify-content:flex-end;margin:-4px 0 12px"><button type="button" id="guestRegisterButton" class="secondary">👤 Регистрация</button></div>
-<div id="guestRegisterModal" style="display:none;position:fixed;inset:0;background:rgba(0,0,0,.72);z-index:1000;padding:24px 14px;overflow:auto">
-  <div style="max-width:430px;margin:8vh auto 0;background:#151515;border:1px solid #333;border-radius:18px;padding:20px;box-shadow:0 10px 40px rgba(0,0,0,.45)">
-    <div style="display:flex;justify-content:space-between;align-items:center;gap:12px;margin-bottom:14px">
-      <h2 style="margin:0;color:#f4f4f4">👤 Регистрация гостя</h2>
-      <button type="button" id="guestRegisterClose" class="secondary">✕</button>
-    </div>
-    <div style="color:#999;font-size:13px;line-height:1.4;margin-bottom:14px">Регистрация добровольная. После входа появится возможность делать заказы.</div>
-    <form id="guestRegisterForm">
-      <label>Имя</label>
-      <input name="name" required maxlength="80" placeholder="Ваше имя" autocomplete="name">
-      <label>Телефон</label>
-      <input name="phone" required maxlength="30" placeholder="+7 900 123-45-67" autocomplete="tel">
-      <label>PIN-код</label>
-      <input name="pin" required minlength="4" maxlength="12" inputmode="numeric" pattern="[0-9]{4,12}" placeholder="4–12 цифр" autocomplete="new-password">
-      <button type="submit" style="width:100%;margin-top:12px">Зарегистрироваться</button>
-      <div id="guestRegisterMessage" style="margin-top:12px;color:#aaa;font-size:14px"></div>
-    </form>
-  </div>
-</div>
-  <div class="guest-filters">
-    <select id="strengthFilter" class="guest-select">
-      <option value="">Крепость: все</option>
-      <option value="Безалкогольный">Безалкогольный</option>
-      <option value="Лёгкий">Лёгкий</option>
-      <option value="Средний">Средний</option>
-      <option value="Крепкий">Крепкий</option>
-    </select>
-    <input id="ingredientSearch" class="guest-search" placeholder="Содержит... (водка, апельсины)" autocomplete="off">
-  </div>
-  <button id="randomCocktail" class="guest-random">🥃 Что выпить?</button>
-  <div id="menu"><div class="guest-card guest-empty">Загрузка...</div></div>
+<header class="via-brand">
+<svg class="via-monogram" viewBox="0 0 100 100" fill="none" xmlns="http://www.w3.org/2000/svg" aria-label="Монограмма V&A">
+<defs><linearGradient id="viaGold" x1="20" y1="20" x2="80" y2="80" gradientUnits="userSpaceOnUse"><stop stop-color="#fff"/><stop offset=".4" stop-color="#fbe29f"/><stop offset="1" stop-color="#e5b958"/></linearGradient></defs>
+<circle cx="50" cy="50" r="46" stroke="url(#viaGold)" stroke-width="1.5" stroke-dasharray="3 2"/><circle cx="50" cy="50" r="41" stroke="url(#viaGold)" stroke-width=".8" opacity=".6"/><path d="M28 32 L50 72 L72 32" stroke="url(#viaGold)" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"/><path d="M36 68 L50 30 L64 68" stroke="url(#viaGold)" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"/><path d="M40 56 L60 56" stroke="url(#viaGold)" stroke-width="2" stroke-linecap="round"/><circle cx="50" cy="30" r="2.5" fill="#e5b958"/>
+</svg>
+<div class="via-family-pill">Shulmin Private Lounge</div><h1 class="via-brand-title">VIA BAR</h1><p class="via-brand-hosts">Коктейльный салон <span>Владимира</span> & <span>Анастасии</span></p>
+</header>
+<section class="via-guest-card"><div class="via-guest-avatar">🥂</div><div class="via-guest-info"><div class="via-guest-label">Гость салона</div><div class="via-guest-name" id="viaGuestName">Дорогой гость</div></div><div class="via-guest-score"><div class="via-score-value" id="drinks-counter">0</div><div class="via-score-caption">бокалов</div></div></section>
+<div style="display:flex;justify-content:flex-end;margin:-8px 0 14px"><button type="button" id="guestRegisterButton" class="secondary">👤 Войти</button></div>
+<div class="via-search-wrap"><span class="via-search-icon">🔍</span><input id="ingredientSearch" class="via-search" placeholder="Поиск (джин, сауэр, виски)..." autocomplete="off"></div>
+<div class="via-filters" id="viaFilters"><button class="via-filter active" type="button" data-filter="all">Все меню</button><button class="via-filter" type="button" data-filter="duo">✨ Дуэт VIA</button><button class="via-filter" type="button" data-filter="vladimir">🥃 Выбор Владимира</button><button class="via-filter" type="button" data-filter="anastasia">🍸 Выбор Анастасии</button><button class="via-filter" type="button" data-filter="mocktail">🍃 Без алкоголя</button></div>
+<div id="guestRegisterModal" style="display:none;position:fixed;inset:0;background:rgba(0,0,0,.72);z-index:1000;padding:24px 14px;overflow:auto"><div style="max-width:430px;margin:8vh auto 0;background:#151515;border:1px solid #333;border-radius:18px;padding:20px;box-shadow:0 10px 40px rgba(0,0,0,.45)"><div style="display:flex;justify-content:space-between;align-items:center;gap:12px;margin-bottom:14px"><h2 style="margin:0;color:#f4f4f4">👤 Вход / регистрация</h2><button type="button" id="guestRegisterClose" class="secondary">✕</button></div><div style="color:#999;font-size:13px;line-height:1.4;margin-bottom:14px">Регистрация добровольная. После входа появится возможность делать заказы.</div><form id="guestRegisterForm"><label>Имя</label><input name="name" required maxlength="80" placeholder="Ваше имя" autocomplete="name"><label>Телефон</label><input name="phone" required maxlength="30" placeholder="+7 900 123-45-67" autocomplete="tel"><label>PIN-код</label><input name="pin" required minlength="4" maxlength="12" inputmode="numeric" pattern="[0-9]{4,12}" placeholder="4–12 цифр" autocomplete="new-password"><button type="submit" style="width:100%;margin-top:12px">Зарегистрироваться</button><div id="guestRegisterMessage" style="margin-top:12px;color:#aaa;font-size:14px"></div></form></div></div>
+<div id="menu"><div class="guest-card guest-empty">Загружаем меню салона…</div></div>
 </div>
 <script>
 const esc=s=>String(s??"").replace(/[&<>"']/g,c=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[c]));
-let cocktails=[];
-const strengthStars=s=>{
-  const v=String(s||"").toLowerCase();
-  if(v.includes("безалк")) return "—";
-  if(v.includes("лёг")||v.includes("лег")) return "★";
-  if(v.includes("сред")) return "★★";
-  if(v.includes("креп")) return "★★★";
-  return "★";
-};
-const render=highlightId=>{
-  const strength=document.querySelector("#strengthFilter").value;
-  const q=document.querySelector("#ingredientSearch").value.trim().toLowerCase().replace(/ё/g,"е");
-  let list=cocktails.filter(c=>{
-    if(strength&&String(c.strength||"")!==strength)return false;
-    if(q){
-      const names=(c.recipe_items||[]).map(i=>String(i.ingredient_name||i.name||"").toLowerCase().replace(/ё/g,"е"));
-      if(!names.some(n=>n.includes(q)))return false;
-    }
-    return true;
-  });
-  const box=document.querySelector("#menu");
-  if(!list.length){box.innerHTML='<div class="guest-card guest-empty">Ничего не найдено.</div>';return}
-  box.innerHTML=list.map(c=>{
-    const names=[...(c.recipe_items||[])]
-      .map(i=>String(i.ingredient_name||i.name||"").trim())
-      .filter(Boolean);
-    const unique=[...new Map(names.map(n=>[n.toLowerCase().replace(/ё/g,"е"),n])).values()];
-    return '<article class="guest-card" id="cocktail-'+Number(c.id)+'">'+
-      (c.photo_url?'<img class="guest-photo" src="'+esc(c.photo_url)+'" alt="Фото '+esc(c.name)+'">':'<div class="guest-photo-placeholder">🍸</div>')+
-      '<h2>'+esc(c.name)+'</h2>'+
-      '<div class="guest-price">'+Number(c.price_rub||0)+' ₽</div>'+
-      '<div class="guest-strength">Крепость — '+strengthStars(c.strength)+'</div>'+
-      (unique.length?'<div class="guest-ingredients">'+unique.map(esc).join(", ")+'</div>':"")+
-      '</article>';
-  }).join("");
-  if(highlightId){
-    const el=document.querySelector("#cocktail-"+Number(highlightId));
-    if(el){el.scrollIntoView({behavior:"smooth",block:"center"});}
-  }
-};
-const guestRegisterButton=document.querySelector("#guestRegisterButton");
-const guestRegisterModal=document.querySelector("#guestRegisterModal");
-const guestRegisterClose=document.querySelector("#guestRegisterClose");
-const guestRegisterForm=document.querySelector("#guestRegisterForm");
-const guestRegisterMessage=document.querySelector("#guestRegisterMessage");
-const closeGuestRegister=()=>{guestRegisterModal.style.display="none";guestRegisterMessage.textContent="";};
-guestRegisterButton.onclick=()=>{guestRegisterModal.style.display="block";guestRegisterForm.elements.name.focus();};
-guestRegisterClose.onclick=closeGuestRegister;
-guestRegisterModal.onclick=e=>{if(e.target===guestRegisterModal)closeGuestRegister();};
-guestRegisterForm.onsubmit=e=>{
-  e.preventDefault();
-  guestRegisterMessage.textContent="Форма готова. Подключение сохранения регистрации — следующим шагом.";
-};
-document.querySelector("#strengthFilter").onchange=()=>render();
-document.querySelector("#ingredientSearch").oninput=()=>render();
-document.querySelector("#randomCocktail").onclick=()=>{
-  const strength=document.querySelector("#strengthFilter").value;
-  const q=document.querySelector("#ingredientSearch").value.trim().toLowerCase().replace(/ё/g,"е");
-  const list=cocktails.filter(c=>{
-    if(strength&&String(c.strength||"")!==strength)return false;
-    if(q&&!((c.recipe_items||[]).some(i=>String(i.ingredient_name||i.name||"").toLowerCase().replace(/ё/g,"е").includes(q))))return false;
-    return true;
-  });
-  if(!list.length){alert("По выбранным условиям коктейлей нет.");return}
-  render(list[Math.floor(Math.random()*list.length)].id);
-};
-fetch("/api/cocktails?include_stock=0").then(r=>r.json()).then(x=>{
-  cocktails=Array.isArray(x)?x:[];
-  render();
-}).catch(()=>{document.querySelector("#menu").innerHTML='<div class="guest-card guest-empty">Не удалось загрузить карту бара.</div>';});
+let cocktails=[],viaFilter="all";
+const norm=s=>String(s||"").toLowerCase().replace(/ё/g,"е");
+const curatorOf=c=>{const n=norm(c.name);if(/virgin|безалк|mocktail|garden/.test(n)||norm(c.strength).includes("безалк"))return "mocktail";if(/anastasia|анастас|passion sour|clover club/.test(n))return "anastasia";if(/via royal|royal heritage/.test(n))return "duo";return "vladimir"};
+const render=()=>{const q=norm(document.querySelector("#ingredientSearch").value.trim());const list=cocktails.filter(c=>{if(viaFilter!=="all"&&curatorOf(c)!==viaFilter)return false;if(q){const ing=(c.recipe_items||[]).map(i=>i.ingredient_name||i.name||"").join(" ");if(!norm(c.name+" "+ing+" "+(c.strength||"")).includes(q))return false}return true});const box=document.querySelector("#menu");if(!list.length){box.innerHTML='<div class="guest-card guest-empty">По вашему запросу коктейлей не найдено.</div>';return}box.innerHTML=list.map(c=>{const names=(c.recipe_items||[]).map(i=>String(i.ingredient_name||i.name||"").trim()).filter(Boolean);const unique=[...new Map(names.map(n=>[norm(n),n])).values()];const st=norm(c.strength);const strength=st.includes("безалк")?"0.0% · Без алкоголя":st.includes("лег")?"★ · Лёгкий":st.includes("сред")?"★★ · Средний":st.includes("креп")?"★★★ · Крепкий":c.strength||"Не указана";return '<article class="guest-card" id="cocktail-'+Number(c.id)+'">'+(c.photo_url?'<img class="guest-photo" src="'+esc(c.photo_url)+'" alt="'+esc(c.name)+'">':'<div class="guest-photo-placeholder">🍸</div>')+'<h2>'+esc(c.name)+'</h2><div class="guest-price">'+Number(c.price_rub||0).toLocaleString("ru-RU")+' ₽</div><div class="guest-strength">Крепость — '+esc(strength)+'</div>'+(unique.length?'<div class="guest-ingredients">'+unique.map(esc).join(", ")+'</div>':'')+'</article>'}).join("")};
+document.querySelector("#ingredientSearch").addEventListener("input",render);
+document.querySelectorAll(".via-filter").forEach(b=>b.addEventListener("click",()=>{viaFilter=b.dataset.filter;document.querySelectorAll(".via-filter").forEach(x=>x.classList.toggle("active",x===b));render()}));
+const guestRegisterButton=document.querySelector("#guestRegisterButton"),guestRegisterModal=document.querySelector("#guestRegisterModal"),guestRegisterClose=document.querySelector("#guestRegisterClose"),guestRegisterForm=document.querySelector("#guestRegisterForm"),guestRegisterMessage=document.querySelector("#guestRegisterMessage");
+const closeGuestRegister=()=>{guestRegisterModal.style.display="none";guestRegisterMessage.textContent=""};
+guestRegisterButton.onclick=()=>{guestRegisterModal.style.display="block";guestRegisterForm.elements.name.focus()};guestRegisterClose.onclick=closeGuestRegister;guestRegisterModal.onclick=e=>{if(e.target===guestRegisterModal)closeGuestRegister()};
+guestRegisterForm.onsubmit=async e=>{e.preventDefault();guestRegisterMessage.textContent="Подключаем…";try{const body=Object.fromEntries(new FormData(guestRegisterForm));const r=await fetch("/api/guest/register",{method:"POST",headers:{"content-type":"application/json"},body:JSON.stringify(body)});const d=await r.json();if(!r.ok){guestRegisterMessage.textContent=d.error||"Не удалось зарегистрироваться";return}guestRegisterMessage.textContent="Готово!";if(d.guest?.name)document.querySelector("#viaGuestName").textContent=d.guest.name;setTimeout(closeGuestRegister,900)}catch(err){guestRegisterMessage.textContent="Ошибка соединения. Попробуйте ещё раз."}};
+fetch("/api/guest/me").then(r=>r.json()).then(x=>{if(x.guest){document.querySelector("#viaGuestName").textContent=x.guest.name;document.querySelector("#drinks-counter").textContent="✓";document.querySelector("#guestRegisterButton").textContent="👤 "+x.guest.name}}).catch(()=>{});
+fetch("/api/cocktails?include_stock=0").then(r=>r.json()).then(x=>{cocktails=Array.isArray(x)?x:[];render()}).catch(()=>{document.querySelector("#menu").innerHTML='<div class="guest-card guest-empty">Не удалось загрузить меню. Попробуйте обновить страницу.</div>'});
 </script>`);
 
       if (url.pathname === "/bar/shop") return page(`
