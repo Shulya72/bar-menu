@@ -203,6 +203,36 @@ a{color:#c8ff3d;text-decoration:none}.muted{color:#999}.pill{display:inline-bloc
 .ingredient-suggestion:hover{background:#252525}
 .ingredient-suggestion .muted{font-size:12px}
 @media(max-width:600px){.recipe-row{grid-template-columns:1fr 90px 58px}}
+/* VIA BAR premium black-and-gold styling for the bartender workspace */
+:root{color-scheme:dark;--via-gold:#e5b958;--via-gold-light:#fbe29f;--via-gold-border:rgba(214,177,99,.28)}
+body{background:radial-gradient(ellipse at 50% -18%,rgba(157,119,43,.11),transparent 44%),#090908;color:#f3eee3}
+header{background:rgba(9,9,8,.94);border-bottom:1px solid var(--via-gold-border);box-shadow:0 8px 24px rgba(0,0,0,.14)}
+h1,h2{color:#f5e8c8;font-family:'Cinzel',Georgia,serif;letter-spacing:.1px}
+h3{color:#eee4cf}
+.sub,.muted{color:#aaa69c}
+.wrap>.row a,.wrap>a.card{transition:border-color .18s ease,background .18s ease,transform .18s ease}
+.card{background:linear-gradient(150deg,rgba(24,22,17,.98),rgba(13,13,11,.98));border-color:rgba(214,177,99,.22);box-shadow:0 8px 26px rgba(0,0,0,.17)}
+a.card{display:block;color:inherit}
+a.card:hover,.wrap>.row a:hover{border-color:rgba(229,185,88,.6)!important;background-color:#1c1912;transform:translateY(-1px)}
+button{background:linear-gradient(135deg,#f0cc76,#c9953c);color:#17120a;box-shadow:0 4px 14px rgba(200,157,64,.08)}
+button:hover{filter:brightness(1.06)}
+button.secondary,.cocktail-actions .secondary,.order-controls button.secondary{background:#242018;color:#f5e8c8;border:1px solid rgba(214,177,99,.15);box-shadow:none}
+a{color:var(--via-gold)}
+input,textarea,select{background:#11110f;border-color:#393329;color:#f5f0e5}
+input:focus,textarea:focus,select:focus{outline:1px solid rgba(229,185,88,.62);border-color:#b99348}
+label,.cocktail-section-title{color:#bdb5a4}
+.pill,.cocktail-meta .pill{background:#252117;color:#d8cba9;border:1px solid rgba(214,177,99,.12)}
+.cocktail-meta .strength-pill{background:linear-gradient(135deg,#f0cc76,#c9953c);color:#17120a}
+.cocktail-card{background:linear-gradient(155deg,#1a1711,#0d0d0b);border-color:rgba(214,177,99,.27)}
+.cocktail-section,.order-controls,.recipe-row{border-color:rgba(214,177,99,.17)}
+.cocktail-info{background:#191710;color:#c7c0b2}
+.cocktail-info b,.recipe-qty{color:#f3e6c6}
+.cocktail-actions button:not(.secondary),.order-controls button:not(.secondary){box-shadow:0 5px 18px rgba(200,157,64,.12)}
+.ingredient-suggestions{background:#15130f;border-color:rgba(214,177,99,.28)}
+.ingredient-suggestion{border-color:rgba(214,177,99,.13)}
+.ingredient-suggestion:hover{background:#242018}
+.empty{color:#b4ad9f}
+@media(max-width:600px){.card{padding:14px}.grid{gap:11px}}
 </style>
 </head><body>${body}</body></html>`, {headers:{"content-type":"text/html;charset=UTF-8","cache-control":"no-store"}});
 
