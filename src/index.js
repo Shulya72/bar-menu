@@ -203,6 +203,31 @@ a{color:#c8ff3d;text-decoration:none}.muted{color:#999}.pill{display:inline-bloc
 .ingredient-suggestion:hover{background:#252525}
 .ingredient-suggestion .muted{font-size:12px}
 @media(max-width:600px){.recipe-row{grid-template-columns:1fr 90px 58px}}
+/* Compact expandable recipe cards */
+.cocktail-grid{grid-template-columns:repeat(auto-fill,minmax(min(100%,340px),1fr));gap:10px}
+.cocktail-card.recipe-compact{padding:0;overflow:hidden}
+.recipe-card-summary{display:flex;align-items:center;gap:12px;padding:12px}
+.recipe-thumb{width:66px;height:66px;flex:0 0 66px;object-fit:cover;border-radius:12px;border:1px solid rgba(214,177,99,.28);background:#17140e}
+.recipe-thumb-placeholder{display:flex;align-items:center;justify-content:center;font-size:26px}
+.recipe-summary-main{flex:1;min-width:0}
+.recipe-summary-main h3{font-family:system-ui,-apple-system,sans-serif;font-size:16px;line-height:1.25;letter-spacing:0;overflow-wrap:anywhere;margin:0 0 4px}
+.recipe-summary-main .cocktail-price{font-size:16px;margin:2px 0 5px}
+.recipe-summary-main .pill{font-size:11px;padding:3px 7px}
+.recipe-summary-actions{display:flex;flex-direction:column;align-items:center;gap:6px;flex:0 0 auto}
+.recipe-summary-actions .cocktail-actions{gap:5px}
+.recipe-summary-actions .cocktail-actions button{width:32px;height:32px;font-size:14px;border-radius:9px}
+.recipe-expand{width:32px;height:28px;min-width:32px;padding:0;font-size:21px;line-height:1;border-radius:9px}
+.recipe-expand[aria-expanded="true"]{transform:rotate(180deg)}
+.recipe-card-details{padding:0 12px 14px;border-top:1px solid rgba(214,177,99,.16)}
+.recipe-card-details[hidden]{display:none}
+.recipe-card-details .cocktail-photo-wrap{margin-top:12px;border-radius:12px;overflow:hidden}
+.recipe-card-details .cocktail-photo{aspect-ratio:16/9}
+.recipe-card-details .cocktail-description{line-height:1.45;margin-top:12px}
+.recipe-card-details .cocktail-section{margin-top:12px;padding-top:10px}
+.recipe-stock-warning{font-size:11px;color:#e7b56b;margin-top:4px}
+.cocktail-card.unavailable{opacity:1;filter:none}
+.cocktail-card.unavailable .recipe-thumb{filter:grayscale(.8)}
+@media(max-width:600px){.cocktail-grid{grid-template-columns:1fr;gap:9px}.recipe-card-summary{padding:10px;gap:10px}.recipe-thumb{width:58px;height:58px;flex-basis:58px}.recipe-summary-main h3{font-size:15px}.recipe-summary-actions .cocktail-actions button{width:30px;height:30px}.recipe-card-details{padding:0 10px 12px}}
 /* VIA BAR premium black-and-gold styling for the bartender workspace */
 :root{color-scheme:dark;--via-gold:#e5b958;--via-gold-light:#fbe29f;--via-gold-border:rgba(214,177,99,.28)}
 body{background:radial-gradient(ellipse at 50% -18%,rgba(157,119,43,.11),transparent 44%),#090908;color:#f3eee3}
@@ -881,27 +906,17 @@ const load=async()=>{
   cocktailCatalog=new Map((cocktails||[]).map(c=>[Number(c.id),c]));
   document.querySelector("#cocktailCount").textContent=cocktails.length ? cocktails.length+" шт." : "";
   document.querySelector("#list").innerHTML=cocktails.length
-    ? '<div class="cocktail-grid">'+cocktails.map(c=>{const unavailable=(c.recipe_items||[]).some(i=>Number(i.stock_available||0)<Number(i.quantity||0));return '<article class="card cocktail-card'+(unavailable?' unavailable':'')+'">'+
-      (c.photo_url?'<div class="cocktail-photo-wrap"><img class="cocktail-photo" src="'+esc(c.photo_url)+'" alt="Фото '+esc(c.name)+'"></div>':'<div class="cocktail-photo-wrap"><div class="cocktail-photo-placeholder">🍸</div></div>')+
-      '<div class="cocktail-card-body"><div class="cocktail-card-head"><div style="min-width:0;flex:1">'+
-      '<div class="cocktail-title-row"><h3>'+esc(c.name)+'</h3></div>'+
-      '<div class="cocktail-description muted">'+esc(c.description||"Без описания")+'</div>'+
-      '<div class="cocktail-meta">'+(c.strength?'<span class="pill strength-pill">🍸 '+esc(c.strength)+'</span>':"")+'</div>'+
-      '</div><div class="cocktail-actions">'+
-      '<button type="button" class="secondary edit-cocktail" data-id="'+c.id+'" title="Редактировать">✏️</button>'+
-      '<button type="button" class="secondary delete-cocktail" data-id="'+c.id+'" title="Удалить коктейль">🗑️</button>'+
-      '</div></div>'+
-      '<div class="cocktail-price">'+Number(c.price_rub||0)+' ₽</div>'+
+    ? '<div class="cocktail-grid">'+cocktails.map(c=>{const unavailable=(c.recipe_items||[]).some(i=>Number(i.stock_available||0)<Number(i.quantity||0));return '<article class="card cocktail-card recipe-compact'+(unavailable?' unavailable':'')+'"><div class="recipe-card-summary">'+
+      (c.photo_url?'<img class="recipe-thumb" src="'+esc(c.photo_url)+'" alt="">':'<div class="recipe-thumb recipe-thumb-placeholder">🍸</div>')+
+      '<div class="recipe-summary-main"><h3>'+esc(c.name)+'</h3><div class="cocktail-price">'+Number(c.price_rub||0)+' ₽</div>'+(c.strength?'<span class="pill strength-pill">'+esc(c.strength)+'</span>':"")+(unavailable?'<div class="recipe-stock-warning">⚠️ Мало ингредиентов</div>':"")+'</div>'+
+      '<div class="recipe-summary-actions"><div class="cocktail-actions"><button type="button" class="secondary edit-cocktail" data-id="'+c.id+'" title="Редактировать" aria-label="Редактировать">✏️</button><button type="button" class="secondary delete-cocktail" data-id="'+c.id+'" title="Удалить коктейль" aria-label="Удалить">🗑️</button></div><button type="button" class="secondary recipe-expand" aria-expanded="false" aria-label="Раскрыть рецепт">⌄</button></div></div>'+
+      '<div class="recipe-card-details" hidden>'+(c.photo_url?'<div class="cocktail-photo-wrap"><img class="cocktail-photo" src="'+esc(c.photo_url)+'" alt="Фото '+esc(c.name)+'"></div>':'')+
+      '<div class="cocktail-description muted">'+esc(c.description||"Без описания")+'</div><div class="cocktail-meta">'+(c.strength?'<span class="pill strength-pill">🍸 '+esc(c.strength)+'</span>':"")+'</div>'+
       '<div class="cocktail-section"><div class="cocktail-section-title">Состав</div>'+
-      (c.recipe_items?.length?'<div class="recipe-list">'+c.recipe_items.map(i=>'<div class="recipe-line" data-ingredient-id="'+i.ingredient_id+'" data-recipe-qty="'+Number(i.quantity||0)+'" data-base-stock="'+Number(i.stock_available||0)+'"><div class="recipe-name">'+esc(i.ingredient_name)+'<span class="recipe-stock" data-stock="'+Number(i.stock_available||0)+'" data-unit="'+esc(unitLabel(i.unit))+'">остаток: '+fmtQty(i.stock_available)+' '+unitLabel(i.unit)+'</span></div><div class="recipe-qty">'+fmtQty(i.quantity)+' '+unitLabel(i.unit)+'</div></div>').join("")+'</div>':'<span class="muted">Не указан</span>')+
-      '</div>'+
-      ((c.method||c.glass)?'<div class="cocktail-info-grid">'+
-        (c.method?'<div class="cocktail-info">🥄 <b>Приготовление</b><br>'+esc(c.method)+'</div>':"")+
-        (c.glass?'<div class="cocktail-info">🧰 <b>Инвентарь</b><br><span style="white-space:pre-line">'+esc(c.glass)+'</span></div>':"")+
-      '</div>':"")+
-      (unavailable?'<div class="cocktail-unavailable">⚠️ Недостаточно ингредиентов</div>':"")+
-      '</div></article>'}).join("")+'</div>'
+      (c.recipe_items?.length?'<div class="recipe-list">'+c.recipe_items.map(i=>'<div class="recipe-line" data-ingredient-id="'+i.ingredient_id+'" data-recipe-qty="'+Number(i.quantity||0)+'" data-base-stock="'+Number(i.stock_available||0)+'"><div class="recipe-name">'+esc(i.ingredient_name)+'<span class="recipe-stock" data-stock="'+Number(i.stock_available||0)+'" data-unit="'+esc(unitLabel(i.unit))+'">остаток: '+fmtQty(i.stock_available)+' '+unitLabel(i.unit)+'</span></div><div class="recipe-qty">'+fmtQty(i.quantity)+' '+unitLabel(i.unit)+'</div></div>').join("")+'</div>':'<span class="muted">Не указан</span>')+'</div>'+
+      ((c.method||c.glass)?'<div class="cocktail-info-grid">'+(c.method?'<div class="cocktail-info">🥄 <b>Приготовление</b><br>'+esc(c.method)+'</div>':"")+(c.glass?'<div class="cocktail-info">🧰 <b>Инвентарь</b><br><span style="white-space:pre-line">'+esc(c.glass)+'</span></div>':"")+'</div>':"")+'</div></article>'}).join("")+'</div>'
     : '<div class="empty">Пока коктейлей нет. Создай первый 👇</div>';
+  document.querySelectorAll(".recipe-expand").forEach(btn=>btn.onclick=()=>{const card=btn.closest(".recipe-compact");const details=card?.querySelector(".recipe-card-details");if(!details)return;const opening=details.hidden;details.hidden=!opening;btn.setAttribute("aria-expanded",String(opening));btn.textContent=opening?"⌃":"⌄";btn.setAttribute("aria-label",(opening?"Свернуть":"Раскрыть")+" рецепт");});
   document.querySelectorAll(".edit-cocktail").forEach(btn=>btn.onclick=()=>startEdit(cocktails.find(c=>Number(c.id)===Number(btn.dataset.id))));
   document.querySelectorAll(".delete-cocktail").forEach(btn=>btn.onclick=async()=>{
     const c=cocktails.find(x=>Number(x.id)===Number(btn.dataset.id));
