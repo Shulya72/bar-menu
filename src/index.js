@@ -335,24 +335,33 @@ const getCocktails = async (env, includeStock = true) => {
   const { results } = await env.DB.prepare(
     "SELECT id,name,description,category,strength,price_rub,photo_url,avatar_url,glass,ice,method,garnish,is_active,created_at,updated_at FROM cocktails WHERE is_active=1 ORDER BY name"
   ).all();
+  if(!results.length)return results;
+  const recipeRows=await env.DB.prepare(
+    "SELECT ri.cocktail_id,ri.ingredient_id,ri.quantity,i.name ingredient_name,i.unit,i.strength_percent FROM recipe_ingredients ri JOIN ingredients i ON i.id=ri.ingredient_id ORDER BY ri.cocktail_id,ri.id"
+  ).all();
+  const recipesByCocktail=new Map();
+  for(const item of (recipeRows.results||[])){
+    const id=Number(item.cocktail_id);
+    if(!recipesByCocktail.has(id))recipesByCocktail.set(id,[]);
+    const {cocktail_id,...recipeItem}=item;
+    recipesByCocktail.get(id).push(recipeItem);
+  }
+  let stockMap=new Map();
+  if(includeStock){
+    const stockRows=await getProducts(env);
+    stockMap=new Map((stockRows||[]).map(x=>[Number(x.ingredient_id),Number(x.stock||0)]));
+  }
   for(const c of results){
-    // Normalize original and square-avatar URLs to the public photo route.
     for(const field of ["photo_url","avatar_url"]){
       if(!c[field])continue;
       try{
         const u=new URL(c[field],"https://bar-menu.invalid");
         const key=u.searchParams.get("key") || (u.pathname.startsWith("/api/cocktail-photo/") ? decodeURIComponent(u.pathname.slice("/api/cocktail-photo/".length)) : "");
-        if(key && key.startsWith("cocktails/")) c[field]="/api/cocktail-photo?key="+encodeURIComponent(key);
+        if(key && key.startsWith("cocktails/"))c[field]="/api/cocktail-photo?key="+encodeURIComponent(key);
       }catch(e){}
     }
-    const r=await env.DB.prepare(
-      "SELECT ri.ingredient_id,ri.quantity,i.name ingredient_name,i.unit,i.strength_percent FROM recipe_ingredients ri JOIN ingredients i ON i.id=ri.ingredient_id WHERE ri.cocktail_id=? ORDER BY ri.id"
-    ).bind(c.id).all();
-    c.recipe_items=r.results||[];
-    if(includeStock){
-      const stockRows=await getProducts(env),stockMap=new Map((stockRows||[]).map(x=>[Number(x.ingredient_id),Number(x.stock||0)]));
-      c.recipe_items=c.recipe_items.map(i=>({...i,stock_available:Number(stockMap.get(Number(i.ingredient_id))||0)}));
-    }
+    c.recipe_items=recipesByCocktail.get(Number(c.id))||[];
+    if(includeStock)c.recipe_items=c.recipe_items.map(i=>({...i,stock_available:Number(stockMap.get(Number(i.ingredient_id))||0)}));
     const calculated=calculateCocktailStrength(c.recipe_items);
     c.strength=calculated.strength;
     c.strength_abv=Number(calculated.abv.toFixed(2));
@@ -922,10 +931,10 @@ const load=async()=>{
   document.querySelector("#cocktailCount").textContent=cocktails.length ? cocktails.length+" шт." : "";
   document.querySelector("#list").innerHTML=cocktails.length
     ? '<div class="cocktail-grid">'+cocktails.map(c=>{const unavailable=(c.recipe_items||[]).some(i=>Number(i.stock_available||0)<Number(i.quantity||0));return '<article class="card cocktail-card recipe-compact'+(unavailable?' unavailable':'')+'"><div class="recipe-card-summary">'+
-      (c.photo_url?'<img class="recipe-thumb" src="'+esc(c.photo_url)+'" alt="">':'<div class="recipe-thumb recipe-thumb-placeholder">🍸</div>')+
+      (c.photo_url?'<img class="recipe-thumb" loading="lazy" decoding="async" src="'+esc(c.avatar_url||c.photo_url)+'" alt="">':'<div class="recipe-thumb recipe-thumb-placeholder">🍸</div>')+
       '<div class="recipe-summary-main"><h3>'+esc(c.name)+'</h3><div class="cocktail-price">'+Number(c.price_rub||0)+' ₽</div>'+(c.strength?'<span class="pill strength-pill">'+esc(c.strength)+'</span>':"")+(unavailable?'<div class="recipe-stock-warning">⚠️ Мало ингредиентов</div>':"")+'</div>'+
       '<div class="recipe-summary-actions"><div class="cocktail-actions"><button type="button" class="secondary edit-cocktail" data-id="'+c.id+'" title="Редактировать" aria-label="Редактировать">✏️</button><button type="button" class="secondary delete-cocktail" data-id="'+c.id+'" title="Удалить коктейль" aria-label="Удалить">🗑️</button></div><button type="button" class="secondary recipe-expand" aria-expanded="false" aria-label="Раскрыть рецепт">⌄</button></div></div>'+
-      '<div class="recipe-card-details" hidden>'+(c.photo_url?'<div class="cocktail-photo-wrap"><img class="cocktail-photo" src="'+esc(c.photo_url)+'" alt="Фото '+esc(c.name)+'"></div>':'')+
+      '<div class="recipe-card-details" hidden>'+(c.photo_url?'<div class="cocktail-photo-wrap"><img class="cocktail-photo" data-src="'+esc(c.photo_url)+'" alt="Фото '+esc(c.name)+'" loading="lazy" decoding="async"></div>':'')+
       '<div class="cocktail-description muted">'+esc(c.description||"Без описания")+'</div><div class="cocktail-meta">'+(c.strength?'<span class="pill strength-pill">🍸 '+esc(c.strength)+'</span>':"")+'</div>'+
       '<div class="cocktail-section"><div class="cocktail-section-title">Состав</div>'+
       (c.recipe_items?.length?'<div class="recipe-list">'+c.recipe_items.map(i=>'<div class="recipe-line" data-ingredient-id="'+i.ingredient_id+'" data-recipe-qty="'+Number(i.quantity||0)+'" data-base-stock="'+Number(i.stock_available||0)+'"><div class="recipe-name">'+esc(i.ingredient_name)+'<span class="recipe-stock" data-stock="'+Number(i.stock_available||0)+'" data-unit="'+esc(unitLabel(i.unit))+'">остаток: '+fmtQty(i.stock_available)+' '+unitLabel(i.unit)+'</span></div><div class="recipe-qty">'+fmtQty(i.quantity)+' '+unitLabel(i.unit)+'</div></div>').join("")+'</div>':'<span class="muted">Не указан</span>')+'</div>'+
@@ -949,7 +958,7 @@ const load=async()=>{
   };
   recipeSearch.addEventListener("input",filterRecipeCards);
   clearRecipeSearch.onclick=()=>{recipeSearch.value="";filterRecipeCards();recipeSearch.focus();};
-  document.querySelectorAll(".recipe-expand").forEach(btn=>btn.onclick=()=>{const card=btn.closest(".recipe-compact");const details=card?.querySelector(".recipe-card-details");if(!details)return;const opening=details.hidden;details.hidden=!opening;btn.setAttribute("aria-expanded",String(opening));btn.textContent=opening?"⌃":"⌄";btn.setAttribute("aria-label",(opening?"Свернуть":"Раскрыть")+" рецепт");});
+  document.querySelectorAll(".recipe-expand").forEach(btn=>btn.onclick=()=>{const card=btn.closest(".recipe-compact");const details=card?.querySelector(".recipe-card-details");if(!details)return;const opening=details.hidden;details.hidden=!opening;if(opening)details.querySelectorAll("img[data-src]").forEach(img=>{img.src=img.dataset.src;img.removeAttribute("data-src")});btn.setAttribute("aria-expanded",String(opening));btn.textContent=opening?"⌃":"⌄";btn.setAttribute("aria-label",(opening?"Свернуть":"Раскрыть")+" рецепт");});
   document.querySelectorAll(".edit-cocktail").forEach(btn=>btn.onclick=()=>startEdit(cocktails.find(c=>Number(c.id)===Number(btn.dataset.id))));
   document.querySelectorAll(".delete-cocktail").forEach(btn=>btn.onclick=async()=>{
     const c=cocktails.find(x=>Number(x.id)===Number(btn.dataset.id));
