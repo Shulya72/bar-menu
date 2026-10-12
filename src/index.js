@@ -203,6 +203,21 @@ a{color:#c8ff3d;text-decoration:none}.muted{color:#999}.pill{display:inline-bloc
 .ingredient-suggestion:hover{background:#252525}
 .ingredient-suggestion .muted{font-size:12px}
 @media(max-width:600px){.recipe-row{grid-template-columns:1fr 90px 58px}}
+/* Compact recipe toolbar and live search */
+.recipe-toolbar{display:flex;align-items:center;gap:10px;margin:0 0 14px}
+.recipe-toolbar>*{min-height:44px;display:inline-flex;align-items:center;justify-content:center;white-space:nowrap}
+.recipe-toolbar .recipe-home-link{padding:10px 14px;border:1px solid rgba(214,177,99,.2);border-radius:13px;background:#171613;color:#e5b958;text-decoration:none}
+.recipe-toolbar #newCocktailBtn{flex:1}
+.recipe-catalog-head{display:flex;align-items:center;justify-content:space-between;gap:12px;margin-bottom:12px}
+.recipe-catalog-head h2{margin:0}
+.recipe-search-wrap{display:flex;align-items:center;gap:9px;padding:0 12px;margin:0 0 8px;border:1px solid rgba(214,177,99,.27);border-radius:13px;background:#10100e;min-height:48px;color:#d9b65e}
+.recipe-search-wrap>span{font-size:25px;line-height:1}
+.recipe-search-wrap input{border:0!important;outline:none!important;box-shadow:none!important;background:transparent!important;min-width:0;flex:1;padding:10px 0;margin:0;color:#f5f0e5}
+.recipe-search-wrap input::-webkit-search-cancel-button{display:none}
+.recipe-search-wrap button{padding:0;min-width:28px;width:28px;height:28px;border-radius:50%;background:#282319;color:#f4e5c4;font-size:20px;box-shadow:none}
+.recipe-search-wrap button[hidden]{display:none}
+.recipe-search-status{font-size:12px;min-height:18px;margin:0 0 8px}
+@media(max-width:600px){.recipe-toolbar{gap:8px}.recipe-toolbar .recipe-home-link{padding:9px 10px;font-size:13px}.recipe-toolbar #newCocktailBtn{padding:10px 9px;font-size:13px}.recipe-catalog{padding:12px}.recipe-catalog-head{margin-bottom:10px}}
 /* Compact expandable recipe cards */
 .cocktail-grid{grid-template-columns:repeat(auto-fill,minmax(min(100%,340px),1fr));gap:10px}
 .cocktail-card.recipe-compact{padding:0;overflow:hidden}
@@ -844,8 +859,8 @@ export default {
       if (url.pathname === "/bar/recipes") return page(`
 <header><h1>🍸 Книга рецептов</h1><div class="sub">Рецепт здесь — источник для гостевой «Карты бара»</div></header>
 <div class="wrap">
-  <div class="row" style="margin-bottom:14px"><a href="/" style="display:inline-block;padding:10px 14px;border:1px solid #333;border-radius:12px;background:#151515">🏠 Главное меню</a></div>
-  <div class="row" style="margin-bottom:16px">
+  <div class="recipe-toolbar">
+    <a href="/" class="recipe-home-link">⌂ Главное меню</a>
     <button type="button" id="newCocktailBtn">＋ Создать коктейль</button>
   </div>
 
@@ -889,7 +904,7 @@ export default {
     </form>
   </div>
 
-  <div class="card"><div class="row" style="justify-content:space-between"><h2>Коктейли</h2><span class="muted" id="cocktailCount"></span></div><div id="list">Загрузка...</div></div>
+  <div class="card recipe-catalog"><div class="recipe-catalog-head"><h2>Коктейли</h2><span class="muted" id="cocktailCount"></span></div><label class="recipe-search-wrap" for="recipeSearch"><span aria-hidden="true">⌕</span><input type="search" id="recipeSearch" placeholder="Найти коктейль по названию…" autocomplete="off"><button type="button" id="clearRecipeSearch" aria-label="Очистить поиск" hidden>×</button></label><div id="recipeSearchStatus" class="muted recipe-search-status" aria-live="polite"></div><div id="list">Загрузка...</div></div>
 </div>
 <div id="orderSummary"></div>
 
@@ -916,6 +931,24 @@ const load=async()=>{
       (c.recipe_items?.length?'<div class="recipe-list">'+c.recipe_items.map(i=>'<div class="recipe-line" data-ingredient-id="'+i.ingredient_id+'" data-recipe-qty="'+Number(i.quantity||0)+'" data-base-stock="'+Number(i.stock_available||0)+'"><div class="recipe-name">'+esc(i.ingredient_name)+'<span class="recipe-stock" data-stock="'+Number(i.stock_available||0)+'" data-unit="'+esc(unitLabel(i.unit))+'">остаток: '+fmtQty(i.stock_available)+' '+unitLabel(i.unit)+'</span></div><div class="recipe-qty">'+fmtQty(i.quantity)+' '+unitLabel(i.unit)+'</div></div>').join("")+'</div>':'<span class="muted">Не указан</span>')+'</div>'+
       ((c.method||c.glass)?'<div class="cocktail-info-grid">'+(c.method?'<div class="cocktail-info">🥄 <b>Приготовление</b><br>'+esc(c.method)+'</div>':"")+(c.glass?'<div class="cocktail-info">🧰 <b>Инвентарь</b><br><span style="white-space:pre-line">'+esc(c.glass)+'</span></div>':"")+'</div>':"")+'</div></article>'}).join("")+'</div>'
     : '<div class="empty">Пока коктейлей нет. Создай первый 👇</div>';
+  const recipeSearch=document.querySelector("#recipeSearch");
+  const clearRecipeSearch=document.querySelector("#clearRecipeSearch");
+  const recipeSearchStatus=document.querySelector("#recipeSearchStatus");
+  const filterRecipeCards=()=>{
+    const q=(recipeSearch.value||"").trim().toLocaleLowerCase("ru");
+    let shown=0;
+    document.querySelectorAll("#list .recipe-compact").forEach(card=>{
+      const title=card.querySelector(".recipe-summary-main h3")?.textContent||"";
+      const description=card.querySelector(".recipe-card-details .cocktail-description")?.textContent||"";
+      const ingredients=Array.from(card.querySelectorAll(".recipe-name")).map(n=>n.textContent).join(" ");
+      const matches=(title+" "+description+" "+ingredients).toLocaleLowerCase("ru").includes(q);
+      card.hidden=!matches;if(matches)shown++;
+    });
+    clearRecipeSearch.hidden=!recipeSearch.value;
+    recipeSearchStatus.textContent=q?(shown?"Найдено: "+shown:"Ничего не найдено"):"";
+  };
+  recipeSearch.addEventListener("input",filterRecipeCards);
+  clearRecipeSearch.onclick=()=>{recipeSearch.value="";filterRecipeCards();recipeSearch.focus();};
   document.querySelectorAll(".recipe-expand").forEach(btn=>btn.onclick=()=>{const card=btn.closest(".recipe-compact");const details=card?.querySelector(".recipe-card-details");if(!details)return;const opening=details.hidden;details.hidden=!opening;btn.setAttribute("aria-expanded",String(opening));btn.textContent=opening?"⌃":"⌄";btn.setAttribute("aria-label",(opening?"Свернуть":"Раскрыть")+" рецепт");});
   document.querySelectorAll(".edit-cocktail").forEach(btn=>btn.onclick=()=>startEdit(cocktails.find(c=>Number(c.id)===Number(btn.dataset.id))));
   document.querySelectorAll(".delete-cocktail").forEach(btn=>btn.onclick=async()=>{
