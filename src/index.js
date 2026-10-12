@@ -400,39 +400,53 @@ const getProducts = async (env, includeDetails = true) => {
   const reservedMap=await getReservedIngredients(env);
 
   if(includeDetails){
-    for(const x of results){
-      const batches=await env.DB.prepare(`
-        SELECT COALESCE(NULLIF(p.brand,''),'Без бренда') brand,
-               COALESCE(NULLIF(p.store,''),'') store,
-               SUM(pb.remaining_qty) stock,
-               SUM(pb.remaining_qty*(pb.price_rub/NULLIF(pb.purchased_qty,0))) stock_value
-        FROM purchase_batches pb
-        JOIN products p ON p.id=pb.product_id
-        WHERE p.ingredient_id=? AND p.is_active=1 AND pb.remaining_qty>0
-        GROUP BY p.brand,p.store
-        HAVING SUM(pb.remaining_qty)>0
-        ORDER BY p.brand,p.store
-      `).bind(x.ingredient_id).all();
-  
-      x.details=(batches.results||[]).map(b=>({
-        brand:b.brand,store:b.store,stock:Number(b.stock||0),
-        stock_value:Number(b.stock_value||0),
-        unit_price:Number(b.stock||0)>0?Number(b.stock_value||0)/Number(b.stock):0,
-        source_type:"purchase"
-      }));
-  
-      if(adjustmentsAvailable){
-        try{
-          const adjustments=await env.DB.prepare("SELECT COALESCE(NULLIF(brand,''),'Ручная корректировка') brand, COALESCE(NULLIF(store,''),'Ручной ввод') store, SUM(quantity) stock, SUM(quantity*unit_price) stock_value FROM stock_adjustments WHERE ingredient_id=? AND quantity>0 GROUP BY brand,store ORDER BY brand,store").bind(x.ingredient_id).all();
-          for(const adjustment of (adjustments.results||[])){
-            const stock=Number(adjustment.stock||0), value=Number(adjustment.stock_value||0);
-            if(stock>0){
-              x.details.push({brand:adjustment.brand,store:adjustment.store,stock,stock_value:value,unit_price:value/stock,source_type:"manual"});
-            }
-          }
-        }catch(e){}
-      }
+    const batchRows=await env.DB.prepare(`
+      SELECT p.ingredient_id,
+             COALESCE(NULLIF(p.brand,''),'Без бренда') brand,
+             COALESCE(NULLIF(p.store,''),'') store,
+             SUM(pb.remaining_qty) stock,
+             SUM(pb.remaining_qty*(pb.price_rub/NULLIF(pb.purchased_qty,0))) stock_value
+      FROM purchase_batches pb
+      JOIN products p ON p.id=pb.product_id
+      WHERE p.is_active=1 AND pb.remaining_qty>0
+      GROUP BY p.ingredient_id,p.brand,p.store
+      HAVING SUM(pb.remaining_qty)>0
+      ORDER BY p.ingredient_id,p.brand,p.store
+    `).all();
+    const batchesByIngredient=new Map();
+    for(const b of (batchRows.results||[])){
+      const id=Number(b.ingredient_id);
+      if(!batchesByIngredient.has(id))batchesByIngredient.set(id,[]);
+      const stock=Number(b.stock||0),value=Number(b.stock_value||0);
+      batchesByIngredient.get(id).push({
+        brand:b.brand,store:b.store,stock,stock_value:value,
+        unit_price:stock>0?value/stock:0,source_type:"purchase"
+      });
     }
+    if(adjustmentsAvailable){
+      try{
+        const adjustmentRows=await env.DB.prepare(`
+          SELECT ingredient_id,
+                 COALESCE(NULLIF(brand,''),'Ручная корректировка') brand,
+                 COALESCE(NULLIF(store,''),'Ручной ввод') store,
+                 SUM(quantity) stock,SUM(quantity*unit_price) stock_value
+          FROM stock_adjustments
+          WHERE quantity>0
+          GROUP BY ingredient_id,brand,store
+          ORDER BY ingredient_id,brand,store
+        `).all();
+        for(const a of (adjustmentRows.results||[])){
+          const id=Number(a.ingredient_id),stock=Number(a.stock||0),value=Number(a.stock_value||0);
+          if(stock<=0)continue;
+          if(!batchesByIngredient.has(id))batchesByIngredient.set(id,[]);
+          batchesByIngredient.get(id).push({
+            brand:a.brand,store:a.store,stock,stock_value:value,
+            unit_price:value/stock,source_type:"manual"
+          });
+        }
+      }catch(e){}
+    }
+    for(const x of results)x.details=batchesByIngredient.get(Number(x.ingredient_id))||[];
   }
 
   for(const x of results){
