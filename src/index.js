@@ -190,6 +190,13 @@ a{color:#c8ff3d;text-decoration:none}.muted{color:#999}.pill{display:inline-bloc
   .form-actions button{flex:1}
 }
 .ingredient-picker{position:relative}
+.avatar-editor{margin-top:16px;padding:14px;border:1px solid rgba(229,185,88,.28);border-radius:16px;background:linear-gradient(145deg,#171512,#0c0b09)}
+.avatar-editor h3{color:#fbe29f;font-size:16px}
+.avatar-crop-stage{width:min(100%,320px);aspect-ratio:1/1;margin:0 auto;overflow:hidden;border:1px solid rgba(229,185,88,.5);border-radius:14px;background:#050505;touch-action:none}
+#avatarCropCanvas{display:block;width:100%;height:100%;object-fit:contain;touch-action:none;cursor:grab}
+#avatarCropCanvas:active{cursor:grabbing}
+#avatarZoom{accent-color:#e5b958;padding:0}
+#avatarPreview img{display:block;width:96px;height:96px;object-fit:cover;border-radius:14px;border:1px solid #c7a04c}
 .ingredient-suggestions{position:absolute;left:0;right:0;top:calc(100% + 4px);z-index:10;background:#181818;border:1px solid #333;border-radius:12px;max-height:220px;overflow:auto;box-shadow:0 10px 30px #000}
 .ingredient-suggestion{padding:12px;border-bottom:1px solid #292929;cursor:pointer}
 .ingredient-suggestion:last-child{border-bottom:0}
@@ -251,17 +258,21 @@ const refreshCocktailStrength = async (env, cocktailId) => {
   return calculated;
 };
 
+const ensureCocktailAvatarSystem=async env=>{try{await env.DB.prepare("ALTER TABLE cocktails ADD COLUMN avatar_url TEXT DEFAULT ''").run()}catch(e){}};
+
 const getCocktails = async (env, includeStock = true) => {
+  await ensureCocktailAvatarSystem(env);
   const { results } = await env.DB.prepare(
-    "SELECT id,name,description,category,strength,price_rub,photo_url,glass,ice,method,garnish,is_active,created_at,updated_at FROM cocktails WHERE is_active=1 ORDER BY name"
+    "SELECT id,name,description,category,strength,price_rub,photo_url,avatar_url,glass,ice,method,garnish,is_active,created_at,updated_at FROM cocktails WHERE is_active=1 ORDER BY name"
   ).all();
   for(const c of results){
-    // Normalize legacy photo URLs and keep the database independent from the public route.
-    if(c.photo_url){
+    // Normalize original and square-avatar URLs to the public photo route.
+    for(const field of ["photo_url","avatar_url"]){
+      if(!c[field])continue;
       try{
-        const u=new URL(c.photo_url,"https://bar-menu.invalid");
+        const u=new URL(c[field],"https://bar-menu.invalid");
         const key=u.searchParams.get("key") || (u.pathname.startsWith("/api/cocktail-photo/") ? decodeURIComponent(u.pathname.slice("/api/cocktail-photo/".length)) : "");
-        if(key && key.startsWith("cocktails/")) c.photo_url="/api/cocktail-photo?key="+encodeURIComponent(key);
+        if(key && key.startsWith("cocktails/")) c[field]="/api/cocktail-photo?key="+encodeURIComponent(key);
       }catch(e){}
     }
     const r=await env.DB.prepare(
@@ -403,15 +414,23 @@ export default {
       }
 
       if (url.pathname === "/api/cocktails" && request.method === "PUT") {
+        await ensureCocktailAvatarSystem(env);
         const data=await request.json();
         const id=Number(data.id);
         const name=String(data.name||"").trim();
         if(!Number.isInteger(id)||id<1)return json({error:"Некорректный коктейль"},400);
         if(!name)return json({error:"Название коктейля обязательно"},400);
-        const existing=await env.DB.prepare("SELECT id FROM cocktails WHERE id=?").bind(id).first();
+        const existing=await env.DB.prepare("SELECT id,photo_url,avatar_url FROM cocktails WHERE id=?").bind(id).first();
         if(!existing)return json({error:"Коктейль не найден"},404);
-        await env.DB.prepare("UPDATE cocktails SET name=?,description=?,category=?,strength=?,photo_url=?,glass=?,ice=?,method=?,garnish=?,updated_at=CURRENT_TIMESTAMP WHERE id=?")
-          .bind(name,String(data.description||""),"","",String(data.photo_url||""),String(data.inventory??data.glass??""),"",String(data.method||""),"",id).run();
+        const nextPhotoUrl=String(data.photo_url||""),nextAvatarUrl=String(data.avatar_url??existing.avatar_url??"");
+        await env.DB.prepare("UPDATE cocktails SET name=?,description=?,category=?,strength=?,photo_url=?,avatar_url=?,glass=?,ice=?,method=?,garnish=?,updated_at=CURRENT_TIMESTAMP WHERE id=?")
+          .bind(name,String(data.description||""),"","",nextPhotoUrl,nextAvatarUrl,String(data.inventory??data.glass??""),"",String(data.method||""),"",id).run();
+        if(env.PHOTOS){
+          for(const oldUrl of [existing.photo_url,existing.avatar_url]){
+            if(!oldUrl||oldUrl===nextPhotoUrl||oldUrl===nextAvatarUrl)continue;
+            try{const u=new URL(oldUrl,"https://bar-menu.invalid"),key=u.searchParams.get("key")||(u.pathname.startsWith("/api/cocktail-photo/")?decodeURIComponent(u.pathname.slice("/api/cocktail-photo/".length)):"");if(key&&key.startsWith("cocktails/"))await env.PHOTOS.delete(key)}catch(e){}
+          }
+        }
         await ensureIngredientSystem(env);
         await env.DB.prepare("DELETE FROM recipe_ingredients WHERE cocktail_id=?").bind(id).run();
         for(const item of (Array.isArray(data.recipe_items)?data.recipe_items:[])){
@@ -424,23 +443,25 @@ export default {
       }
 
       if (url.pathname === "/api/cocktails" && request.method === "DELETE") {
+        await ensureCocktailAvatarSystem(env);
         const data=await request.json();
         const id=Number(data.id);
         if(!Number.isInteger(id)||id<1)return json({error:"Некорректный коктейль"},400);
 
-        const cocktail=await env.DB.prepare("SELECT id,name,photo_url FROM cocktails WHERE id=?").bind(id).first();
+        const cocktail=await env.DB.prepare("SELECT id,name,photo_url,avatar_url FROM cocktails WHERE id=?").bind(id).first();
         if(!cocktail)return json({error:"Коктейль не найден"},404);
 
-        // Remove the R2 object first so deleting a cocktail cannot leave its photo behind.
+        // Remove both the original photo and its independently stored square avatar.
         let photoDeleted=true;
         let photoKey="";
-        if(cocktail.photo_url && env.PHOTOS){
-          try{
-            const u=new URL(cocktail.photo_url,"https://bar-menu.invalid");
-            photoKey=u.searchParams.get("key") || (u.pathname.startsWith("/api/cocktail-photo/") ? decodeURIComponent(u.pathname.slice("/api/cocktail-photo/".length)) : "");
-            if(photoKey && photoKey.startsWith("cocktails/")) await env.PHOTOS.delete(photoKey);
-          }catch(e){
-            photoDeleted=false;
+        if(env.PHOTOS){
+          for(const value of [cocktail.photo_url,cocktail.avatar_url]){
+            if(!value)continue;
+            try{
+              const u=new URL(value,"https://bar-menu.invalid");
+              const key=u.searchParams.get("key") || (u.pathname.startsWith("/api/cocktail-photo/") ? decodeURIComponent(u.pathname.slice("/api/cocktail-photo/".length)) : "");
+              if(key && key.startsWith("cocktails/")){if(!photoKey)photoKey=key;await env.PHOTOS.delete(key);}
+            }catch(e){photoDeleted=false;}
           }
         }
 
@@ -456,9 +477,10 @@ export default {
       }
 
       if (url.pathname === "/api/cocktails" && request.method === "POST") {
+        await ensureCocktailAvatarSystem(env);
         const data=await request.json(), name=String(data.name||"").trim();
         if(!name)return json({error:"Название коктейля обязательно"},400);
-        const r=await env.DB.prepare(`INSERT INTO cocktails(name,description,category,strength,price_rub,photo_url,glass,ice,method,garnish) VALUES(?,?,?,?,0,?,?,?,?,?)`).bind(name,String(data.description||""),String(data.category||""),"",String(data.photo_url||""),String(data.inventory??data.glass??""),"",String(data.method||""),String(data.garnish||"")).run();
+        const r=await env.DB.prepare(`INSERT INTO cocktails(name,description,category,strength,price_rub,photo_url,avatar_url,glass,ice,method,garnish) VALUES(?,?,?,?,0,?,?,?,?,?,?)`).bind(name,String(data.description||""),String(data.category||""),"",String(data.photo_url||""),String(data.avatar_url||""),String(data.inventory??data.glass??""),"",String(data.method||""),String(data.garnish||"")).run();
         const id=r.meta.last_row_id;
         await ensureIngredientSystem(env);
         for(const item of (Array.isArray(data.recipe_items)?data.recipe_items:[])){let iid=Number(item.ingredient_id);if(!Number.isInteger(iid)&&item.name)iid=await resolveIngredient(env,item.name);const q=Number(item.quantity);if(Number.isInteger(iid)&&q>0)await env.DB.prepare("INSERT OR REPLACE INTO recipe_ingredients(cocktail_id,ingredient_id,quantity) VALUES(?,?,?)").bind(id,iid,q).run();}
@@ -781,10 +803,24 @@ export default {
       <textarea name="inventory" rows="2" placeholder="Джигер
 Барная ложка"></textarea>
       <label>Способ приготовления</label><textarea name="method" placeholder="Например: собрать в бокале, перемешать барной ложкой"></textarea>
-      <label>Фото коктейля</label>
+      <label>Основное фото коктейля</label>
       <input id="photoFile" type="file" accept="image/*" style="padding:10px">
+      <p class="muted" style="margin:6px 0 0;font-size:12px">Оригинал сохраняется целиком для книги рецептов. Для карты бара и личного кабинета ниже настраивается отдельный квадратный аватар.</p>
       <div id="photoPreview" style="margin-top:10px"></div>
       <input name="photo_url" id="photoUrl" type="hidden">
+      <input name="avatar_url" id="avatarUrl" type="hidden">
+      <section id="avatarCropPanel" class="avatar-editor" hidden>
+        <h3>Квадратный аватар для карты бара и ЛК</h3>
+        <p class="muted" style="font-size:13px;margin:6px 0 12px">Перемещай фотографию пальцем и настрой масштаб. Оригинал при этом не обрезается.</p>
+        <div class="avatar-crop-stage"><canvas id="avatarCropCanvas" width="320" height="320" aria-label="Предпросмотр кадрирования коктейля"></canvas></div>
+        <label for="avatarZoom">Масштаб кадра</label>
+        <input id="avatarZoom" type="range" min="100" max="250" step="5" value="100">
+        <div class="row" style="justify-content:space-between;margin-top:10px;align-items:center">
+          <button type="button" class="secondary" id="applyAvatarCrop">✓ Применить кадрирование</button>
+          <span id="avatarCropStatus" class="muted" style="font-size:12px">Квадратный кадр</span>
+        </div>
+        <div id="avatarPreview" style="margin-top:12px"></div>
+      </section>
 
       <h3 style="margin-top:22px">Состав</h3>
       <div id="recipeItems"></div>
@@ -952,6 +988,18 @@ function changeOrder(id,delta){
   renderOrderSummary();
 }
 function renderOrderSummary(){const box=document.querySelector("#orderSummary");if(!box)return;const items=draft.items||[];if(!items.length){box.innerHTML="";return}box.innerHTML="";const card=document.createElement("div");card.className="card";card.style.cssText="margin:14px 0;position:sticky;bottom:10px;z-index:5;box-shadow:0 12px 40px #000;border-color:#3b3b3b";const title=document.createElement("h3");title.textContent="📋 Текущий заказ";card.appendChild(title);const sh=document.createElement("div");sh.className="muted";sh.textContent="Смена №"+(draft.shift?.id||"—");card.appendChild(sh);items.forEach(x=>{const row=document.createElement("div");row.style.padding="5px 0";row.textContent=x.cocktail_name+" × "+x.quantity;card.appendChild(row)});const total=document.createElement("div");total.style.marginTop="6px";total.textContent="Всего коктейлей: "+Number(draft.total_cocktails||0)+" · Сумма: "+Number(draft.total_price||0).toFixed(0)+" ₽";card.appendChild(total);const actions=document.createElement("div");actions.className="row";actions.style.marginTop="10px";const accept=document.createElement("button");accept.textContent="✅ Принять заказ";accept.onclick=async()=>{if(!(draft.items||[]).length)return;accept.disabled=true;const r=await fetch("/api/bar/order/accept",{method:"POST",headers:{"content-type":"application/json"},body:JSON.stringify({items:(draft.items||[]).map(x=>({cocktail_id:Number(x.cocktail_id),quantity:Number(x.quantity||0)}))})}),d=await r.json().catch(()=>({}));if(!r.ok){accept.disabled=false;alert(d.error||"Не удалось принять заказ");return}location.reload()};const clear=document.createElement("button");clear.className="secondary";clear.textContent="Очистить";clear.onclick=async()=>{if(!confirm("Очистить текущий заказ?"))return;for(const item of (draft.items||[])){optimisticOrderVisual(Number(item.cocktail_id),-Number(item.quantity||0));}draft={shift:draft.shift,order:null,items:[],total_cocktails:0,total_price:0};enhanceOrderControls();refreshOrderAvailability();renderOrderSummary();fetch("/api/bar/order",{method:"DELETE"}).catch(()=>{});};actions.append(accept,clear);card.appendChild(actions);box.appendChild(card)}
+let cropSourceImage=null,cropZoom=1,cropOffsetX=0,cropOffsetY=0,cropPointer=null,avatarCropBlob=null,cropObjectUrl="",cropLoadPromise=Promise.resolve(false);
+const cropCanvas=document.querySelector("#avatarCropCanvas"),cropCtx=cropCanvas.getContext("2d");
+function clampCropOffset(){if(!cropSourceImage)return;const scale=Math.max(cropCanvas.width/cropSourceImage.naturalWidth,cropCanvas.height/cropSourceImage.naturalHeight)*cropZoom;const w=cropSourceImage.naturalWidth*scale,h=cropSourceImage.naturalHeight*scale,baseX=(cropCanvas.width-w)/2,baseY=(cropCanvas.height-h)/2;cropOffsetX=Math.min(-baseX,Math.max(cropCanvas.width-w-baseX,cropOffsetX));cropOffsetY=Math.min(-baseY,Math.max(cropCanvas.height-h-baseY,cropOffsetY));}
+function drawAvatarCrop(){if(!cropSourceImage)return;const scale=Math.max(cropCanvas.width/cropSourceImage.naturalWidth,cropCanvas.height/cropSourceImage.naturalHeight)*cropZoom,w=cropSourceImage.naturalWidth*scale,h=cropSourceImage.naturalHeight*scale;clampCropOffset();cropCtx.clearRect(0,0,cropCanvas.width,cropCanvas.height);cropCtx.drawImage(cropSourceImage,(cropCanvas.width-w)/2+cropOffsetX,(cropCanvas.height-h)/2+cropOffsetY,w,h);}
+function loadCropSource(src,isObjectUrl=false){if(cropObjectUrl&&!isObjectUrl){URL.revokeObjectURL(cropObjectUrl);cropObjectUrl="";}avatarCropBlob=null;document.querySelector("#avatarCropStatus").textContent="Перемести фото и нажми «Применить»";document.querySelector("#avatarCropPanel").hidden=!src;if(!src){cropSourceImage=null;cropLoadPromise=Promise.resolve(false);return cropLoadPromise;}cropLoadPromise=new Promise(resolve=>{const img=new Image();img.onload=()=>{cropSourceImage=img;cropZoom=1;cropOffsetX=0;cropOffsetY=0;document.querySelector("#avatarZoom").value="100";drawAvatarCrop();resolve(true)};img.onerror=()=>{cropSourceImage=null;resolve(false)};img.src=src});return cropLoadPromise;}
+function captureAvatarCrop(){return new Promise(resolve=>cropCanvas.toBlob(blob=>resolve(blob),"image/webp",.9));}
+function markCropChanged(){avatarCropBlob=null;document.querySelector("#avatarCropStatus").textContent="Кадр изменён — нажми «Применить»";}
+cropCanvas.addEventListener("pointerdown",e=>{if(!cropSourceImage)return;cropPointer={x:e.clientX,y:e.clientY,ox:cropOffsetX,oy:cropOffsetY};cropCanvas.setPointerCapture(e.pointerId)});
+cropCanvas.addEventListener("pointermove",e=>{if(!cropPointer)return;const rect=cropCanvas.getBoundingClientRect(),sx=cropCanvas.width/rect.width,sy=cropCanvas.height/rect.height;cropOffsetX=cropPointer.ox+(e.clientX-cropPointer.x)*sx;cropOffsetY=cropPointer.oy+(e.clientY-cropPointer.y)*sy;markCropChanged();drawAvatarCrop()});
+for(const eventName of ["pointerup","pointercancel","lostpointercapture"])cropCanvas.addEventListener(eventName,()=>{cropPointer=null});
+document.querySelector("#avatarZoom").addEventListener("input",e=>{cropZoom=Number(e.target.value)/100;markCropChanged();drawAvatarCrop()});
+document.querySelector("#applyAvatarCrop").onclick=async()=>{if(!cropSourceImage){document.querySelector("#avatarCropStatus").textContent="Сначала загрузи фото";return;}avatarCropBlob=await captureAvatarCrop();if(!avatarCropBlob){document.querySelector("#avatarCropStatus").textContent="Не удалось подготовить аватар";return;}document.querySelector("#avatarPreview").innerHTML='<img src="'+cropCanvas.toDataURL("image/webp",.9)+'" alt="Квадратный аватар коктейля"><div class="muted" style="font-size:12px;margin-top:5px">Предпросмотр аватара 1:1</div>';document.querySelector("#avatarCropStatus").textContent="Кадрирование готово ✓"};
 const showPanel=()=>{
   const panel=document.querySelector("#cocktailPanel");
   panel.hidden=false;
@@ -963,7 +1011,13 @@ const resetCocktailForm=()=>{
   delete form.dataset.editId;
   document.querySelector("#recipeItems").innerHTML="";
   document.querySelector("#photoUrl").value="";
+  document.querySelector("#avatarUrl").value="";
+  document.querySelector("#photoFile").value="";
   document.querySelector("#photoPreview").innerHTML="";
+  document.querySelector("#avatarPreview").innerHTML="";
+  document.querySelector("#avatarCropPanel").hidden=true;
+  if(cropObjectUrl){URL.revokeObjectURL(cropObjectUrl);cropObjectUrl="";}
+  cropSourceImage=null;avatarCropBlob=null;cropZoom=1;cropOffsetX=0;cropOffsetY=0;
   document.querySelector("#msg").textContent="";
   document.querySelector("#formTitle").textContent="Новый коктейль";
   form.querySelector('button[type=submit]').textContent="💾 Сохранить коктейль";
@@ -979,7 +1033,11 @@ const startEdit=(c)=>{
   }
   if(form.elements.inventory)form.elements.inventory.value=c.glass||"";
   document.querySelector("#photoUrl").value=c.photo_url||"";
-  document.querySelector("#photoPreview").innerHTML=c.photo_url?'<img src="'+esc(c.photo_url)+'" style="max-width:240px;max-height:240px;border-radius:14px;display:block" alt="Фото">':"";
+  document.querySelector("#avatarUrl").value=c.avatar_url||"";
+  document.querySelector("#photoFile").value="";
+  document.querySelector("#photoPreview").innerHTML=c.photo_url?'<img src="'+esc(c.photo_url)+'" style="max-width:240px;max-height:240px;border-radius:14px;display:block" alt="Оригинал фото">':"";
+  document.querySelector("#avatarPreview").innerHTML=(c.avatar_url||c.photo_url)?'<img src="'+esc(c.avatar_url||c.photo_url)+'" style="width:96px;height:96px;object-fit:cover;border-radius:14px;border:1px solid #c7a04c" alt="Текущий аватар"><div class="muted" style="font-size:12px;margin-top:5px">Текущий аватар</div>':"";
+  loadCropSource(c.photo_url||c.avatar_url||"");
   document.querySelector("#recipeItems").innerHTML="";
   (c.recipe_items||[]).forEach(item=>addRow(item));
   document.querySelector("#formTitle").textContent="Редактирование: "+(c.name||"коктейль");
@@ -1027,9 +1085,11 @@ document.querySelector("#cancelCocktail").onclick=()=>{
 };
 document.querySelector("#photoFile").onchange=()=>{
   const file=document.querySelector("#photoFile").files[0], box=document.querySelector("#photoPreview");
-  if(!file){box.innerHTML="";return;}
-  const url=URL.createObjectURL(file);
-  box.innerHTML='<img src="'+url+'" style="max-width:240px;max-height:240px;border-radius:14px;display:block" alt="Превью">';
+  if(!file)return;
+  if(cropObjectUrl)URL.revokeObjectURL(cropObjectUrl);
+  cropObjectUrl=URL.createObjectURL(file);
+  box.innerHTML='<img src="'+cropObjectUrl+'" style="max-width:240px;max-height:240px;border-radius:14px;display:block" alt="Оригинал фото">';
+  loadCropSource(cropObjectUrl,true).then(ok=>{if(!ok)document.querySelector("#avatarCropStatus").textContent="Не удалось открыть изображение";});
 };
 document.querySelector("#addIngredient").onclick=addRow;
 document.querySelector("#cocktailForm").onsubmit=async e=>{
@@ -1039,16 +1099,25 @@ document.querySelector("#cocktailForm").onsubmit=async e=>{
   if(!recipe_items.length && document.querySelector(".recipe-row")){document.querySelector("#msg").textContent="Выберите ингредиент из списка";return;}
   const file=document.querySelector("#photoFile").files[0];
   if(file){
-    document.querySelector("#msg").textContent="Загрузка фотографии…";
+    document.querySelector("#msg").textContent="Загрузка оригинала…";
     const upload=new FormData(); upload.append("file",file);
     const ur=await fetch("/api/cocktail-photo",{method:"POST",body:upload});
-    const ud=await ur.json();
+    const ud=await ur.json().catch(()=>({}));
     if(!ur.ok){document.querySelector("#msg").textContent="Ошибка фото: "+(ud.error||"не удалось загрузить");return;}
     document.querySelector("#photoUrl").value=ud.url;
-    // FormData was created before the async upload, so update it explicitly.
-    // Otherwise the uploaded R2 URL never reaches /api/cocktails.
-    f.set("photo_url", ud.url);
-    document.querySelector("#photoPreview").innerHTML='<img src="'+esc(ud.url)+'" style="max-width:240px;max-height:240px;border-radius:14px;display:block" alt="Фото">';
+    f.set("photo_url",ud.url);
+    document.querySelector("#photoPreview").innerHTML='<img src="'+esc(ud.url)+'" style="max-width:240px;max-height:240px;border-radius:14px;display:block" alt="Оригинал фото">';
+  }
+  if(file||avatarCropBlob){
+    document.querySelector("#msg").textContent="Подготавливаем квадратный аватар…";
+    if(!avatarCropBlob){const ready=await cropLoadPromise;if(ready)avatarCropBlob=await captureAvatarCrop();}
+    if(!avatarCropBlob){document.querySelector("#msg").textContent="Не удалось подготовить аватар. Проверь фото и попробуй ещё раз.";return;}
+    const avatarFile=new File([avatarCropBlob],"cocktail-avatar.webp",{type:"image/webp"}),avatarUpload=new FormData();avatarUpload.append("file",avatarFile);
+    const ar=await fetch("/api/cocktail-photo",{method:"POST",body:avatarUpload}),ad=await ar.json().catch(()=>({}));
+    if(!ar.ok){document.querySelector("#msg").textContent="Ошибка аватара: "+(ad.error||"не удалось загрузить");return;}
+    document.querySelector("#avatarUrl").value=ad.url;
+    f.set("avatar_url",ad.url);
+    document.querySelector("#avatarPreview").innerHTML='<img src="'+esc(ad.url)+'" alt="Квадратный аватар коктейля"><div class="muted" style="font-size:12px;margin-top:5px">Аватар сохранён ✓</div>';
   }
   const body=Object.fromEntries(f.entries()); body.recipe_items=recipe_items;
   if(body.photo_url) body.photo_url=String(body.photo_url);
@@ -1282,7 +1351,7 @@ const esc=s=>String(s??"").replace(/[&<>"']/g,c=>({"&":"&amp;","<":"&lt;",">":"&
 let cocktails=[],viaFilter="all";
 const norm=s=>String(s||"").toLowerCase().replace(/ё/g,"е");
 const curatorOf=c=>{const n=norm(c.name);if(/virgin|безалк|mocktail|garden/.test(n)||norm(c.strength).includes("безалк"))return "mocktail";if(/anastasia|анастас|passion sour|clover club/.test(n))return "anastasia";if(/via royal|royal heritage/.test(n))return "duo";return "vladimir"};
-const render=()=>{const q=norm(document.querySelector("#ingredientSearch").value.trim());const list=cocktails.filter(c=>{if(viaFilter!=="all"&&curatorOf(c)!==viaFilter)return false;if(q){const ing=(c.recipe_items||[]).map(i=>i.ingredient_name||i.name||"").join(" ");if(!norm(c.name+" "+ing+" "+(c.strength||"")).includes(q))return false}return true});const box=document.querySelector("#menu");if(!list.length){box.innerHTML='<div class="guest-card guest-empty">По вашему запросу коктейлей не найдено.</div>';return}box.innerHTML=list.map(c=>{const names=(c.recipe_items||[]).map(i=>String(i.ingredient_name||i.name||"").trim()).filter(Boolean);const unique=[...new Map(names.map(n=>[norm(n),n])).values()];const st=norm(c.strength);const strength=st.includes("безалк")?"0.0% · Без алкоголя":st.includes("лег")?"★ · Лёгкий":st.includes("сред")?"★★ · Средний":st.includes("креп")?"★★★ · Крепкий":c.strength||"Не указана";return '<article class="guest-card" id="cocktail-'+Number(c.id)+'">'+(c.photo_url?'<img class="guest-photo" src="'+esc(c.photo_url)+'" alt="'+esc(c.name)+'">':'<div class="guest-photo-placeholder">🍸</div>')+'<h2>'+esc(c.name)+'</h2><div class="guest-price">'+Number(c.price_rub||0).toLocaleString("ru-RU")+' ₽</div><div class="guest-strength">Крепость — '+esc(strength)+'</div>'+(unique.length?'<div class="guest-ingredients">'+unique.map(esc).join(", ")+'</div>':'')+'</article>'}).join("")};
+const render=()=>{const q=norm(document.querySelector("#ingredientSearch").value.trim());const list=cocktails.filter(c=>{if(viaFilter!=="all"&&curatorOf(c)!==viaFilter)return false;if(q){const ing=(c.recipe_items||[]).map(i=>i.ingredient_name||i.name||"").join(" ");if(!norm(c.name+" "+ing+" "+(c.strength||"")).includes(q))return false}return true});const box=document.querySelector("#menu");if(!list.length){box.innerHTML='<div class="guest-card guest-empty">По вашему запросу коктейлей не найдено.</div>';return}box.innerHTML=list.map(c=>{const names=(c.recipe_items||[]).map(i=>String(i.ingredient_name||i.name||"").trim()).filter(Boolean);const unique=[...new Map(names.map(n=>[norm(n),n])).values()];const st=norm(c.strength);const strength=st.includes("безалк")?"0.0% · Без алкоголя":st.includes("лег")?"★ · Лёгкий":st.includes("сред")?"★★ · Средний":st.includes("креп")?"★★★ · Крепкий":c.strength||"Не указана";return '<article class="guest-card" id="cocktail-'+Number(c.id)+'">'+((c.avatar_url||c.photo_url)?'<img class="guest-photo" src="'+esc(c.avatar_url||c.photo_url)+'" alt="'+esc(c.name)+'">':'<div class="guest-photo-placeholder">🍸</div>')+'<h2>'+esc(c.name)+'</h2><div class="guest-price">'+Number(c.price_rub||0).toLocaleString("ru-RU")+' ₽</div><div class="guest-strength">Крепость — '+esc(strength)+'</div>'+(unique.length?'<div class="guest-ingredients">'+unique.map(esc).join(", ")+'</div>':'')+'</article>'}).join("")};
 document.querySelector("#ingredientSearch").addEventListener("input",render);
 document.querySelectorAll(".via-filter").forEach(b=>b.addEventListener("click",()=>{viaFilter=b.dataset.filter;document.querySelectorAll(".via-filter").forEach(x=>x.classList.toggle("active",x===b));render()}));
 const guestRegisterButton=document.querySelector("#guestRegisterButton"),guestRegisterModal=document.querySelector("#guestRegisterModal"),guestRegisterClose=document.querySelector("#guestRegisterClose"),guestRegisterForm=document.querySelector("#guestRegisterForm"),guestRegisterMessage=document.querySelector("#guestRegisterMessage");
