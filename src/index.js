@@ -1219,32 +1219,32 @@ renderStock();
 .via-family-pill:before{content:'●';color:#10b981;font-size:8px}
 .via-brand-title{font-family:'Cinzel',Georgia,serif;font-size:34px;font-weight:900;letter-spacing:4px;background:linear-gradient(135deg,#fff 20%,var(--via-light) 60%,var(--via-gold));-webkit-background-clip:text;-webkit-text-fill-color:transparent;line-height:1.1;margin:0 0 7px}
 .via-brand-hosts{font-size:13px;letter-spacing:.5px;color:var(--via-muted);font-weight:500}.via-brand-hosts span{color:var(--via-gold);font-weight:700}
-.via-guest-card{background:rgba(20,22,32,.88);border:1px solid rgba(229,185,88,.24);border-radius:20px;padding:14px 16px;display:flex;align-items:center;gap:12px;margin-bottom:20px;box-shadow:0 8px 30px rgba(0,0,0,.35)}
-.via-guest-avatar{width:44px;height:44px;border-radius:50%;background:linear-gradient(135deg,var(--via-gold),#ff8a3d);display:flex;align-items:center;justify-content:center;font-size:22px;flex-shrink:0}
+.via-guest-card{background:rgba(15,13,9,.94);border:1px solid rgba(229,185,88,.24);border-radius:20px;padding:14px 16px;display:flex;align-items:center;gap:12px;margin-bottom:20px;box-shadow:0 8px 30px rgba(0,0,0,.35)}
+.via-guest-avatar{width:44px;height:44px;border-radius:50%;background:linear-gradient(135deg,var(--via-gold),#c89132);display:flex;align-items:center;justify-content:center;font-size:22px;flex-shrink:0}
 .via-guest-info{flex:1;min-width:0;text-align:left}.via-guest-label{font-size:10px;text-transform:uppercase;letter-spacing:1px;color:var(--via-muted);margin-bottom:3px}.via-guest-name{font-size:15px;font-weight:800;color:#fff}
 .via-guest-score{text-align:right}.via-score-value{font-size:20px;font-weight:800;color:var(--via-gold)}.via-score-caption{font-size:10px;color:var(--via-muted);text-transform:uppercase}
 #guestRegisterButton{border:1px solid rgba(229,185,88,.3)!important;border-radius:12px!important;background:rgba(229,185,88,.08)!important;color:var(--via-gold)!important;padding:10px 12px!important;font-size:12px!important;font-weight:800!important}
 .via-search-wrap{position:relative;margin-bottom:14px}.via-search-icon{position:absolute;left:14px;top:50%;transform:translateY(-50%);opacity:.55;pointer-events:none}
-.via-search{width:100%;height:48px;background:rgba(255,255,255,.05);border:1px solid rgba(255,255,255,.1);padding:0 15px 0 42px;border-radius:14px;color:#fff;font-size:14px;outline:none;font-family:inherit}.via-search:focus{border-color:var(--via-gold)}.via-search::placeholder{color:var(--via-muted)}
+.via-search{width:100%;height:48px;background:rgba(229,185,88,.045);border:1px solid rgba(229,185,88,.18);padding:0 15px 0 42px;border-radius:14px;color:#fff;font-size:14px;outline:none;font-family:inherit}.via-search:focus{border-color:var(--via-gold)}.via-search::placeholder{color:var(--via-muted)}
 .via-filters{display:flex;gap:8px;overflow-x:auto;padding:0 0 9px;margin-bottom:17px;scrollbar-width:none}.via-filters::-webkit-scrollbar{display:none}
-.via-filter{flex-shrink:0;padding:9px 13px;background:rgba(255,255,255,.04);border:1px solid rgba(255,255,255,.08);border-radius:12px;font-size:12px;font-weight:700;color:var(--via-muted);cursor:pointer;font-family:inherit;white-space:nowrap}
-.via-filter.active{background:linear-gradient(135deg,rgba(229,185,88,.25),rgba(255,138,61,.15));border-color:var(--via-gold);color:#fff;box-shadow:0 4px 14px rgba(229,185,88,.18)}
+.via-filter{flex-shrink:0;padding:9px 13px;background:rgba(229,185,88,.045);border:1px solid rgba(229,185,88,.13);border-radius:12px;font-size:12px;font-weight:700;color:var(--via-muted);cursor:pointer;font-family:inherit;white-space:nowrap}
+.via-filter.active{background:linear-gradient(135deg,rgba(229,185,88,.25),rgba(200,145,50,.14));border-color:var(--via-gold);color:#fff;box-shadow:0 4px 14px rgba(229,185,88,.18)}
 #menu{display:flex;flex-direction:column;gap:15px}
-#menu .guest-card:not(.guest-empty){display:grid;grid-template-columns:88px minmax(0,1fr);grid-template-rows:auto auto auto;column-gap:14px;align-items:start;overflow:hidden;margin:0;padding:16px;background:rgba(20,22,32,.88);border:1px solid rgba(229,185,88,.24);border-radius:20px;box-shadow:0 8px 30px rgba(0,0,0,.28)}
-#menu .guest-photo,#menu .guest-photo-placeholder{grid-column:1;grid-row:1/4;width:88px;height:100px;object-fit:cover;display:flex;align-items:center;justify-content:center;border-radius:16px;background:radial-gradient(circle,rgba(229,185,88,.15),rgba(20,22,32,.8));border:1px solid rgba(229,185,88,.25);color:var(--via-gold);font-size:32px}
+#menu .guest-card:not(.guest-empty){display:grid;grid-template-columns:88px minmax(0,1fr);grid-template-rows:auto auto auto;column-gap:14px;align-items:start;overflow:hidden;margin:0;padding:16px;background:rgba(15,13,9,.94);border:1px solid rgba(229,185,88,.24);border-radius:20px;box-shadow:0 8px 30px rgba(0,0,0,.28)}
+#menu .guest-photo,#menu .guest-photo-placeholder{grid-column:1;grid-row:1/4;width:88px;height:100px;object-fit:cover;display:flex;align-items:center;justify-content:center;border-radius:16px;background:radial-gradient(circle,rgba(229,185,88,.15),rgba(15,13,9,.9));border:1px solid rgba(229,185,88,.25);color:var(--via-gold);font-size:32px}
 #menu .guest-card h2{grid-column:2;margin:1px 0 7px;font-family:'Cinzel',Georgia,serif;font-size:16px;line-height:1.2;color:#fff}
 #menu .guest-price{grid-column:2;font-size:18px;color:var(--via-gold);font-weight:800;margin:0 0 7px}
 #menu .guest-strength{grid-column:2;font-size:12px;color:#c2c5cd;margin:0 0 6px}
-#menu .guest-ingredients{grid-column:1/-1;font-size:12px;line-height:1.55;color:#aeb3c0;margin-top:13px;padding-top:11px;border-top:1px solid rgba(255,255,255,.08)}
-#menu .guest-empty{display:block!important;padding:28px;text-align:center;color:var(--via-muted);background:rgba(20,22,32,.88);border:1px solid rgba(229,185,88,.24);border-radius:20px}
-#menu .guest-order-controls{grid-column:1/-1!important;display:flex!important;align-items:center;gap:12px!important;margin-top:13px!important;padding-top:12px!important;border-top:1px solid rgba(255,255,255,.08)!important}
-#menu .guest-order-controls button{width:54px;min-width:54px;height:50px;border-radius:15px;font-size:25px;font-weight:900;padding:0;background:linear-gradient(135deg,var(--via-gold),#ff8a3d);color:#111}
-#menu .guest-order-controls button.secondary{background:#24252a;color:#fff}
+#menu .guest-ingredients{grid-column:1/-1;font-size:12px;line-height:1.55;color:#aeb3c0;margin-top:13px;padding-top:11px;border-top:1px solid rgba(229,185,88,.13)}
+#menu .guest-empty{display:block!important;padding:28px;text-align:center;color:var(--via-muted);background:rgba(15,13,9,.94);border:1px solid rgba(229,185,88,.24);border-radius:20px}
+#menu .guest-order-controls{grid-column:1/-1!important;display:flex!important;align-items:center;gap:12px!important;margin-top:13px!important;padding-top:12px!important;border-top:1px solid rgba(229,185,88,.13)!important}
+#menu .guest-order-controls button{width:54px;min-width:54px;height:50px;border-radius:15px;font-size:25px;font-weight:900;padding:0;background:linear-gradient(135deg,var(--via-gold),#c89132);color:#111}
+#menu .guest-order-controls button.secondary{background:#242018;color:#fff}
 #menu .guest-order-controls span{min-width:44px;text-align:center;font-size:20px;font-weight:900;color:#f3f4f6}
 #guestRegisterModal>div{background:#131520!important;border:1px solid rgba(229,185,88,.24)!important;border-radius:22px!important}
 #guestRegisterModal h2{font-family:'Cinzel',Georgia,serif}
 #guestRegisterForm input{width:100%;margin:5px 0 12px;background:#0b0d13;border:1px solid #343541;border-radius:12px;color:#fff;padding:13px;font:inherit}
-#guestRegisterForm button[type=submit]{background:linear-gradient(135deg,var(--via-gold),#ff8a3d);color:#111;border:0;border-radius:13px;padding:14px;font-weight:800}
+#guestRegisterForm button[type=submit]{background:linear-gradient(135deg,var(--via-gold),#c89132);color:#111;border:0;border-radius:13px;padding:14px;font-weight:800}
 @media(max-width:430px){.guest-menu{padding:20px 14px 100px}.via-brand-title{font-size:31px;letter-spacing:3px}.via-monogram{width:72px;height:72px}.via-guest-card{padding:12px;gap:9px}#guestRegisterButton{padding:9px 10px!important;font-size:11px!important}#menu .guest-card:not(.guest-empty){grid-template-columns:78px minmax(0,1fr);column-gap:12px;padding:12px}#menu .guest-photo,#menu .guest-photo-placeholder{width:78px;height:92px}#menu .guest-card h2{font-size:15px}}
 </style>
 <div class="guest-menu">
