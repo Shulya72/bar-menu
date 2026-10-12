@@ -192,11 +192,11 @@ a{color:#c8ff3d;text-decoration:none}.muted{color:#999}.pill{display:inline-bloc
 .ingredient-picker{position:relative}
 .avatar-editor{margin-top:16px;padding:14px;border:1px solid rgba(229,185,88,.28);border-radius:16px;background:linear-gradient(145deg,#171512,#0c0b09)}
 .avatar-editor h3{color:#fbe29f;font-size:16px}
-.avatar-crop-stage{width:min(100%,320px);aspect-ratio:1/1;margin:0 auto;overflow:hidden;border:1px solid rgba(229,185,88,.5);border-radius:14px;background:#050505;touch-action:none}
+.avatar-crop-stage{width:min(100%,320px);aspect-ratio:4/5;margin:0 auto;overflow:hidden;border:1px solid rgba(229,185,88,.5);border-radius:14px;background:#050505;touch-action:none}
 #avatarCropCanvas{display:block;width:100%;height:100%;object-fit:contain;touch-action:none;cursor:grab}
 #avatarCropCanvas:active{cursor:grabbing}
 #avatarZoom{accent-color:#e5b958;padding:0}
-#avatarPreview img{display:block;width:96px;height:96px;object-fit:cover;border-radius:14px;border:1px solid #c7a04c}
+#avatarPreview img{display:block;width:96px;height:120px;object-fit:cover;border-radius:14px;border:1px solid #c7a04c}
 .ingredient-suggestions{position:absolute;left:0;right:0;top:calc(100% + 4px);z-index:10;background:#181818;border:1px solid #333;border-radius:12px;max-height:220px;overflow:auto;box-shadow:0 10px 30px #000}
 .ingredient-suggestion{padding:12px;border-bottom:1px solid #292929;cursor:pointer}
 .ingredient-suggestion:last-child{border-bottom:0}
@@ -805,19 +805,19 @@ export default {
       <label>Способ приготовления</label><textarea name="method" placeholder="Например: собрать в бокале, перемешать барной ложкой"></textarea>
       <label>Основное фото коктейля</label>
       <input id="photoFile" type="file" accept="image/*" style="padding:10px">
-      <p class="muted" style="margin:6px 0 0;font-size:12px">Оригинал сохраняется целиком для книги рецептов. Для карты бара и личного кабинета ниже настраивается отдельный квадратный аватар.</p>
+      <p class="muted" style="margin:6px 0 0;font-size:12px">Оригинал сохраняется целиком для книги рецептов. Для карты бара и личного кабинета ниже настраивается отдельный вертикальный кадр 4:5.</p>
       <div id="photoPreview" style="margin-top:10px"></div>
       <input name="photo_url" id="photoUrl" type="hidden">
       <input name="avatar_url" id="avatarUrl" type="hidden">
       <section id="avatarCropPanel" class="avatar-editor" hidden>
-        <h3>Квадратный аватар для карты бара и ЛК</h3>
+        <h3>Вертикальное фото 4:5 для карты бара и ЛК</h3>
         <p class="muted" style="font-size:13px;margin:6px 0 12px">Перемещай фотографию пальцем и настрой масштаб. Оригинал при этом не обрезается.</p>
-        <div class="avatar-crop-stage"><canvas id="avatarCropCanvas" width="320" height="320" aria-label="Предпросмотр кадрирования коктейля"></canvas></div>
+        <div class="avatar-crop-stage"><canvas id="avatarCropCanvas" width="320" height="400" aria-label="Предпросмотр кадрирования коктейля 4:5"></canvas></div>
         <label for="avatarZoom">Масштаб кадра</label>
         <input id="avatarZoom" type="range" min="100" max="250" step="5" value="100">
         <div class="row" style="justify-content:space-between;margin-top:10px;align-items:center">
           <button type="button" class="secondary" id="applyAvatarCrop">✓ Применить кадрирование</button>
-          <span id="avatarCropStatus" class="muted" style="font-size:12px">Квадратный кадр</span>
+          <span id="avatarCropStatus" class="muted" style="font-size:12px">Вертикальный кадр 4:5</span>
         </div>
         <div id="avatarPreview" style="margin-top:12px"></div>
       </section>
@@ -999,7 +999,7 @@ cropCanvas.addEventListener("pointerdown",e=>{if(!cropSourceImage)return;cropPoi
 cropCanvas.addEventListener("pointermove",e=>{if(!cropPointer)return;const rect=cropCanvas.getBoundingClientRect(),sx=cropCanvas.width/rect.width,sy=cropCanvas.height/rect.height;cropOffsetX=cropPointer.ox+(e.clientX-cropPointer.x)*sx;cropOffsetY=cropPointer.oy+(e.clientY-cropPointer.y)*sy;markCropChanged();drawAvatarCrop()});
 for(const eventName of ["pointerup","pointercancel","lostpointercapture"])cropCanvas.addEventListener(eventName,()=>{cropPointer=null});
 document.querySelector("#avatarZoom").addEventListener("input",e=>{cropZoom=Number(e.target.value)/100;markCropChanged();drawAvatarCrop()});
-document.querySelector("#applyAvatarCrop").onclick=async()=>{if(!cropSourceImage){document.querySelector("#avatarCropStatus").textContent="Сначала загрузи фото";return;}avatarCropBlob=await captureAvatarCrop();if(!avatarCropBlob){document.querySelector("#avatarCropStatus").textContent="Не удалось подготовить аватар";return;}document.querySelector("#avatarPreview").innerHTML='<img src="'+cropCanvas.toDataURL("image/webp",.9)+'" alt="Квадратный аватар коктейля"><div class="muted" style="font-size:12px;margin-top:5px">Предпросмотр аватара 1:1</div>';document.querySelector("#avatarCropStatus").textContent="Кадрирование готово ✓"};
+document.querySelector("#applyAvatarCrop").onclick=async()=>{if(!cropSourceImage){document.querySelector("#avatarCropStatus").textContent="Сначала загрузи фото";return;}avatarCropBlob=await captureAvatarCrop();if(!avatarCropBlob){document.querySelector("#avatarCropStatus").textContent="Не удалось подготовить аватар";return;}document.querySelector("#avatarPreview").innerHTML='<img src="'+cropCanvas.toDataURL("image/webp",.9)+'" alt="Вертикальное фото коктейля 4:5"><div class="muted" style="font-size:12px;margin-top:5px">Предпросмотр фото 4:5</div>';document.querySelector("#avatarCropStatus").textContent="Кадрирование готово ✓"};
 const showPanel=()=>{
   const panel=document.querySelector("#cocktailPanel");
   panel.hidden=false;
@@ -1036,7 +1036,7 @@ const startEdit=(c)=>{
   document.querySelector("#avatarUrl").value=c.avatar_url||"";
   document.querySelector("#photoFile").value="";
   document.querySelector("#photoPreview").innerHTML=c.photo_url?'<img src="'+esc(c.photo_url)+'" style="max-width:240px;max-height:240px;border-radius:14px;display:block" alt="Оригинал фото">':"";
-  document.querySelector("#avatarPreview").innerHTML=(c.avatar_url||c.photo_url)?'<img src="'+esc(c.avatar_url||c.photo_url)+'" style="width:96px;height:96px;object-fit:cover;border-radius:14px;border:1px solid #c7a04c" alt="Текущий аватар"><div class="muted" style="font-size:12px;margin-top:5px">Текущий аватар</div>':"";
+  document.querySelector("#avatarPreview").innerHTML=(c.avatar_url||c.photo_url)?'<img src="'+esc(c.avatar_url||c.photo_url)+'" style="width:96px;height:120px;object-fit:cover;border-radius:14px;border:1px solid #c7a04c" alt="Текущий аватар"><div class="muted" style="font-size:12px;margin-top:5px">Текущий аватар</div>':"";
   loadCropSource(c.photo_url||c.avatar_url||"");
   document.querySelector("#recipeItems").innerHTML="";
   (c.recipe_items||[]).forEach(item=>addRow(item));
@@ -1117,7 +1117,7 @@ document.querySelector("#cocktailForm").onsubmit=async e=>{
     if(!ar.ok){document.querySelector("#msg").textContent="Ошибка аватара: "+(ad.error||"не удалось загрузить");return;}
     document.querySelector("#avatarUrl").value=ad.url;
     f.set("avatar_url",ad.url);
-    document.querySelector("#avatarPreview").innerHTML='<img src="'+esc(ad.url)+'" alt="Квадратный аватар коктейля"><div class="muted" style="font-size:12px;margin-top:5px">Аватар сохранён ✓</div>';
+    document.querySelector("#avatarPreview").innerHTML='<img src="'+esc(ad.url)+'" alt="Вертикальное фото коктейля 4:5"><div class="muted" style="font-size:12px;margin-top:5px">Аватар сохранён ✓</div>';
   }
   const body=Object.fromEntries(f.entries()); body.recipe_items=recipe_items;
   if(body.photo_url) body.photo_url=String(body.photo_url);
@@ -1300,7 +1300,7 @@ renderStock();
 .via-filter.active{background:linear-gradient(135deg,rgba(229,185,88,.25),rgba(200,145,50,.14));border-color:var(--via-gold);color:#fff;box-shadow:0 4px 14px rgba(229,185,88,.18)}
 #menu{display:flex;flex-direction:column;gap:15px}
 #menu .guest-card:not(.guest-empty){display:grid;grid-template-columns:88px minmax(0,1fr);grid-template-rows:auto auto auto;column-gap:14px;align-items:start;overflow:hidden;margin:0;padding:16px;background:rgba(15,13,9,.94);border:1px solid rgba(229,185,88,.24);border-radius:20px;box-shadow:0 8px 30px rgba(0,0,0,.28)}
-#menu .guest-photo,#menu .guest-photo-placeholder{grid-column:1;grid-row:1/4;width:88px;height:100px;object-fit:cover;display:flex;align-items:center;justify-content:center;border-radius:16px;background:radial-gradient(circle,rgba(229,185,88,.15),rgba(15,13,9,.9));border:1px solid rgba(229,185,88,.25);color:var(--via-gold);font-size:32px}
+#menu .guest-photo,#menu .guest-photo-placeholder{grid-column:1;grid-row:1/4;width:88px;height:110px;object-fit:cover;display:flex;align-items:center;justify-content:center;border-radius:16px;background:radial-gradient(circle,rgba(229,185,88,.15),rgba(15,13,9,.9));border:1px solid rgba(229,185,88,.25);color:var(--via-gold);font-size:32px}
 #menu .guest-card h2{grid-column:2;margin:1px 0 7px;font-family:'Cinzel',Georgia,serif;font-size:16px;line-height:1.2;color:#fff}
 #menu .guest-price{grid-column:2;font-size:18px;color:var(--via-gold);font-weight:800;margin:0 0 7px}
 #menu .guest-strength{grid-column:2;font-size:12px;color:#c2c5cd;margin:0 0 6px}
