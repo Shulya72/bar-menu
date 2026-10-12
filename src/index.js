@@ -1300,7 +1300,7 @@ renderStock();
 .via-filter.active{background:linear-gradient(135deg,rgba(229,185,88,.25),rgba(200,145,50,.14));border-color:var(--via-gold);color:#fff;box-shadow:0 4px 14px rgba(229,185,88,.18)}
 #menu{display:flex;flex-direction:column;gap:18px}
 #menu .guest-card:not(.guest-empty){display:flex;flex-direction:column;align-items:stretch;min-width:0;overflow:hidden;margin:0;padding:12px;background:linear-gradient(155deg,rgba(24,21,16,.98),rgba(10,10,9,.99) 55%);border:1px solid rgba(214,177,99,.34);border-radius:22px;box-shadow:0 14px 34px rgba(0,0,0,.22)}
-#menu .guest-photo,#menu .guest-photo-placeholder{display:flex;align-items:center;justify-content:center;flex:none;width:100%;aspect-ratio:4/5;height:auto;max-height:none;object-fit:cover;object-position:center;border-radius:15px;background:radial-gradient(circle,rgba(229,185,88,.08),rgba(15,13,9,.9));border:1px solid rgba(229,185,88,.17);color:var(--via-gold);font-size:32px}
+#menu .guest-photo,#menu .guest-photo-placeholder{display:flex;align-items:center;justify-content:center;flex:none;width:100%;aspect-ratio:16/9;height:auto;max-height:none;object-fit:cover;object-position:center;border-radius:15px;background:radial-gradient(circle,rgba(229,185,88,.08),rgba(15,13,9,.9));border:1px solid rgba(229,185,88,.17);color:var(--via-gold);font-size:32px}
 #menu .guest-card h2{margin:17px 3px 7px;font-family:'Cinzel',Georgia,serif;font-size:25px;font-weight:700;letter-spacing:.1px;line-height:1.2;color:#f5e8c8}
 #menu .guest-description{font-size:14px;line-height:1.58;color:#b9b6ae;margin:0 3px 13px;overflow-wrap:anywhere;display:-webkit-box;-webkit-line-clamp:3;-webkit-box-orient:vertical;overflow:hidden}
 #menu .guest-strength{font-size:12px;letter-spacing:.15px;color:#bdb7aa;margin:0 3px 4px}
@@ -1316,7 +1316,7 @@ renderStock();
 #guestRegisterModal h2{font-family:'Cinzel',Georgia,serif}
 #guestRegisterForm input{width:100%;margin:5px 0 12px;background:#0b0d13;border:1px solid #343541;border-radius:12px;color:#fff;padding:13px;font:inherit}
 #guestRegisterForm button[type=submit]{background:linear-gradient(135deg,var(--via-gold),#c89132);color:#111;border:0;border-radius:13px;padding:14px;font-weight:800}
-@media(max-width:430px){.guest-menu{padding:20px 14px 100px}.via-brand-title{font-size:31px;letter-spacing:3px}.via-monogram{width:72px;height:72px}.via-guest-card{padding:12px;gap:9px}#guestRegisterButton{padding:9px 10px!important;font-size:11px!important}#menu .guest-card:not(.guest-empty){grid-template-columns:78px minmax(0,1fr);column-gap:12px;padding:12px}#menu .guest-photo,#menu .guest-photo-placeholder{width:100%;height:auto;aspect-ratio:4/5;max-height:none}#menu .guest-card h2{font-size:15px}}
+@media(max-width:430px){.guest-menu{padding:20px 14px 100px}.via-brand-title{font-size:31px;letter-spacing:3px}.via-monogram{width:72px;height:72px}.via-guest-card{padding:12px;gap:9px}#guestRegisterButton{padding:9px 10px!important;font-size:11px!important}#menu .guest-card:not(.guest-empty){grid-template-columns:78px minmax(0,1fr);column-gap:12px;padding:12px}#menu .guest-photo,#menu .guest-photo-placeholder{width:100%;height:auto;aspect-ratio:16/9;max-height:none}#menu .guest-card h2{font-size:15px}}
 </style>
 <div class="guest-menu">
 <header class="via-brand">
