@@ -348,7 +348,7 @@ const getCocktails = async (env, includeStock = true) => {
   }
   let stockMap=new Map();
   if(includeStock){
-    const stockRows=await getProducts(env);
+    const stockRows=await getProducts(env,false);
     stockMap=new Map((stockRows||[]).map(x=>[Number(x.ingredient_id),Number(x.stock||0)]));
   }
   for(const c of results){
@@ -369,7 +369,7 @@ const getCocktails = async (env, includeStock = true) => {
   return results;
 };
 
-const getProducts = async (env) => {
+const getProducts = async (env, includeDetails = true) => {
   // Склад не должен зависеть от миграций магазина. Сначала гарантируем
   // базовый справочник ингредиентов, затем отдельно пытаемся включить
   // ручные корректировки остатков.
@@ -399,37 +399,39 @@ const getProducts = async (env) => {
   const {results}=await env.DB.prepare(q).all();
   const reservedMap=await getReservedIngredients(env);
 
-  for(const x of results){
-    const batches=await env.DB.prepare(`
-      SELECT COALESCE(NULLIF(p.brand,''),'Без бренда') brand,
-             COALESCE(NULLIF(p.store,''),'') store,
-             SUM(pb.remaining_qty) stock,
-             SUM(pb.remaining_qty*(pb.price_rub/NULLIF(pb.purchased_qty,0))) stock_value
-      FROM purchase_batches pb
-      JOIN products p ON p.id=pb.product_id
-      WHERE p.ingredient_id=? AND p.is_active=1 AND pb.remaining_qty>0
-      GROUP BY p.brand,p.store
-      HAVING SUM(pb.remaining_qty)>0
-      ORDER BY p.brand,p.store
-    `).bind(x.ingredient_id).all();
-
-    x.details=(batches.results||[]).map(b=>({
-      brand:b.brand,store:b.store,stock:Number(b.stock||0),
-      stock_value:Number(b.stock_value||0),
-      unit_price:Number(b.stock||0)>0?Number(b.stock_value||0)/Number(b.stock):0,
-      source_type:"purchase"
-    }));
-
-    if(adjustmentsAvailable){
-      try{
-        const adjustments=await env.DB.prepare("SELECT COALESCE(NULLIF(brand,''),'Ручная корректировка') brand, COALESCE(NULLIF(store,''),'Ручной ввод') store, SUM(quantity) stock, SUM(quantity*unit_price) stock_value FROM stock_adjustments WHERE ingredient_id=? AND quantity>0 GROUP BY brand,store ORDER BY brand,store").bind(x.ingredient_id).all();
-        for(const adjustment of (adjustments.results||[])){
-          const stock=Number(adjustment.stock||0), value=Number(adjustment.stock_value||0);
-          if(stock>0){
-            x.details.push({brand:adjustment.brand,store:adjustment.store,stock,stock_value:value,unit_price:value/stock,source_type:"manual"});
+  if(includeDetails){
+    for(const x of results){
+      const batches=await env.DB.prepare(`
+        SELECT COALESCE(NULLIF(p.brand,''),'Без бренда') brand,
+               COALESCE(NULLIF(p.store,''),'') store,
+               SUM(pb.remaining_qty) stock,
+               SUM(pb.remaining_qty*(pb.price_rub/NULLIF(pb.purchased_qty,0))) stock_value
+        FROM purchase_batches pb
+        JOIN products p ON p.id=pb.product_id
+        WHERE p.ingredient_id=? AND p.is_active=1 AND pb.remaining_qty>0
+        GROUP BY p.brand,p.store
+        HAVING SUM(pb.remaining_qty)>0
+        ORDER BY p.brand,p.store
+      `).bind(x.ingredient_id).all();
+  
+      x.details=(batches.results||[]).map(b=>({
+        brand:b.brand,store:b.store,stock:Number(b.stock||0),
+        stock_value:Number(b.stock_value||0),
+        unit_price:Number(b.stock||0)>0?Number(b.stock_value||0)/Number(b.stock):0,
+        source_type:"purchase"
+      }));
+  
+      if(adjustmentsAvailable){
+        try{
+          const adjustments=await env.DB.prepare("SELECT COALESCE(NULLIF(brand,''),'Ручная корректировка') brand, COALESCE(NULLIF(store,''),'Ручной ввод') store, SUM(quantity) stock, SUM(quantity*unit_price) stock_value FROM stock_adjustments WHERE ingredient_id=? AND quantity>0 GROUP BY brand,store ORDER BY brand,store").bind(x.ingredient_id).all();
+          for(const adjustment of (adjustments.results||[])){
+            const stock=Number(adjustment.stock||0), value=Number(adjustment.stock_value||0);
+            if(stock>0){
+              x.details.push({brand:adjustment.brand,store:adjustment.store,stock,stock_value:value,unit_price:value/stock,source_type:"manual"});
+            }
           }
-        }
-      }catch(e){}
+        }catch(e){}
+      }
     }
   }
 
