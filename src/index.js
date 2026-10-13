@@ -1221,20 +1221,6 @@ loadOrderBar();
 </div><div style="height:16px"></div>
 <div class="card"><h2>Справочник</h2><div id="list">Загрузка...</div></div>
 </div>
-<div id="stockEditModal" hidden style="position:fixed;inset:0;z-index:9999;background:rgba(0,0,0,.78);padding:18px;align-items:center;justify-content:center">
-  <div class="card" style="width:min(100%,520px);max-height:90vh;overflow:auto;border:1px solid #55452a;background:#11100d;padding:22px">
-    <div class="row" style="justify-content:space-between;align-items:center"><h2 style="margin:0">✏️ Редактировать склад</h2><button type="button" class="secondary" id="closeStockEdit" aria-label="Закрыть">✕</button></div>
-    <p class="muted" id="stockEditIngredient" style="margin:8px 0 16px"></p>
-    <form id="stockEditForm">
-      <label>Название / бренд *</label><input id="stockEditBrand" required>
-      <label>Количество, <span id="stockEditUnit"></span> *</label><input id="stockEditQty" type="number" min="0.01" step="0.01" required>
-      <label>Цена за единицу, ₽/<span id="stockEditPriceUnit"></span> *</label><input id="stockEditPrice" type="number" min="0" step="0.0001" required>
-      <p class="muted">Изменения затронут только текущий склад. Чек в магазине останется без изменений.</p>
-      <div class="row" style="gap:10px"><button type="submit" id="saveStockEdit">💾 Сохранить</button><button type="button" class="secondary" id="cancelStockEdit">Отмена</button></div>
-      <p id="stockEditMsg" class="muted" role="status"></p>
-    </form>
-  </div>
-</div>
 <script>
 const esc=s=>String(s??"").replace(/[&<>"']/g,c=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[c]));
 async function load(){const r=await fetch("/api/ingredients");const x=await r.json();document.querySelector("#list").innerHTML=x.map(i=>'<div class="ingredient-item" data-id="'+i.id+'" style="padding:12px 0;border-bottom:1px solid #292929"><div class="ingredient-view"><b>#'+i.id+' · '+esc(i.name)+'</b><span class="muted"> · '+i.unit+' · <strong>🍸 '+Number(i.strength_percent||0).toFixed(1)+'%</strong></span> <button type="button" class="secondary edit">Изменить</button></div></div>').join("")||'<div class="empty">Нет ингредиентов</div>';
@@ -1291,6 +1277,21 @@ document.querySelector("#ingredientForm").onsubmit=async e=>{e.preventDefault();
 <div style="height:16px"></div>
 <div class="card"><h2>Товары</h2><div id="stock">${stockLoadError?'<div class="empty">Ошибка загрузки склада: '+hEsc(stockLoadError)+'<br><button type="button" onclick="location.reload()">Обновить</button></div>':(stockItems.length?stockItems.map(p=>'<div class="stock-item" data-id="'+p.ingredient_id+'" style="padding:12px 0;border-bottom:1px solid #292929"><div><b>🥃 '+hEsc(p.ingredient_name)+'</b></div><div class="muted" style="margin-top:5px">Всего: <b>'+Number(p.stock).toFixed(2)+' '+hEsc(p.unit)+'</b> · Средняя цена: <b>'+Number(p.unit_price).toFixed(4)+' ₽/'+hEsc(p.unit)+'</b></div><div style="margin-top:9px;padding-left:12px;border-left:2px solid #333">'+(p.details||[]).map(d=>'<div style="padding:5px 0"><b>'+hEsc(d.brand)+'</b> — '+Number(d.stock).toFixed(2)+' '+hEsc(p.unit)+' · '+Number(d.unit_price).toFixed(4)+' ₽/'+hEsc(p.unit)+(d.store?' · '+hEsc(d.store):'')+'</div>').join("")+'</div><div class="row" style="margin-top:9px"></div></div>').join(""):'<div class="empty">Товаров пока нет.</div>')}</div></div>
 </div>
+<div id="stockEditModal" hidden style="position:fixed;inset:0;z-index:9999;background:rgba(0,0,0,.78);padding:18px;align-items:center;justify-content:center">
+  <div class="card" style="width:min(100%,520px);max-height:90vh;overflow:auto;border:1px solid #55452a;background:#11100d;padding:22px">
+    <div class="row" style="justify-content:space-between;align-items:center"><h2 style="margin:0">✏️ Редактировать склад</h2><button type="button" class="secondary" id="closeStockEdit" aria-label="Закрыть">✕</button></div>
+    <p class="muted" id="stockEditIngredient" style="margin:8px 0 16px"></p>
+    <form id="stockEditForm">
+      <label>Название / бренд *</label><input id="stockEditBrand" required>
+      <label>Количество, <span id="stockEditUnit"></span> *</label><input id="stockEditQty" type="number" min="0.01" step="0.01" required>
+      <label>Цена за единицу, ₽/<span id="stockEditPriceUnit"></span> *</label><input id="stockEditPrice" type="number" min="0" step="0.0001" required>
+      <p class="muted">Изменения затронут только текущий склад. Чек в магазине останется без изменений.</p>
+      <div class="row" style="gap:10px"><button type="submit" id="saveStockEdit">💾 Сохранить</button><button type="button" class="secondary" id="cancelStockEdit">Отмена</button></div>
+      <p id="stockEditMsg" class="muted" role="status"></p>
+    </form>
+  </div>
+</div>
+
 <script>
 const esc=s=>String(s??"").replace(/[&<>"']/g,c=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[c]));
 let stockItems=${initialStock};
