@@ -93,10 +93,11 @@ const getDraftBarOrder=async(env,create=false)=>{
   const items=results||[];return {shift,order,items,total_cocktails:items.reduce((n,x)=>n+Number(x.quantity||0),0),total_price:items.reduce((n,x)=>n+Number(x.quantity||0)*Number(x.price_rub||0),0)};
 };
 const consumeIngredientForBarOrder=async(env,orderId,ingredientId,quantity)=>{
+  await ensureCurrentStockSystem(env);
   let left=Number(quantity||0);
-  const {results}=await env.DB.prepare("SELECT pb.id,pb.remaining_qty FROM purchase_batches pb JOIN products p ON p.id=pb.product_id WHERE p.ingredient_id=? AND p.is_active=1 AND pb.remaining_qty>0 ORDER BY pb.purchased_at ASC,pb.id ASC").bind(ingredientId).all();
-  for(const batch of (results||[])){if(left<=0)break;const take=Math.min(left,Number(batch.remaining_qty||0));if(take>0){await env.DB.prepare("UPDATE purchase_batches SET remaining_qty=remaining_qty-? WHERE id=?").bind(take,batch.id).run();left-=take;}}
-  if(left>0){await ensureStockAdjustmentSystem(env);await env.DB.prepare("INSERT INTO stock_adjustments(ingredient_id,quantity,unit_price,brand,store) VALUES(?,?,?,?,?)").bind(ingredientId,-left,0,"Заказ #"+orderId,"Списание").run();}
+  const {results}=await env.DB.prepare("SELECT id,quantity FROM current_stock_lots WHERE ingredient_id=? AND quantity>0 ORDER BY created_at ASC,id ASC").bind(ingredientId).all();
+  for(const lot of (results||[])){if(left<=0)break;const take=Math.min(left,Number(lot.quantity||0));if(take>0){await env.DB.prepare("UPDATE current_stock_lots SET quantity=quantity-? WHERE id=?").bind(take,lot.id).run();left-=take;}}
+  if(left>0)await env.DB.prepare("INSERT INTO current_stock_lots(ingredient_id,brand,store,quantity,unit_price,source_type,source_id) VALUES(?,?,?,?,?,'adjustment',?)").bind(ingredientId,"Заказ #"+orderId,"Списание",-left,0,"order-"+orderId+"-"+ingredientId).run();
   const ing=await env.DB.prepare("SELECT unit FROM ingredients WHERE id=?").bind(ingredientId).first();await env.DB.prepare("INSERT INTO bar_stock_movements(order_id,ingredient_id,quantity,unit) VALUES(?,?,?,?)").bind(orderId,ingredientId,quantity,ing?.unit||"ml").run();
 };
 const formatUnitLabelServer=u=>u==="g"?"гр":u==="ml"?"мл":u==="pcs"?"шт.":String(u||"");
@@ -367,86 +368,36 @@ const getCocktails = async (env, includeStock = true) => {
   return results;
 };
 
+const ensureCurrentStockSystem=async env=>{
+  await ensureStockAdjustmentSystem(env);
+  await env.DB.prepare("CREATE TABLE IF NOT EXISTS current_stock_lots (id INTEGER PRIMARY KEY AUTOINCREMENT,ingredient_id INTEGER NOT NULL,brand TEXT DEFAULT '',store TEXT DEFAULT '',quantity REAL NOT NULL DEFAULT 0,unit_price REAL NOT NULL DEFAULT 0,source_type TEXT NOT NULL DEFAULT 'manual',source_id TEXT,created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP)").run();
+  await env.DB.prepare("CREATE UNIQUE INDEX IF NOT EXISTS idx_current_stock_source ON current_stock_lots(source_type,source_id)").run();
+  // Import legacy purchase balances and manual adjustments once. Source IDs make this safe on every request.
+  await env.DB.prepare("INSERT OR IGNORE INTO current_stock_lots(ingredient_id,brand,store,quantity,unit_price,source_type,source_id,created_at) SELECT p.ingredient_id,COALESCE(p.brand,''),COALESCE(p.store,''),pb.remaining_qty,CASE WHEN pb.purchased_qty>0 THEN pb.price_rub/pb.purchased_qty ELSE 0 END,'purchase',CAST(pb.id AS TEXT),COALESCE(pb.purchased_at,CURRENT_TIMESTAMP) FROM purchase_batches pb JOIN products p ON p.id=pb.product_id WHERE p.ingredient_id IS NOT NULL").run();
+  await env.DB.prepare("INSERT OR IGNORE INTO current_stock_lots(ingredient_id,brand,store,quantity,unit_price,source_type,source_id,created_at) SELECT ingredient_id,COALESCE(brand,''),COALESCE(store,'Ручной ввод'),quantity,unit_price,'adjustment',CAST(id AS TEXT),created_at FROM stock_adjustments").run();
+};
+
 const getProducts = async (env, includeDetails = true) => {
-  // Склад не должен зависеть от миграций магазина. Сначала гарантируем
-  // базовый справочник ингредиентов, затем отдельно пытаемся включить
-  // ручные корректировки остатков.
-  await ensureIngredientSystem(env);
-  let adjustmentsAvailable=true;
-  try{
-    await env.DB.prepare("CREATE TABLE IF NOT EXISTS stock_adjustments (id INTEGER PRIMARY KEY AUTOINCREMENT, ingredient_id INTEGER NOT NULL REFERENCES ingredients(id), quantity REAL NOT NULL, unit_price REAL NOT NULL DEFAULT 0, brand TEXT DEFAULT '', store TEXT DEFAULT '', created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP)").run();
-    try{await env.DB.prepare("ALTER TABLE stock_adjustments ADD COLUMN brand TEXT DEFAULT ''").run()}catch(e){}
-    try{await env.DB.prepare("ALTER TABLE stock_adjustments ADD COLUMN store TEXT DEFAULT ''").run()}catch(e){}
-    // Удаляем старые записи, которые были созданы прежней логикой общего остатка.
-    try{await env.DB.prepare("DELETE FROM stock_adjustments WHERE brand='Ручная корректировка' OR (COALESCE(brand,'')='' AND COALESCE(store,'')='')").run()}catch(e){}
-  }catch(e){
-    adjustmentsAvailable=false;
-  }
-
-  const adjustmentStock=adjustmentsAvailable
-    ? "COALESCE((SELECT SUM(sa.quantity) FROM stock_adjustments sa WHERE sa.ingredient_id=i.id),0)"
-    : "0";
-  const adjustmentValue=adjustmentsAvailable
-    ? "COALESCE((SELECT SUM(sa.quantity*sa.unit_price) FROM stock_adjustments sa WHERE sa.ingredient_id=i.id),0)"
-    : "0";
-
-  const q=`SELECT i.id ingredient_id,i.name ingredient_name,i.unit,
-    COALESCE((SELECT SUM(pb.remaining_qty) FROM purchase_batches pb JOIN products pp ON pp.id=pb.product_id WHERE pp.ingredient_id=i.id AND pp.is_active=1),0)+${adjustmentStock} stock,
-    COALESCE((SELECT SUM(pb.remaining_qty*(pb.price_rub/NULLIF(pb.purchased_qty,0))) FROM purchase_batches pb JOIN products pp ON pp.id=pb.product_id WHERE pp.ingredient_id=i.id AND pp.is_active=1),0)+${adjustmentValue} stock_value
-    FROM ingredients i WHERE i.is_active=1 ORDER BY i.name`;
-  const {results}=await env.DB.prepare(q).all();
+  await ensureCurrentStockSystem(env);
+  const {results}=await env.DB.prepare(`SELECT i.id ingredient_id,i.name ingredient_name,i.unit,
+    COALESCE((SELECT SUM(cs.quantity) FROM current_stock_lots cs WHERE cs.ingredient_id=i.id),0) stock,
+    COALESCE((SELECT SUM(cs.quantity*cs.unit_price) FROM current_stock_lots cs WHERE cs.ingredient_id=i.id),0) stock_value
+    FROM ingredients i WHERE i.is_active=1 ORDER BY i.name`).all();
   const reservedMap=await getReservedIngredients(env);
-
   if(includeDetails){
-    const batchRows=await env.DB.prepare(`
-      SELECT p.ingredient_id,
-             COALESCE(NULLIF(p.brand,''),'Без бренда') brand,
-             COALESCE(NULLIF(p.store,''),'') store,
-             SUM(pb.remaining_qty) stock,
-             SUM(pb.remaining_qty*(pb.price_rub/NULLIF(pb.purchased_qty,0))) stock_value
-      FROM purchase_batches pb
-      JOIN products p ON p.id=pb.product_id
-      WHERE p.is_active=1 AND pb.remaining_qty>0
-      GROUP BY p.ingredient_id,p.brand,p.store
-      HAVING SUM(pb.remaining_qty)>0
-      ORDER BY p.ingredient_id,p.brand,p.store
-    `).all();
-    const batchesByIngredient=new Map();
-    for(const b of (batchRows.results||[])){
-      const id=Number(b.ingredient_id);
-      if(!batchesByIngredient.has(id))batchesByIngredient.set(id,[]);
-      const stock=Number(b.stock||0),value=Number(b.stock_value||0);
-      batchesByIngredient.get(id).push({
-        brand:b.brand,store:b.store,stock,stock_value:value,
-        unit_price:stock>0?value/stock:0,source_type:"purchase"
-      });
+    const rows=await env.DB.prepare(`SELECT ingredient_id,COALESCE(NULLIF(brand,''),'Без бренда') brand,COALESCE(NULLIF(store,''),'') store,
+      SUM(quantity) stock,SUM(quantity*unit_price) stock_value,
+      CASE WHEN SUM(CASE WHEN source_type='purchase' THEN 1 ELSE 0 END)>0 THEN 'purchase' ELSE 'manual' END source_type
+      FROM current_stock_lots GROUP BY ingredient_id,brand,store HAVING SUM(quantity)>0 ORDER BY ingredient_id,brand,store`).all();
+    const byIngredient=new Map();
+    for(const row of rows.results||[]){
+      const id=Number(row.ingredient_id),stock=Number(row.stock||0),value=Number(row.stock_value||0);
+      if(stock<=0)continue;
+      if(!byIngredient.has(id))byIngredient.set(id,[]);
+      byIngredient.get(id).push({brand:row.brand,store:row.store,stock,stock_value:value,unit_price:value/stock,source_type:row.source_type});
     }
-    if(adjustmentsAvailable){
-      try{
-        const adjustmentRows=await env.DB.prepare(`
-          SELECT ingredient_id,
-                 COALESCE(NULLIF(brand,''),'Ручная корректировка') brand,
-                 COALESCE(NULLIF(store,''),'Ручной ввод') store,
-                 SUM(quantity) stock,SUM(quantity*unit_price) stock_value
-          FROM stock_adjustments
-          WHERE quantity>0
-          GROUP BY ingredient_id,brand,store
-          ORDER BY ingredient_id,brand,store
-        `).all();
-        for(const a of (adjustmentRows.results||[])){
-          const id=Number(a.ingredient_id),stock=Number(a.stock||0),value=Number(a.stock_value||0);
-          if(stock<=0)continue;
-          if(!batchesByIngredient.has(id))batchesByIngredient.set(id,[]);
-          batchesByIngredient.get(id).push({
-            brand:a.brand,store:a.store,stock,stock_value:value,
-            unit_price:value/stock,source_type:"manual"
-          });
-        }
-      }catch(e){}
-    }
-    for(const x of results)x.details=batchesByIngredient.get(Number(x.ingredient_id))||[];
+    for(const x of results)x.details=byIngredient.get(Number(x.ingredient_id))||[];
   }
-
   for(const x of results){
     const reserved=Number(reservedMap.get(Number(x.ingredient_id))||0),baseStock=Number(x.stock||0),baseValue=Number(x.stock_value||0),baseUnitPrice=baseStock>0?baseValue/baseStock:0;
     x.reserved=reserved;x.stock=Math.max(0,baseStock-reserved);x.stock_value=Math.max(0,baseValue-reserved*baseUnitPrice);
@@ -1270,6 +1221,20 @@ loadOrderBar();
 </div><div style="height:16px"></div>
 <div class="card"><h2>Справочник</h2><div id="list">Загрузка...</div></div>
 </div>
+<div id="stockEditModal" hidden style="position:fixed;inset:0;z-index:9999;background:rgba(0,0,0,.78);padding:18px;align-items:center;justify-content:center">
+  <div class="card" style="width:min(100%,520px);max-height:90vh;overflow:auto;border:1px solid #55452a;background:#11100d;padding:22px">
+    <div class="row" style="justify-content:space-between;align-items:center"><h2 style="margin:0">✏️ Редактировать склад</h2><button type="button" class="secondary" id="closeStockEdit" aria-label="Закрыть">✕</button></div>
+    <p class="muted" id="stockEditIngredient" style="margin:8px 0 16px"></p>
+    <form id="stockEditForm">
+      <label>Название / бренд *</label><input id="stockEditBrand" required>
+      <label>Количество, <span id="stockEditUnit"></span> *</label><input id="stockEditQty" type="number" min="0.01" step="0.01" required>
+      <label>Цена за единицу, ₽/<span id="stockEditPriceUnit"></span> *</label><input id="stockEditPrice" type="number" min="0" step="0.0001" required>
+      <p class="muted">Изменения затронут только текущий склад. Чек в магазине останется без изменений.</p>
+      <div class="row" style="gap:10px"><button type="submit" id="saveStockEdit">💾 Сохранить</button><button type="button" class="secondary" id="cancelStockEdit">Отмена</button></div>
+      <p id="stockEditMsg" class="muted" role="status"></p>
+    </form>
+  </div>
+</div>
 <script>
 const esc=s=>String(s??"").replace(/[&<>"']/g,c=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[c]));
 async function load(){const r=await fetch("/api/ingredients");const x=await r.json();document.querySelector("#list").innerHTML=x.map(i=>'<div class="ingredient-item" data-id="'+i.id+'" style="padding:12px 0;border-bottom:1px solid #292929"><div class="ingredient-view"><b>#'+i.id+' · '+esc(i.name)+'</b><span class="muted"> · '+i.unit+' · <strong>🍸 '+Number(i.strength_percent||0).toFixed(1)+'%</strong></span> <button type="button" class="secondary edit">Изменить</button></div></div>').join("")||'<div class="empty">Нет ингредиентов</div>';
@@ -1350,28 +1315,45 @@ function bindStockButtons(){
     location.reload();
   });
 
-  document.querySelectorAll(".edit-source").forEach(btn=>btn.onclick=async()=>{
+  document.querySelectorAll(".edit-source").forEach(btn=>btn.onclick=()=>{
     const row=btn.closest(".stock-item");
     const p=stockItems.find(v=>Number(v.ingredient_id)===Number(row.dataset.id));
     const d=p?.details?.[Number(btn.dataset.i)];
     if(!p||!d)return;
-    const brand=prompt("Название / бренд",d.brand);
-    if(brand===null)return;
-    const qty=prompt("Количество, "+p.unit,Number(d.stock));
-    if(qty===null)return;
-    const pricePerUnit=prompt("Цена за "+p.unit+" ₽",Number(d.unit_price).toFixed(4));
-    if(pricePerUnit===null)return;
-    const quantity=Number(qty), unitPrice=Number(pricePerUnit);
-    if(!brand.trim()||!Number.isFinite(quantity)||quantity<=0||!Number.isFinite(unitPrice)||unitPrice<0){
-      alert("Проверьте название, количество и цену.");
-      return;
-    }
-    const r=await fetch("/api/products",{method:"PUT",headers:{"content-type":"application/json"},body:JSON.stringify({source_edit:true,ingredient_id:p.ingredient_id,old_brand:d.brand,old_store:d.store||"Ручной ввод",brand:brand.trim(),store:"Ручной ввод",quantity,unit_price:unitPrice})});
-    const x=await r.json();
-    if(!r.ok){alert(x.error||"Ошибка");return}
-    location.reload();
+    const modal=document.querySelector("#stockEditModal");
+    modal.dataset.ingredientId=String(p.ingredient_id);
+    modal.dataset.oldBrand=d.brand;
+    modal.dataset.oldStore=d.store||"Ручной ввод";
+    modal.querySelector("#stockEditIngredient").textContent=p.ingredient_name;
+    modal.querySelector("#stockEditUnit").textContent=p.unit;
+    modal.querySelector("#stockEditPriceUnit").textContent=p.unit;
+    modal.querySelector("#stockEditBrand").value=d.brand;
+    modal.querySelector("#stockEditQty").value=Number(d.stock);
+    modal.querySelector("#stockEditPrice").value=Number(d.unit_price).toFixed(4);
+    modal.querySelector("#stockEditMsg").textContent="";
+    modal.querySelector("#saveStockEdit").disabled=false;
+    modal.hidden=false;modal.style.display="flex";
   });
 }
+
+function closeStockEdit(){const m=document.querySelector("#stockEditModal");m.hidden=true;m.style.display="none";}
+document.querySelector("#closeStockEdit").onclick=closeStockEdit;
+document.querySelector("#cancelStockEdit").onclick=closeStockEdit;
+document.querySelector("#stockEditModal").onclick=e=>{if(e.target.id==="stockEditModal")closeStockEdit();};
+document.querySelector("#stockEditForm").onsubmit=async e=>{
+  e.preventDefault();
+  const modal=document.querySelector("#stockEditModal"),msg=document.querySelector("#stockEditMsg"),save=document.querySelector("#saveStockEdit");
+  const brand=document.querySelector("#stockEditBrand").value.trim(),quantity=Number(document.querySelector("#stockEditQty").value),unit_price=Number(document.querySelector("#stockEditPrice").value);
+  if(!brand||!Number.isFinite(quantity)||quantity<=0||!Number.isFinite(unit_price)||unit_price<0){msg.textContent="Проверь название, количество и цену.";return;}
+  save.disabled=true;msg.textContent="Сохраняю…";
+  try{
+    const r=await fetch("/api/products",{method:"PUT",headers:{"content-type":"application/json"},body:JSON.stringify({source_edit:true,ingredient_id:Number(modal.dataset.ingredientId),old_brand:modal.dataset.oldBrand,old_store:modal.dataset.oldStore,brand,store:"Ручной ввод",quantity,unit_price})});
+    const d=await r.json();
+    if(!r.ok){msg.textContent="Ошибка: "+(d.details||d.error||"не удалось сохранить");save.disabled=false;return;}
+    closeStockEdit();location.reload();
+  }catch(err){msg.textContent="Ошибка соединения: "+String(err.message||err);save.disabled=false;}
+};
+document.addEventListener("keydown",e=>{if(e.key==="Escape")closeStockEdit();});
 
 document.querySelector("#productForm").onsubmit=async e=>{
   e.preventDefault();
