@@ -821,6 +821,8 @@ export default {
         await ensureIngredientSystem(env);
         const data=await request.json(), name=String(data.name||"").trim(), unit=String(data.unit||"ml"), strength=Number(data.strength_percent||0);
         if(!name||!["ml","g","pcs"].includes(unit)||!Number.isFinite(strength)||strength<0||strength>100) return json({error:"Укажите название, единицу и крепость от 0 до 100%"},400);
+        const existing=await env.DB.prepare("SELECT id FROM ingredients WHERE is_active=1 AND lower(trim(name))=lower(trim(?)) AND unit=? LIMIT 1").bind(name,unit).first();
+        if(existing)return json({ok:true,id:Number(existing.id),exists:true});
         const r=await env.DB.prepare("INSERT INTO ingredients(name,unit,strength_percent) VALUES(?,?,?)").bind(name,unit,strength).run();
         return json({ok:true,id:r.meta.last_row_id},201);
       }
@@ -1294,6 +1296,14 @@ document.querySelector("#ingredientForm").onsubmit=async e=>{e.preventDefault();
 <h2 style="margin-top:4px">Новый товар</h2>
 <form id="productForm">
 <label>Ингредиент *</label><select name="ingredient_id" id="ingredientSelect" required><option value="">Выберите ингредиент...</option>${stockIngredients.map(p=>'<option value="'+p.id+'">'+hEsc(p.name)+' ('+hEsc(p.unit)+')</option>').join("")}</select>
+<button type="button" class="secondary" id="showInlineIngredient" style="margin-top:8px;padding:8px 12px;font-size:14px">＋ Нет в списке? Создать ингредиент</button>
+<div id="inlineIngredientBox" hidden style="margin-top:12px;padding:14px;border:1px solid #55452a;border-radius:14px;background:#11100d">
+<strong style="display:block;margin-bottom:10px;color:#f0c766">Новый ингредиент</strong>
+<label>Название *</label><input id="inlineIngredientName" placeholder="Например, Ром тёмный">
+<label>Единица измерения</label><select id="inlineIngredientUnit"><option value="ml">мл</option><option value="g">гр.</option><option value="pcs">шт.</option></select>
+<div class="row" style="margin-top:12px;gap:8px"><button type="button" id="saveInlineIngredient">Сохранить ингредиент</button><button type="button" class="secondary" id="cancelInlineIngredient">Отмена</button></div>
+<p id="inlineIngredientMsg" class="muted" style="margin:8px 0 0"></p>
+</div>
 <label>Бренд</label><input name="brand" placeholder="Например, Царская">
 <label>Количество ингредиента в бутылке / упаковке</label><input name="quantity" id="quantity" type="number" min="0" step="0.01" value="0" placeholder="Например, 500">
 <label>Цена за бутылку / упаковку, ₽</label><input name="price" id="stockPrice" type="number" min="0" step="0.01" placeholder="Например, 300">
@@ -1384,6 +1394,40 @@ function updateAveragePrice(){
 document.querySelector("#takeAverage").onchange=updateAveragePrice;
 document.querySelector("#ingredientSelect").onchange=updateAveragePrice;
 document.querySelector("#quantity").oninput=updateAveragePrice;
+
+const inlineBox=document.querySelector("#inlineIngredientBox");
+document.querySelector("#showInlineIngredient").onclick=()=>{
+  inlineBox.hidden=false;
+  document.querySelector("#inlineIngredientName").focus();
+};
+document.querySelector("#cancelInlineIngredient").onclick=()=>{
+  inlineBox.hidden=true;
+  document.querySelector("#inlineIngredientMsg").textContent="";
+};
+document.querySelector("#saveInlineIngredient").onclick=async()=>{
+  const name=document.querySelector("#inlineIngredientName").value.trim();
+  const unit=document.querySelector("#inlineIngredientUnit").value;
+  const msg=document.querySelector("#inlineIngredientMsg");
+  const save=document.querySelector("#saveInlineIngredient");
+  if(!name){msg.textContent="Введи название ингредиента.";document.querySelector("#inlineIngredientName").focus();return}
+  save.disabled=true;msg.textContent="Сохраняю…";
+  try{
+    const r=await fetch("/api/ingredients",{method:"POST",headers:{"content-type":"application/json"},body:JSON.stringify({name,unit,strength_percent:0})});
+    const d=await r.json();
+    if(!r.ok)throw new Error(d.error||"Не удалось сохранить ингредиент");
+    const select=document.querySelector("#ingredientSelect");
+    let option=select.querySelector('option[value="'+Number(d.id)+'"]');
+    if(!option){option=document.createElement("option");option.value=String(d.id);option.textContent=name+" ("+unit+")";select.appendChild(option)}
+    select.value=String(d.id);
+    document.querySelector("#inlineIngredientName").value="";
+    inlineBox.hidden=true;
+    msg.textContent="";
+    document.querySelector("#msg").textContent=d.exists?"Ингредиент уже был в справочнике — выбрал его.":"Ингредиент сохранён. Теперь заполни бренд, количество и цену.";
+    updateAveragePrice();
+    document.querySelector("#brand")?.focus();
+  }catch(err){msg.textContent=err.message||"Ошибка сохранения"}
+  finally{save.disabled=false}
+};
 renderStock();
 </script>`, "Склад");
       }
