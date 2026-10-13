@@ -93,10 +93,11 @@ const getDraftBarOrder=async(env,create=false)=>{
   const items=results||[];return {shift,order,items,total_cocktails:items.reduce((n,x)=>n+Number(x.quantity||0),0),total_price:items.reduce((n,x)=>n+Number(x.quantity||0)*Number(x.price_rub||0),0)};
 };
 const consumeIngredientForBarOrder=async(env,orderId,ingredientId,quantity)=>{
+  await ensureCurrentStockSystem(env);
   let left=Number(quantity||0);
-  const {results}=await env.DB.prepare("SELECT pb.id,pb.remaining_qty FROM purchase_batches pb JOIN products p ON p.id=pb.product_id WHERE p.ingredient_id=? AND p.is_active=1 AND pb.remaining_qty>0 ORDER BY pb.purchased_at ASC,pb.id ASC").bind(ingredientId).all();
-  for(const batch of (results||[])){if(left<=0)break;const take=Math.min(left,Number(batch.remaining_qty||0));if(take>0){await env.DB.prepare("UPDATE purchase_batches SET remaining_qty=remaining_qty-? WHERE id=?").bind(take,batch.id).run();left-=take;}}
-  if(left>0){await ensureStockAdjustmentSystem(env);await env.DB.prepare("INSERT INTO stock_adjustments(ingredient_id,quantity,unit_price,brand,store) VALUES(?,?,?,?,?)").bind(ingredientId,-left,0,"Заказ #"+orderId,"Списание").run();}
+  const {results}=await env.DB.prepare("SELECT id,quantity FROM current_stock_lots WHERE ingredient_id=? AND quantity>0 ORDER BY created_at ASC,id ASC").bind(ingredientId).all();
+  for(const lot of (results||[])){if(left<=0)break;const take=Math.min(left,Number(lot.quantity||0));if(take>0){await env.DB.prepare("UPDATE current_stock_lots SET quantity=quantity-? WHERE id=?").bind(take,lot.id).run();left-=take;}}
+  if(left>0)await env.DB.prepare("INSERT INTO current_stock_lots(ingredient_id,brand,store,quantity,unit_price,source_type,source_id) VALUES(?,?,?,?,?,'adjustment',?)").bind(ingredientId,"Заказ #"+orderId,"Списание",-left,0,"order-"+orderId+"-"+ingredientId).run();
   const ing=await env.DB.prepare("SELECT unit FROM ingredients WHERE id=?").bind(ingredientId).first();await env.DB.prepare("INSERT INTO bar_stock_movements(order_id,ingredient_id,quantity,unit) VALUES(?,?,?,?)").bind(orderId,ingredientId,quantity,ing?.unit||"ml").run();
 };
 const formatUnitLabelServer=u=>u==="g"?"гр":u==="ml"?"мл":u==="pcs"?"шт.":String(u||"");
@@ -1220,6 +1221,20 @@ loadOrderBar();
 </div><div style="height:16px"></div>
 <div class="card"><h2>Справочник</h2><div id="list">Загрузка...</div></div>
 </div>
+<div id="stockEditModal" hidden style="position:fixed;inset:0;z-index:9999;background:rgba(0,0,0,.78);padding:18px;align-items:center;justify-content:center">
+  <div class="card" style="width:min(100%,520px);max-height:90vh;overflow:auto;border:1px solid #55452a;background:#11100d;padding:22px">
+    <div class="row" style="justify-content:space-between;align-items:center"><h2 style="margin:0">✏️ Редактировать склад</h2><button type="button" class="secondary" id="closeStockEdit" aria-label="Закрыть">✕</button></div>
+    <p class="muted" id="stockEditIngredient" style="margin:8px 0 16px"></p>
+    <form id="stockEditForm">
+      <label>Название / бренд *</label><input id="stockEditBrand" required>
+      <label>Количество, <span id="stockEditUnit"></span> *</label><input id="stockEditQty" type="number" min="0.01" step="0.01" required>
+      <label>Цена за единицу, ₽/<span id="stockEditPriceUnit"></span> *</label><input id="stockEditPrice" type="number" min="0" step="0.0001" required>
+      <p class="muted">Изменения затронут только текущий склад. Чек в магазине останется без изменений.</p>
+      <div class="row" style="gap:10px"><button type="submit" id="saveStockEdit">💾 Сохранить</button><button type="button" class="secondary" id="cancelStockEdit">Отмена</button></div>
+      <p id="stockEditMsg" class="muted" role="status"></p>
+    </form>
+  </div>
+</div>
 <script>
 const esc=s=>String(s??"").replace(/[&<>"']/g,c=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[c]));
 async function load(){const r=await fetch("/api/ingredients");const x=await r.json();document.querySelector("#list").innerHTML=x.map(i=>'<div class="ingredient-item" data-id="'+i.id+'" style="padding:12px 0;border-bottom:1px solid #292929"><div class="ingredient-view"><b>#'+i.id+' · '+esc(i.name)+'</b><span class="muted"> · '+i.unit+' · <strong>🍸 '+Number(i.strength_percent||0).toFixed(1)+'%</strong></span> <button type="button" class="secondary edit">Изменить</button></div></div>').join("")||'<div class="empty">Нет ингредиентов</div>';
@@ -1300,28 +1315,45 @@ function bindStockButtons(){
     location.reload();
   });
 
-  document.querySelectorAll(".edit-source").forEach(btn=>btn.onclick=async()=>{
+  document.querySelectorAll(".edit-source").forEach(btn=>btn.onclick=()=>{
     const row=btn.closest(".stock-item");
     const p=stockItems.find(v=>Number(v.ingredient_id)===Number(row.dataset.id));
     const d=p?.details?.[Number(btn.dataset.i)];
     if(!p||!d)return;
-    const brand=prompt("Название / бренд",d.brand);
-    if(brand===null)return;
-    const qty=prompt("Количество, "+p.unit,Number(d.stock));
-    if(qty===null)return;
-    const pricePerUnit=prompt("Цена за "+p.unit+" ₽",Number(d.unit_price).toFixed(4));
-    if(pricePerUnit===null)return;
-    const quantity=Number(qty), unitPrice=Number(pricePerUnit);
-    if(!brand.trim()||!Number.isFinite(quantity)||quantity<=0||!Number.isFinite(unitPrice)||unitPrice<0){
-      alert("Проверьте название, количество и цену.");
-      return;
-    }
-    const r=await fetch("/api/products",{method:"PUT",headers:{"content-type":"application/json"},body:JSON.stringify({source_edit:true,ingredient_id:p.ingredient_id,old_brand:d.brand,old_store:d.store||"Ручной ввод",brand:brand.trim(),store:"Ручной ввод",quantity,unit_price:unitPrice})});
-    const x=await r.json();
-    if(!r.ok){alert(x.error||"Ошибка");return}
-    location.reload();
+    const modal=document.querySelector("#stockEditModal");
+    modal.dataset.ingredientId=String(p.ingredient_id);
+    modal.dataset.oldBrand=d.brand;
+    modal.dataset.oldStore=d.store||"Ручной ввод";
+    modal.querySelector("#stockEditIngredient").textContent=p.ingredient_name;
+    modal.querySelector("#stockEditUnit").textContent=p.unit;
+    modal.querySelector("#stockEditPriceUnit").textContent=p.unit;
+    modal.querySelector("#stockEditBrand").value=d.brand;
+    modal.querySelector("#stockEditQty").value=Number(d.stock);
+    modal.querySelector("#stockEditPrice").value=Number(d.unit_price).toFixed(4);
+    modal.querySelector("#stockEditMsg").textContent="";
+    modal.querySelector("#saveStockEdit").disabled=false;
+    modal.hidden=false;modal.style.display="flex";
   });
 }
+
+function closeStockEdit(){const m=document.querySelector("#stockEditModal");m.hidden=true;m.style.display="none";}
+document.querySelector("#closeStockEdit").onclick=closeStockEdit;
+document.querySelector("#cancelStockEdit").onclick=closeStockEdit;
+document.querySelector("#stockEditModal").onclick=e=>{if(e.target.id==="stockEditModal")closeStockEdit();};
+document.querySelector("#stockEditForm").onsubmit=async e=>{
+  e.preventDefault();
+  const modal=document.querySelector("#stockEditModal"),msg=document.querySelector("#stockEditMsg"),save=document.querySelector("#saveStockEdit");
+  const brand=document.querySelector("#stockEditBrand").value.trim(),quantity=Number(document.querySelector("#stockEditQty").value),unit_price=Number(document.querySelector("#stockEditPrice").value);
+  if(!brand||!Number.isFinite(quantity)||quantity<=0||!Number.isFinite(unit_price)||unit_price<0){msg.textContent="Проверь название, количество и цену.";return;}
+  save.disabled=true;msg.textContent="Сохраняю…";
+  try{
+    const r=await fetch("/api/products",{method:"PUT",headers:{"content-type":"application/json"},body:JSON.stringify({source_edit:true,ingredient_id:Number(modal.dataset.ingredientId),old_brand:modal.dataset.oldBrand,old_store:modal.dataset.oldStore,brand,store:"Ручной ввод",quantity,unit_price})});
+    const d=await r.json();
+    if(!r.ok){msg.textContent="Ошибка: "+(d.details||d.error||"не удалось сохранить");save.disabled=false;return;}
+    closeStockEdit();location.reload();
+  }catch(err){msg.textContent="Ошибка соединения: "+String(err.message||err);save.disabled=false;}
+};
+document.addEventListener("keydown",e=>{if(e.key==="Escape")closeStockEdit();});
 
 document.querySelector("#productForm").onsubmit=async e=>{
   e.preventDefault();
