@@ -812,6 +812,9 @@ export default {
         }
         const batch=await env.DB.prepare("INSERT INTO purchase_batches(product_id,purchased_qty,remaining_qty,price_rub,purchased_at) VALUES(?,?,?,?,?)").bind(productId,qty,qty,price,purchaseDate+" 00:00:00").run();
         const batchId=Number(batch.meta.last_row_id);
+        // Новая закупка задаёт актуальную цену ингредиента для текущего склада;
+        // запись в магазине остаётся отдельным историческим чеком.
+        await env.DB.prepare("UPDATE current_stock_lots SET unit_price=? WHERE ingredient_id=? AND quantity>0").bind(price/qty,ingredientId).run();
         await env.DB.prepare("INSERT INTO current_stock_lots(ingredient_id,brand,store,quantity,unit_price,source_type,source_id,created_at) VALUES(?,?,?,?,?,'purchase',?,?)").bind(ingredientId,brand,store,qty,price/qty,String(batchId),purchaseDate+" 00:00:00").run();
         return json({ok:true,id:batchId,product_id:productId},201);
       }
@@ -1340,7 +1343,7 @@ function bindStockButtons(){
     const p=stockItems.find(v=>Number(v.ingredient_id)===Number(row.dataset.id));
     const d=p?.details?.[Number(btn.dataset.i)];
     if(!p||!d)return;
-    if(!confirm("Удалить «"+d.brand+"» из склада?"+(d.store&&d.store!=="Ручной ввод"?" Остаток закупки будет обнулён, история покупки сохранится.":"")))return;
+    if(!confirm("Удалить «"+d.brand+"» из текущего остатка склада? История покупки в магазине сохранится."))return;
     const r=await fetch("/api/products",{method:"DELETE",headers:{"content-type":"application/json"},body:JSON.stringify({ingredient_id:p.ingredient_id,brand:d.brand,store:d.store||""})});
     const x=await r.json();
     if(!r.ok){alert(x.error||"Ошибка");return}
