@@ -1301,6 +1301,7 @@ document.querySelector("#ingredientForm").onsubmit=async e=>{e.preventDefault();
 <strong style="display:block;margin-bottom:10px;color:#f0c766">Новый ингредиент</strong>
 <label>Название *</label><input id="inlineIngredientName" placeholder="Например, Ром тёмный">
 <label>Единица измерения</label><select id="inlineIngredientUnit"><option value="ml">мл</option><option value="g">гр.</option><option value="pcs">шт.</option></select>
+<label>Крепость алкоголя, %</label><input id="inlineIngredientStrength" type="number" min="0" max="100" step="0.1" value="0" placeholder="Например, 40"><p class="muted" style="margin:6px 0 0">Для водки — 40, ликёра — например 20, сока или газировки — 0.</p>
 <div class="row" style="margin-top:12px;gap:8px"><button type="button" id="saveInlineIngredient">Сохранить ингредиент</button><button type="button" class="secondary" id="cancelInlineIngredient">Отмена</button></div>
 <p id="inlineIngredientMsg" class="muted" style="margin:8px 0 0"></p>
 </div>
@@ -1407,12 +1408,14 @@ document.querySelector("#cancelInlineIngredient").onclick=()=>{
 document.querySelector("#saveInlineIngredient").onclick=async()=>{
   const name=document.querySelector("#inlineIngredientName").value.trim();
   const unit=document.querySelector("#inlineIngredientUnit").value;
+  const strength=Number(document.querySelector("#inlineIngredientStrength").value||0);
   const msg=document.querySelector("#inlineIngredientMsg");
   const save=document.querySelector("#saveInlineIngredient");
   if(!name){msg.textContent="Введи название ингредиента.";document.querySelector("#inlineIngredientName").focus();return}
+  if(!Number.isFinite(strength)||strength<0||strength>100){msg.textContent="Укажи крепость от 0 до 100%.";document.querySelector("#inlineIngredientStrength").focus();return}
   save.disabled=true;msg.textContent="Сохраняю…";
   try{
-    const r=await fetch("/api/ingredients",{method:"POST",headers:{"content-type":"application/json"},body:JSON.stringify({name,unit,strength_percent:0})});
+    const r=await fetch("/api/ingredients",{method:"POST",headers:{"content-type":"application/json"},body:JSON.stringify({name,unit,strength_percent:strength})});
     const d=await r.json();
     if(!r.ok)throw new Error(d.error||"Не удалось сохранить ингредиент");
     const select=document.querySelector("#ingredientSelect");
