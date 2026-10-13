@@ -362,9 +362,6 @@ const getCocktails = async (env, includeStock = true) => {
     }
     c.recipe_items=recipesByCocktail.get(Number(c.id))||[];
     if(includeStock)c.recipe_items=c.recipe_items.map(i=>({...i,stock_available:Number(stockMap.get(Number(i.ingredient_id))||0)}));
-    const calculated=calculateCocktailStrength(c.recipe_items);
-    c.strength=calculated.strength;
-    c.strength_abv=Number(calculated.abv.toFixed(2));
   }
   return results;
 };
@@ -513,13 +510,16 @@ export default {
         const data=await request.json();
         const id=Number(data.id);
         const name=String(data.name||"").trim();
+        const strength=String(data.strength||"Лёгкий").trim();
+        const allowedStrengths=["Безалкогольный","Лёгкий","Средний","Крепкий"];
         if(!Number.isInteger(id)||id<1)return json({error:"Некорректный коктейль"},400);
         if(!name)return json({error:"Название коктейля обязательно"},400);
+        if(!allowedStrengths.includes(strength))return json({error:"Выберите крепость коктейля"},400);
         const existing=await env.DB.prepare("SELECT id,photo_url,avatar_url FROM cocktails WHERE id=?").bind(id).first();
         if(!existing)return json({error:"Коктейль не найден"},404);
         const nextPhotoUrl=String(data.photo_url||""),nextAvatarUrl=String(data.avatar_url??existing.avatar_url??"");
         await env.DB.prepare("UPDATE cocktails SET name=?,description=?,category=?,strength=?,photo_url=?,avatar_url=?,glass=?,ice=?,method=?,garnish=?,updated_at=CURRENT_TIMESTAMP WHERE id=?")
-          .bind(name,String(data.description||""),"","",nextPhotoUrl,nextAvatarUrl,String(data.inventory??data.glass??""),"",String(data.method||""),"",id).run();
+          .bind(name,String(data.description||""),"",strength,nextPhotoUrl,nextAvatarUrl,String(data.inventory??data.glass??""),"",String(data.method||""),"",id).run();
         if(env.PHOTOS){
           for(const oldUrl of [existing.photo_url,existing.avatar_url]){
             if(!oldUrl||oldUrl===nextPhotoUrl||oldUrl===nextAvatarUrl)continue;
@@ -533,7 +533,6 @@ export default {
           if(Number.isInteger(iid)&&iid>0&&q>0)await env.DB.prepare("INSERT INTO recipe_ingredients(cocktail_id,ingredient_id,quantity) VALUES(?,?,?)").bind(id,iid,q).run();
         }
         const pricing=await refreshCocktailPrice(env,id);
-        const strength=await refreshCocktailStrength(env,id);
         return json({ok:true,id,pricing,strength});
       }
 
@@ -573,14 +572,15 @@ export default {
 
       if (url.pathname === "/api/cocktails" && request.method === "POST") {
         await ensureCocktailAvatarSystem(env);
-        const data=await request.json(), name=String(data.name||"").trim();
+        const data=await request.json(), name=String(data.name||"").trim(), strength=String(data.strength||"Лёгкий").trim();
+        const allowedStrengths=["Безалкогольный","Лёгкий","Средний","Крепкий"];
         if(!name)return json({error:"Название коктейля обязательно"},400);
-        const r=await env.DB.prepare(`INSERT INTO cocktails(name,description,category,strength,price_rub,photo_url,avatar_url,glass,ice,method,garnish) VALUES(?,?,?,?,0,?,?,?,?,?,?)`).bind(name,String(data.description||""),String(data.category||""),"",String(data.photo_url||""),String(data.avatar_url||""),String(data.inventory??data.glass??""),"",String(data.method||""),String(data.garnish||"")).run();
+        if(!allowedStrengths.includes(strength))return json({error:"Выберите крепость коктейля"},400);
+        const r=await env.DB.prepare(`INSERT INTO cocktails(name,description,category,strength,price_rub,photo_url,avatar_url,glass,ice,method,garnish) VALUES(?,?,?,?,0,?,?,?,?,?,?)`).bind(name,String(data.description||""),String(data.category||""),strength,String(data.photo_url||""),String(data.avatar_url||""),String(data.inventory??data.glass??""),"",String(data.method||""),String(data.garnish||"")).run();
         const id=r.meta.last_row_id;
         await ensureIngredientSystem(env);
         for(const item of (Array.isArray(data.recipe_items)?data.recipe_items:[])){let iid=Number(item.ingredient_id);if(!Number.isInteger(iid)&&item.name)iid=await resolveIngredient(env,item.name);const q=Number(item.quantity);if(Number.isInteger(iid)&&q>0)await env.DB.prepare("INSERT OR REPLACE INTO recipe_ingredients(cocktail_id,ingredient_id,quantity) VALUES(?,?,?)").bind(id,iid,q).run();}
         const pricing=await refreshCocktailPrice(env,id);
-        const strength=await refreshCocktailStrength(env,id);
         return json({ok:true,id,pricing,strength},201);
       }
 
@@ -894,6 +894,14 @@ export default {
     <form id="cocktailForm">
       <label>Название *</label><input name="name" required placeholder="Например, Negroni">
       <label>Описание для гостя</label><textarea name="description" placeholder="Короткое описание вкуса"></textarea>
+      <label>Крепость коктейля</label>
+      <select name="strength" required>
+        <option value="Безалкогольный">Безалкогольный</option>
+        <option value="Лёгкий" selected>Лёгкий</option>
+        <option value="Средний">Средний</option>
+        <option value="Крепкий">Крепкий</option>
+      </select>
+      <p class="muted" style="font-size:12px;margin-top:4px">Указывай крепость вручную — она будет отображаться в гостевой карте бара.</p>
       <label>Инвентарь</label>
       <textarea name="inventory" rows="2" placeholder="Джигер
 Барная ложка"></textarea>
@@ -1131,7 +1139,7 @@ const startEdit=(c)=>{
   showPanel();
   const form=document.querySelector("#cocktailForm");
   form.dataset.editId=c.id;
-  for(const n of ["name","description","method"]){
+  for(const n of ["name","description","strength","method"]){
     const el=form.elements[n]; if(el)el.value=c[n]||"";
   }
   if(form.elements.inventory)form.elements.inventory.value=c.glass||"";
