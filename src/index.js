@@ -807,6 +807,7 @@ export default {
         if(!/^\d{4}-\d{2}-\d{2}$/.test(purchaseDate)) return json({error:"Укажите дату покупки"},400);
         const ing=await env.DB.prepare("SELECT id,name,unit FROM ingredients WHERE id=? AND is_active=1").bind(ingredientId).first();
         if(!ing)return json({error:"Ингредиент не найден"},404);
+        await ensureCurrentStockSystem(env);
         let product=await env.DB.prepare("SELECT id FROM products WHERE ingredient_id=? AND brand=? AND store=? AND is_active=1 LIMIT 1").bind(ingredientId,brand,store).first();
         let productId;
         if(product){productId=Number(product.id)}else{
@@ -815,7 +816,6 @@ export default {
         }
         const batch=await env.DB.prepare("INSERT INTO purchase_batches(product_id,purchased_qty,remaining_qty,price_rub,purchased_at) VALUES(?,?,?,?,?)").bind(productId,qty,qty,price,purchaseDate+" 00:00:00").run();
         const batchId=Number(batch.meta.last_row_id);
-        await ensureCurrentStockSystem(env);
         await env.DB.prepare("INSERT INTO current_stock_lots(ingredient_id,brand,store,quantity,unit_price,source_type,source_id,created_at) VALUES(?,?,?,?,?,'purchase',?,?)").bind(ingredientId,brand,store,qty,price/qty,String(batchId),purchaseDate+" 00:00:00").run();
         return json({ok:true,id:batchId,product_id:productId},201);
       }
