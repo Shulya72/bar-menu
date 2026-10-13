@@ -72,6 +72,7 @@ const ensureShopSystem=async env=>{
   await ensureIngredientSystem(env);
   // Kept as a separate guarded migration for old installations.
   try{await env.DB.prepare("ALTER TABLE products ADD COLUMN store TEXT DEFAULT ''").run()}catch(e){}
+  try{await env.DB.prepare("ALTER TABLE purchase_batches ADD COLUMN receipt_deleted INTEGER NOT NULL DEFAULT 0").run()}catch(e){}
 };
 
 const ensureBarOrderSystem=async env=>{
@@ -744,7 +745,7 @@ export default {
         let sql=`SELECT pb.id,pb.purchased_qty,pb.remaining_qty,pb.price_rub,substr(pb.purchased_at,1,10) purchased_at,
                   p.ingredient_id,COALESCE(i.name,p.name) ingredient_name,COALESCE(i.unit,p.unit) unit,p.brand,p.store
            FROM purchase_batches pb JOIN products p ON p.id=pb.product_id
-           LEFT JOIN ingredients i ON i.id=p.ingredient_id WHERE 1=1`;
+           LEFT JOIN ingredients i ON i.id=p.ingredient_id WHERE COALESCE(pb.receipt_deleted,0)=0`;
         const binds=[];
         if(/^\d{4}-\d{2}-\d{2}$/.test(from)){sql+=" AND pb.purchased_at >= ?";binds.push(from+" 00:00:00")}
         if(/^\d{4}-\d{2}-\d{2}$/.test(to)){sql+=" AND pb.purchased_at < datetime(?, '+1 day')";binds.push(to+" 00:00:00")}
@@ -765,10 +766,8 @@ export default {
         if(!(qty>0))return json({error:"Укажите количество"},400);
         if(!(price>=0))return json({error:"Укажите цену закупки"},400);
         if(!/^\d{4}-\d{2}-\d{2}$/.test(purchaseDate))return json({error:"Укажите дату покупки"},400);
-        const batch=await env.DB.prepare("SELECT id,purchased_qty,remaining_qty,product_id FROM purchase_batches WHERE id=?").bind(id).first();
-        if(!batch)return json({error:"Закупка не найдена"},404);
-        const consumed=Number(batch.purchased_qty)-Number(batch.remaining_qty);
-        if(qty<consumed)return json({error:"Количество не может быть меньше уже списанного остатка: "+consumed},400);
+        const batch=await env.DB.prepare("SELECT id,purchased_qty,remaining_qty,product_id FROM purchase_batches WHERE id=? AND COALESCE(receipt_deleted,0)=0").bind(id).first();
+        if(!batch)return json({error:"Запись о покупке не найдена"},404);
         const ing=await env.DB.prepare("SELECT id,name,unit FROM ingredients WHERE id=? AND is_active=1").bind(ingredientId).first();
         if(!ing)return json({error:"Ингредиент не найден"},404);
         let product=await env.DB.prepare("SELECT id FROM products WHERE ingredient_id=? AND brand=? AND store=? AND is_active=1 LIMIT 1").bind(ingredientId,brand,store).first();
@@ -778,8 +777,7 @@ export default {
           const pr=await env.DB.prepare("INSERT INTO products(name,brand,category,unit,min_stock,ingredient_id,store) VALUES(?,?,?,?,0,?,?)").bind(ing.name,brand,"",ing.unit,ingredientId,store).run();
           productId=Number(pr.meta.last_row_id);
         }
-        const newRemaining=qty-consumed;
-        await env.DB.prepare("UPDATE purchase_batches SET product_id=?,purchased_qty=?,remaining_qty=?,price_rub=?,purchased_at=? WHERE id=?").bind(productId,qty,newRemaining,price,purchaseDate+" 00:00:00",id).run();
+        await env.DB.prepare("UPDATE purchase_batches SET product_id=?,purchased_qty=?,remaining_qty=?,price_rub=?,purchased_at=? WHERE id=?").bind(productId,qty,qty,price,purchaseDate+" 00:00:00",id).run();
         return json({ok:true});
       }
 
@@ -787,11 +785,9 @@ export default {
         await ensureShopSystem(env);
         const id=Number(url.searchParams.get("id"));
         if(!Number.isInteger(id)||id<1)return json({error:"Некорректная закупка"},400);
-        const batch=await env.DB.prepare("SELECT id,remaining_qty,purchased_qty FROM purchase_batches WHERE id=?").bind(id).first();
-        if(!batch)return json({error:"Закупка не найдена"},404);
-        const movement=await env.DB.prepare("SELECT COUNT(*) n FROM stock_movements WHERE batch_id=?").bind(id).first();
-        if(Number(movement?.n)>0)return json({error:"Эту закупку уже использовали на складе — удалить её нельзя"},409);
-        await env.DB.prepare("DELETE FROM purchase_batches WHERE id=?").bind(id).run();
+        const batch=await env.DB.prepare("SELECT id FROM purchase_batches WHERE id=? AND COALESCE(receipt_deleted,0)=0").bind(id).first();
+        if(!batch)return json({error:"Запись о покупке не найдена"},404);
+        await env.DB.prepare("UPDATE purchase_batches SET receipt_deleted=1 WHERE id=?").bind(id).run();
         return json({ok:true});
       }
 
@@ -1602,7 +1598,7 @@ async function loadHistory(){
     const consumed=Math.max(0,Number(x.purchased_qty)-Number(x.remaining_qty));
     return '<div class="purchase-item" data-id="'+x.id+'" style="padding:13px 0;border-bottom:1px solid #292929">'+
       '<div class="purchase-view"><b>'+esc(x.ingredient_name)+'</b><div class="muted">Дата покупки: '+formatDate(x.purchased_at)+'</div><div class="muted">'+Number(x.purchased_qty)+' '+esc(x.unit)+' · '+Number(x.price_rub).toFixed(2)+' ₽ · '+unitPrice(x.price_rub,x.purchased_qty)+' ₽/'+esc(x.unit)+(x.store?' · '+esc(x.store):'')+(x.brand?' · '+esc(x.brand):'')+'</div>'+
-      '<div class="muted">Осталось: '+Number(x.remaining_qty)+' '+esc(x.unit)+(consumed?' · списано: '+consumed+' '+esc(x.unit):'')+'</div>'+
+      '<div class="muted">Запись о покупке · остаток на складе ведётся отдельно</div>'+
       '<div class="row" style="margin-top:9px"><button type="button" class="secondary edit">✏️ Изменить</button><button type="button" class="secondary delete">🗑 Удалить</button></div></div></div>';
   }).join(""):'<div class="empty">По выбранному фильтру закупок нет.</div>';
   document.querySelectorAll(".purchase-item .edit").forEach(b=>b.onclick=()=>editPurchase(history,b.closest(".purchase-item").dataset.id));
@@ -1612,16 +1608,16 @@ async function loadHistory(){
 function editPurchase(history,id){
   const item=history.find(x=>String(x.id)===String(id)); if(!item)return;
   const row=document.querySelector('.purchase-item[data-id="'+id+'"]');
-  const consumed=Math.max(0,Number(item.purchased_qty)-Number(item.remaining_qty));
+  const consumed=0;
   const dt=String(item.purchased_at||"").slice(0,10);
   row.innerHTML='<div><div class="grid">'+
     '<div><label>Ингредиент</label><select class="edit-ingredient">'+ingredients.map(i=>'<option value="'+i.id+'"'+(Number(i.id)===Number(item.ingredient_id)?' selected':'')+'>'+esc(i.name)+' ('+esc(i.unit)+')</option>').join("")+'</select></div>'+
     '<div><label>Магазин / поставщик</label><input class="edit-store" value="'+esc(item.store||"")+'"></div>'+
     '<div><label>Бренд</label><input class="edit-brand" value="'+esc(item.brand||"")+'"></div>'+
     '<div><label>Дата покупки</label><input class="edit-date" type="date" value="'+dt+'"></div>'+
-    '<div><label>Количество</label><input class="edit-qty" type="number" min="'+Math.max(0.01,consumed).toString()+'" step="0.01" value="'+Number(item.purchased_qty)+'"></div>'+
+    '<div><label>Количество</label><input class="edit-qty" type="number" min="0.01" step="0.01" value="'+Number(item.purchased_qty)+'"></div>'+
     '<div><label>Цена закупки, ₽</label><input class="edit-price" type="number" min="0" step="0.01" value="'+Number(item.price_rub)+'"></div>'+
-    '</div><p class="muted">Уже списано: '+consumed+' '+esc(item.unit)+'. Количество нельзя уменьшить ниже этого значения.</p>'+
+    '</div><p class="muted">Редактирование изменит только запись о покупке, текущий остаток склада не изменится.</p>'+
     '<div class="row"><button type="button" class="save-edit">💾 Сохранить</button><button type="button" class="secondary cancel-edit">Отмена</button><span class="edit-msg muted"></span></div></div>';
   row.querySelector(".cancel-edit").onclick=loadHistory;
   row.querySelector(".save-edit").onclick=async()=>{
@@ -1633,7 +1629,7 @@ function editPurchase(history,id){
 }
 
 async function deletePurchase(id){
-  if(!confirm("Удалить эту закупку? Товар и его остаток по этой партии будут удалены из истории магазина."))return;
+  if(!confirm("Удалить запись о покупке из истории магазина? Текущий склад останется без изменений."))return;
   const r=await fetch("/api/shop/purchase?id="+encodeURIComponent(id),{method:"DELETE"}); const d=await r.json();
   if(!r.ok){alert(d.error||"Не удалось удалить закупку");return} await loadHistory();
 }
