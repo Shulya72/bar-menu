@@ -1295,7 +1295,9 @@ document.querySelector("#ingredientForm").onsubmit=async e=>{e.preventDefault();
 <div style="padding:0 22px 22px">
 <h2 style="margin-top:4px">Новый товар</h2>
 <form id="productForm">
-<label>Ингредиент *</label><select name="ingredient_id" id="ingredientSelect" required><option value="">Выберите ингредиент...</option>${stockIngredients.map(p=>'<option value="'+p.id+'">'+hEsc(p.name)+' ('+hEsc(p.unit)+')</option>').join("")}</select>
+<label>Ингредиент *</label>
+<input id="stockIngredientSearch" type="search" placeholder="⌕ Найти ингредиент…" autocomplete="off" aria-label="Поиск ингредиента" style="margin-bottom:8px">
+<select name="ingredient_id" id="ingredientSelect" required><option value="">Выберите ингредиент...</option>${stockIngredients.map(p=>'<option value="'+p.id+'">'+hEsc(p.name)+' ('+hEsc(p.unit)+')</option>').join("")}</select>
 <button type="button" class="secondary" id="showInlineIngredient" style="margin-top:8px;padding:8px 12px;font-size:14px">＋ Нет в списке? Создать ингредиент</button>
 <div id="inlineIngredientBox" hidden style="margin-top:12px;padding:14px;border:1px solid #55452a;border-radius:14px;background:#11100d">
 <strong style="display:block;margin-bottom:10px;color:#f0c766">Новый ингредиент</strong>
@@ -1392,6 +1394,17 @@ function updateAveragePrice(){
   const item=stockItems.find(v=>Number(v.ingredient_id)===ingredientId);
   price.value=item&&Number(item.stock)>0?Number(item.unit_price)*Number(document.querySelector("#quantity").value||0)>0?(Number(item.unit_price)*Number(document.querySelector("#quantity").value||0)).toFixed(2):"":"";
 }
+const stockIngredientSearch=document.querySelector("#stockIngredientSearch");
+const stockIngredientSelect=document.querySelector("#ingredientSelect");
+const stockIngredientOptions=Array.from(stockIngredientSelect.options).slice(1).map(o=>({value:o.value,text:o.textContent}));
+stockIngredientSearch.oninput=()=>{
+  const query=stockIngredientSearch.value.trim().toLocaleLowerCase("ru");
+  const selected=stockIngredientSelect.value;
+  stockIngredientSelect.replaceChildren(new Option("Выберите ингредиент…",""));
+  stockIngredientOptions.filter(o=>o.text.toLocaleLowerCase("ru").includes(query)).forEach(o=>stockIngredientSelect.add(new Option(o.text,o.value)));
+  if(selected&&stockIngredientOptions.some(o=>o.value===selected&&o.text.toLocaleLowerCase("ru").includes(query)))stockIngredientSelect.value=selected;
+  if(!stockIngredientSelect.value&&stockIngredientSelect.options.length===2&&query)stockIngredientSelect.selectedIndex=1;
+};
 document.querySelector("#takeAverage").onchange=updateAveragePrice;
 document.querySelector("#ingredientSelect").onchange=updateAveragePrice;
 document.querySelector("#quantity").oninput=updateAveragePrice;
@@ -1419,8 +1432,13 @@ document.querySelector("#saveInlineIngredient").onclick=async()=>{
     const d=await r.json();
     if(!r.ok)throw new Error(d.error||"Не удалось сохранить ингредиент");
     const select=document.querySelector("#ingredientSelect");
-    let option=select.querySelector('option[value="'+Number(d.id)+'"]');
+    const search=document.querySelector("#stockIngredientSearch");
+    let option=Array.from(select.options).find(o=>o.value===String(Number(d.id)));
     if(!option){option=document.createElement("option");option.value=String(d.id);option.textContent=name+" ("+unit+")";select.appendChild(option)}
+    const cached=stockIngredientOptions.find(o=>o.value===String(Number(d.id)));
+    if(!cached)stockIngredientOptions.push({value:String(d.id),text:option.textContent});
+    search.value="";
+    search.dispatchEvent(new Event("input"));
     select.value=String(d.id);
     document.querySelector("#inlineIngredientName").value="";
     inlineBox.hidden=true;
