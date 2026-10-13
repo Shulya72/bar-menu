@@ -659,17 +659,25 @@ export default {
           const brand=String(data.brand||"").trim();
           const quantity=Number(data.quantity), unitPrice=Number(data.unit_price);
           if(!Number.isInteger(ingredientId)||ingredientId<1||!oldBrand||!brand||!Number.isFinite(quantity)||quantity<=0||!Number.isFinite(unitPrice)||unitPrice<0)return json({error:"Некорректные данные товара"},400);
-          await env.DB.prepare("DELETE FROM stock_adjustments WHERE ingredient_id=? AND brand=? AND COALESCE(store,'')=?").bind(ingredientId,oldBrand,oldStore).run();
-          await env.DB.prepare("INSERT INTO stock_adjustments(ingredient_id,quantity,unit_price,brand,store) VALUES(?,?,?,?,?)").bind(ingredientId,quantity,unitPrice,brand,"Ручной ввод").run();
+          await ensureCurrentStockSystem(env);
+          await env.DB.prepare("UPDATE current_stock_lots SET quantity=0 WHERE ingredient_id=? AND COALESCE(brand,'')=? AND COALESCE(store,'')=?").bind(ingredientId,oldBrand,oldStore).run();
+          await env.DB.prepare("INSERT INTO current_stock_lots(ingredient_id,brand,store,quantity,unit_price,source_type,source_id) VALUES(?,?,?,?,?,'manual',?)").bind(ingredientId,brand,"Ручной ввод",quantity,unitPrice,"edit-"+crypto.randomUUID()).run();
           return json({ok:true});
         }
 
         const ingredientId=Number(data.ingredient_id), target=Number(data.stock);
         if(!Number.isInteger(ingredientId)||ingredientId<1||!Number.isFinite(target)||target<0)return json({error:"Некорректный остаток"},400);
+        await ensureCurrentStockSystem(env);
         const items=await getProducts(env); const item=items.find(x=>Number(x.ingredient_id)===ingredientId);
         if(!item)return json({error:"Ингредиент не найден на складе"},404);
-        const delta=target-Number(item.stock); if(Math.abs(delta)<0.000001)return json({ok:true});
-        await env.DB.prepare("INSERT INTO stock_adjustments(ingredient_id,quantity,unit_price,brand,store) VALUES(?,?,?,?,?)").bind(ingredientId,delta,Number(item.unit_price||0),"Ручная корректировка","Ручной ввод").run();
+        let delta=target-Number(item.stock); if(Math.abs(delta)<0.000001)return json({ok:true});
+        if(delta>0){
+          await env.DB.prepare("INSERT INTO current_stock_lots(ingredient_id,brand,store,quantity,unit_price,source_type,source_id) VALUES(?,?,?,?,?,'manual',?)").bind(ingredientId,"Ручная корректировка","Ручной ввод",delta,Number(item.unit_price||0),"adjust-"+crypto.randomUUID()).run();
+        }else{
+          let left=-delta;
+          const lots=await env.DB.prepare("SELECT id,quantity FROM current_stock_lots WHERE ingredient_id=? AND quantity>0 ORDER BY created_at DESC,id DESC").bind(ingredientId).all();
+          for(const lot of lots.results||[]){if(left<=0)break;const take=Math.min(left,Number(lot.quantity||0));if(take>0){await env.DB.prepare("UPDATE current_stock_lots SET quantity=quantity-? WHERE id=?").bind(take,lot.id).run();left-=take;}}
+        }
         return json({ok:true,stock:target});
       }
 
@@ -680,11 +688,8 @@ export default {
         const brand=String(data.brand||"").trim();
         const store=String(data.store||"").trim();
         if(!Number.isInteger(ingredientId)||ingredientId<1||!brand)return json({error:"Не указан товар"},400);
-        if(store==="Ручной ввод" || brand==="Ручная корректировка"){
-          const r=await env.DB.prepare("DELETE FROM stock_adjustments WHERE ingredient_id=? AND (brand=? OR brand='Ручная корректировка')").bind(ingredientId,brand).run();
-          return json({ok:true,deleted:Number(r.meta.changes||0)});
-        }
-        const r=await env.DB.prepare("UPDATE purchase_batches SET remaining_qty=0 WHERE product_id IN (SELECT p.id FROM products p WHERE p.ingredient_id=? AND p.brand=? AND p.store=? AND p.is_active=1) AND remaining_qty>0").bind(ingredientId,brand,store).run();
+        await ensureCurrentStockSystem(env);
+        const r=await env.DB.prepare("UPDATE current_stock_lots SET quantity=0 WHERE ingredient_id=? AND COALESCE(brand,'')=? AND COALESCE(store,'')=? AND quantity<>0").bind(ingredientId,brand,store).run();
         return json({ok:true,deleted:Number(r.meta.changes||0)});
       }
 
@@ -723,9 +728,9 @@ export default {
         }
 
         if(quantity>0){
-          await ensureStockAdjustmentSystem(env);
-          await env.DB.prepare("INSERT INTO stock_adjustments(ingredient_id,quantity,unit_price,brand,store) VALUES(?,?,?,?,?)")
-            .bind(ingredientId,quantity,unitPrice,brand,"Ручной ввод").run();
+          await ensureCurrentStockSystem(env);
+          await env.DB.prepare("INSERT INTO current_stock_lots(ingredient_id,brand,store,quantity,unit_price,source_type,source_id) VALUES(?,?,?,?,?,'manual',?)")
+            .bind(ingredientId,brand,"Ручной ввод",quantity,unitPrice,"manual-"+crypto.randomUUID()).run();
         }
 
         return json({ok:true,id:productId,unit_price:unitPrice,price_rub:bottlePrice},201);
@@ -809,7 +814,10 @@ export default {
           productId=Number(pr.meta.last_row_id);
         }
         const batch=await env.DB.prepare("INSERT INTO purchase_batches(product_id,purchased_qty,remaining_qty,price_rub,purchased_at) VALUES(?,?,?,?,?)").bind(productId,qty,qty,price,purchaseDate+" 00:00:00").run();
-        return json({ok:true,id:Number(batch.meta.last_row_id),product_id:productId},201);
+        const batchId=Number(batch.meta.last_row_id);
+        await ensureCurrentStockSystem(env);
+        await env.DB.prepare("INSERT INTO current_stock_lots(ingredient_id,brand,store,quantity,unit_price,source_type,source_id,created_at) VALUES(?,?,?,?,?,'purchase',?,?)").bind(ingredientId,brand,store,qty,price/qty,String(batchId),purchaseDate+" 00:00:00").run();
+        return json({ok:true,id:batchId,product_id:productId},201);
       }
 
       if (url.pathname === "/api/ingredients" && request.method === "GET") {
@@ -1348,10 +1356,6 @@ function bindStockButtons(){
     const p=stockItems.find(v=>Number(v.ingredient_id)===Number(row.dataset.id));
     const d=p?.details?.[Number(btn.dataset.i)];
     if(!p||!d)return;
-    if(d.source_type!=="manual"){
-      alert("Закупленный товар редактируется в разделе «Магазин».");
-      return;
-    }
     const brand=prompt("Название / бренд",d.brand);
     if(brand===null)return;
     const qty=prompt("Количество, "+p.unit,Number(d.stock));
