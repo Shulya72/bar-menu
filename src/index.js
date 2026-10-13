@@ -1288,8 +1288,10 @@ document.querySelector("#ingredientForm").onsubmit=async e=>{e.preventDefault();
 <header><h1>📦 Склад</h1><div class="sub">Справочник товаров и текущие остатки</div></header>
 <div class="wrap">
 <div class="row" style="margin-bottom:14px"><a href="/" style="display:inline-block;padding:10px 14px;border:1px solid #333;border-radius:12px;background:#151515">🏠 Главное меню</a></div>
-<div class="card">
-<h2>Новый товар</h2>
+<details class="card" id="addStockProduct" style="padding:0;overflow:hidden">
+<summary style="list-style:none;cursor:pointer;display:flex;align-items:center;justify-content:space-between;gap:12px;padding:18px 22px;color:#f0c766;font-weight:700;font-size:18px;touch-action:manipulation"><span>＋ Добавить позицию на склад</span><span id="addStockChevron" aria-hidden="true" style="font-size:22px;transition:transform .2s">⌄</span></summary>
+<div style="padding:0 22px 22px">
+<h2 style="margin-top:4px">Новый товар</h2>
 <form id="productForm">
 <label>Ингредиент *</label><select name="ingredient_id" id="ingredientSelect" required><option value="">Выберите ингредиент...</option>${stockIngredients.map(p=>'<option value="'+p.id+'">'+hEsc(p.name)+' ('+hEsc(p.unit)+')</option>').join("")}</select>
 <label>Бренд</label><input name="brand" placeholder="Например, Царская">
@@ -1300,6 +1302,7 @@ document.querySelector("#ingredientForm").onsubmit=async e=>{e.preventDefault();
 <p id="msg" class="muted"></p>
 </form>
 </div>
+</details>
 <div style="height:16px"></div>
 <div class="card"><h2>Товары</h2><div id="stock">${stockLoadError?'<div class="empty">Ошибка загрузки склада: '+hEsc(stockLoadError)+'<br><button type="button" onclick="location.reload()">Обновить</button></div>':(stockItems.length?stockItems.map(p=>'<div class="stock-item" data-id="'+p.ingredient_id+'" style="padding:12px 0;border-bottom:1px solid #292929"><div><b>🥃 '+hEsc(p.ingredient_name)+'</b></div><div class="muted" style="margin-top:5px">Всего: <b>'+Number(p.stock).toFixed(2)+' '+hEsc(p.unit)+'</b> · Средняя цена: <b>'+Number(p.unit_price).toFixed(4)+' ₽/'+hEsc(p.unit)+'</b></div><div style="margin-top:9px;padding-left:12px;border-left:2px solid #333">'+(p.details||[]).map(d=>'<div style="padding:5px 0"><b>'+hEsc(d.brand)+'</b> — '+Number(d.stock).toFixed(2)+' '+hEsc(p.unit)+' · '+Number(d.unit_price).toFixed(4)+' ₽/'+hEsc(p.unit)+(d.store?' · '+hEsc(d.store):'')+'</div>').join("")+'</div><div class="row" style="margin-top:9px"></div></div>').join(""):'<div class="empty">Товаров пока нет.</div>')}</div></div>
 </div>
