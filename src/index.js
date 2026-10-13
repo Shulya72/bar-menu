@@ -829,8 +829,6 @@ export default {
         const data=await request.json(), id=Number(data.id), name=String(data.name||"").trim(), unit=String(data.unit||"ml"), strength=Number(data.strength_percent||0);
         if(!id||!name||!["ml","g","pcs"].includes(unit)||!Number.isFinite(strength)||strength<0||strength>100) return json({error:"Некорректные данные: крепость должна быть от 0 до 100%"},400);
         await env.DB.prepare("UPDATE ingredients SET name=?,unit=?,strength_percent=?,updated_at=CURRENT_TIMESTAMP WHERE id=?").bind(name,unit,strength,id).run();
-        const affected=await env.DB.prepare("SELECT DISTINCT cocktail_id FROM recipe_ingredients WHERE ingredient_id=?").bind(id).all();
-        for(const row of (affected.results||[])) await refreshCocktailStrength(env,Number(row.cocktail_id));
         return json({ok:true});
       }
       if (url.pathname === "/api/ingredients" && request.method === "DELETE") {
