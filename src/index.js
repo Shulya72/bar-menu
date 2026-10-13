@@ -1616,19 +1616,50 @@ loadStats();
 <div class="wrap">
 <div class="row" style="margin-bottom:14px"><a href="/" style="display:inline-block;padding:10px 14px;border:1px solid #333;border-radius:12px;background:#151515">🏠 Главное меню</a><a href="/bar/recipes" style="display:inline-block;padding:10px 14px;border:1px solid #333;border-radius:12px;background:#151515">🍸 Книга рецептов</a></div>
 <div class="card"><div id="order">Загрузка…</div></div>
+<div id="orderRecipeModal" hidden style="position:fixed;inset:0;z-index:1000;background:#000c;display:none;align-items:flex-end;justify-content:center;padding:14px">
+ <section style="width:100%;max-width:620px;max-height:84vh;overflow:auto;background:linear-gradient(145deg,#1b1913,#0b0b0a);border:1px solid #55452a;border-radius:24px;padding:20px;box-shadow:0 20px 70px #000">
+  <div style="display:flex;align-items:center;justify-content:space-between;gap:12px"><h2 id="orderRecipeTitle" style="margin:0;color:#f1dfb5"></h2><button type="button" id="closeOrderRecipe" class="secondary" aria-label="Закрыть рецепт" style="min-width:44px;width:44px;height:44px;padding:0;border-radius:50%">×</button></div>
+  <div id="orderRecipeBody" style="margin-top:14px"></div>
+ </section>
+</div>
 </div>
 <script>
+const orderEsc=s=>String(s??"").replace(/[&<>"']/g,c=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[c]));
+const orderUnit=u=>u==="g"?"гр.":u==="ml"?"мл.":u==="pcs"?"шт.":String(u||"");
+let orderCocktails=new Map();
+async function loadOrderRecipes(){
+ try{const r=await fetch("/api/cocktails?include_stock=0");if(!r.ok)return;const data=await r.json();orderCocktails=new Map((Array.isArray(data)?data:[]).map(c=>[Number(c.id),c]));}catch(e){}
+}
+function openOrderRecipe(id){
+ const c=orderCocktails.get(Number(id));if(!c){alert("Не удалось загрузить рецепт. Обнови страницу и попробуй ещё раз.");return;}
+ document.querySelector("#orderRecipeTitle").textContent=c.name||"Рецепт коктейля";
+ const ingredients=(c.recipe_items||[]).map(i=>'<div style="display:flex;justify-content:space-between;gap:14px;padding:10px 0;border-bottom:1px solid #342b1c"><span>'+orderEsc(i.ingredient_name||i.name||"Ингредиент")+'</span><b style="white-space:nowrap;color:#e5bd61">'+orderEsc(i.quantity)+' '+orderEsc(orderUnit(i.unit))+'</b></div>').join("");
+ const body=document.querySelector("#orderRecipeBody");
+ body.innerHTML=(c.photo_url?'<img src="'+orderEsc(c.photo_url)+'" alt="" loading="lazy" style="display:block;width:100%;max-height:240px;object-fit:cover;border-radius:14px;margin-bottom:14px;border:1px solid #493b25">':"")+
+ (c.description?'<p style="color:#b9b5ac;line-height:1.55">'+orderEsc(c.description)+'</p>':"")+
+ (c.strength?'<p style="color:#e5bd61;margin:10px 0">Крепость · '+orderEsc(c.strength)+'</p>':"")+
+ '<h3 style="margin:18px 0 4px;color:#f1dfb5">Состав и дозировки</h3>'+
+ (ingredients||'<p class="muted">Состав пока не указан.</p>')+
+ (c.method?'<h3 style="margin:18px 0 6px;color:#f1dfb5">Способ приготовления</h3><p style="white-space:pre-line;line-height:1.55">'+orderEsc(c.method)+'</p>':"")+
+ (c.glass?'<h3 style="margin:18px 0 6px;color:#f1dfb5">Инвентарь</h3><p style="white-space:pre-line;line-height:1.55">'+orderEsc(c.glass)+'</p>':"");
+ const modal=document.querySelector("#orderRecipeModal");modal.hidden=false;modal.style.display="flex";document.body.style.overflow="hidden";
+}
+function closeOrderRecipe(){const m=document.querySelector("#orderRecipeModal");m.hidden=true;m.style.display="none";document.body.style.overflow="";}
+document.querySelector("#closeOrderRecipe").onclick=closeOrderRecipe;
+document.querySelector("#orderRecipeModal").onclick=e=>{if(e.target.id==="orderRecipeModal")closeOrderRecipe()};
+document.addEventListener("keydown",e=>{if(e.key==="Escape")closeOrderRecipe()});
 async function loadOrder(){
  const r=await fetch("/api/bar/order");const d=await r.json();const box=document.querySelector("#order");
  if(!d.items||!d.items.length){box.innerHTML="<div class=\"empty\">Текущий заказ пуст.<br><a href=\"/bar/recipes\">← Вернуться в книгу рецептов</a></div>";return;}
- box.innerHTML="<h2>Смена №"+(d.shift?.id||"—")+"</h2>"+d.items.map(i=>"<div class=\"row\" style=\"justify-content:space-between;padding:12px 0;border-bottom:1px solid #292929\"><b>"+i.cocktail_name+"</b><span class=\"row\"><button type=\"button\" class=\"secondary minus\" data-id=\""+i.cocktail_id+"\">−</button><b>"+i.quantity+"</b><button type=\"button\" class=\"plus\" data-id=\""+i.cocktail_id+"\">＋</button></span></div>").join("")+"<p style=\"margin-top:14px\">Коктейлей: <b>"+d.total_cocktails+"</b> · Сумма: <b>"+Number(d.total_price||0).toFixed(0)+" ₽</b></p><div class=\"row\"><button id=\"accept\">✅ Принять заказ</button><button id=\"clear\" class=\"secondary\">Очистить</button></div>";
+ box.innerHTML="<h2>Смена №"+(d.shift?.id||"—")+"</h2>"+d.items.map(i=>"<div class=\"row\" style=\"justify-content:space-between;padding:12px 0;border-bottom:1px solid #292929;gap:12px\"><button type=\"button\" class=\"order-recipe-link\" data-recipe-id=\""+Number(i.cocktail_id)+"\" style=\"padding:4px 0;border:0;background:none;color:#f0c766;text-decoration:underline;text-decoration-color:#80642f;text-underline-offset:4px;text-align:left;font:inherit;font-weight:700;cursor:pointer;flex:1;min-width:0\">"+orderEsc(i.cocktail_name)+"</button><span class=\"row\" style=\"flex-shrink:0\"><button type=\"button\" class=\"secondary minus\" data-id=\""+Number(i.cocktail_id)+"\">−</button><b>"+Number(i.quantity)+"</b><button type=\"button\" class=\"plus\" data-id=\""+Number(i.cocktail_id)+"\">＋</button></span></div>").join("")+"<p style=\"margin-top:14px\">Коктейлей: <b>"+Number(d.total_cocktails||0)+"</b> · Сумма: <b>"+Number(d.total_price||0).toFixed(0)+" ₽</b></p><div class=\"row\"><button id=\"accept\">✅ Принять заказ</button><button id=\"clear\" class=\"secondary\">Очистить</button></div>";
+ document.querySelectorAll(".order-recipe-link").forEach(b=>b.onclick=()=>openOrderRecipe(Number(b.dataset.recipeId)));
  document.querySelectorAll(".minus").forEach(b=>b.onclick=()=>changeOrder(Number(b.dataset.id),-1));
  document.querySelectorAll(".plus").forEach(b=>b.onclick=()=>changeOrder(Number(b.dataset.id),1));
  document.querySelector("#accept").onclick=async()=>{const r=await fetch("/api/bar/order/accept",{method:"POST"});const d=await r.json();if(!r.ok){alert(d.error||"Ошибка");return;}alert("Заказ №"+d.order_id+" принят ✅");loadOrder()};
  document.querySelector("#clear").onclick=async()=>{if(!confirm("Очистить текущий заказ?"))return;await fetch("/api/bar/order",{method:"DELETE"});loadOrder()};
 }
 async function changeOrder(id,delta){const r=await fetch("/api/bar/order",{method:"POST",headers:{"content-type":"application/json"},body:JSON.stringify({cocktail_id:id,delta})});const d=await r.json();if(!r.ok){alert(d.error||"Ошибка");return;}loadOrder()}
-loadOrder();
+Promise.all([loadOrderRecipes(),loadOrder()]);
 </script>`, "Заказы");
 
       return new Response("Не найдено",{status:404});
