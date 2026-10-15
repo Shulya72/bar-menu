@@ -364,7 +364,10 @@ const getProducts = async (env, includeDetails = true, excludeOrderId = 0) => {
     FROM ingredients i WHERE i.is_active=1 ORDER BY i.name`),
     env.DB.prepare(RESERVED_SQL).bind(Number(excludeOrderId)||0),
   ];
+  // brand/store — подписи для экрана; brand_key/store_key — сырые значения,
+  // по которым PUT (source_edit) и DELETE /api/products находят партию.
   if(includeDetails)statements.push(env.DB.prepare(`SELECT ingredient_id,COALESCE(NULLIF(brand,''),'Без бренда') brand,COALESCE(NULLIF(store,''),'') store,
+      COALESCE(brand,'') brand_key,COALESCE(store,'') store_key,
       SUM(quantity) stock,SUM(quantity*unit_price) stock_value,
       CASE WHEN SUM(CASE WHEN source_type='purchase' THEN 1 ELSE 0 END)>0 THEN 'purchase' ELSE 'manual' END source_type
       FROM current_stock_lots GROUP BY ingredient_id,brand,store HAVING SUM(quantity)>0 ORDER BY ingredient_id,brand,store`));
@@ -378,7 +381,7 @@ const getProducts = async (env, includeDetails = true, excludeOrderId = 0) => {
       const id=Number(row.ingredient_id),stock=Number(row.stock||0),value=Number(row.stock_value||0);
       if(stock<=0)continue;
       if(!byIngredient.has(id))byIngredient.set(id,[]);
-      byIngredient.get(id).push({brand:row.brand,store:row.store,stock,stock_value:value,unit_price:value/stock,source_type:row.source_type});
+      byIngredient.get(id).push({brand:row.brand,store:row.store,brand_key:row.brand_key,store_key:row.store_key,stock,stock_value:value,unit_price:value/stock,source_type:row.source_type});
     }
     for(const x of results)x.details=byIngredient.get(Number(x.ingredient_id))||[];
   }
@@ -609,7 +612,8 @@ export default {
           const oldStore=String(data.old_store||"").trim();
           const brand=String(data.brand||"").trim();
           const quantity=Number(data.quantity), unitPrice=Number(data.unit_price);
-          if(!Number.isInteger(ingredientId)||ingredientId<1||!oldBrand||!brand||!Number.isFinite(quantity)||quantity<=0||!Number.isFinite(unitPrice)||unitPrice<0)return json({error:"Некорректные данные товара"},400);
+          // Пустой old_brand допустим: это сырой ключ партии без бренда (brand_key).
+          if(!Number.isInteger(ingredientId)||ingredientId<1||!brand||!Number.isFinite(quantity)||quantity<=0||!Number.isFinite(unitPrice)||unitPrice<0)return json({error:"Некорректные данные товара"},400);
           await env.DB.prepare("UPDATE current_stock_lots SET quantity=0 WHERE ingredient_id=? AND COALESCE(brand,'')=? AND COALESCE(store,'')=?").bind(ingredientId,oldBrand,oldStore).run();
           await env.DB.prepare("INSERT INTO current_stock_lots(ingredient_id,brand,store,quantity,unit_price,source_type,source_id) VALUES(?,?,?,?,?,'manual',?)").bind(ingredientId,brand,"Ручной ввод",quantity,unitPrice,"edit-"+crypto.randomUUID()).run();
           return json({ok:true});
@@ -635,7 +639,8 @@ export default {
         const ingredientId=Number(data.ingredient_id);
         const brand=String(data.brand||"").trim();
         const store=String(data.store||"").trim();
-        if(!Number.isInteger(ingredientId)||ingredientId<1||!brand)return json({error:"Не указан товар"},400);
+        // Пустой brand допустим: это сырой ключ партии без бренда (brand_key).
+        if(!Number.isInteger(ingredientId)||ingredientId<1)return json({error:"Не указан товар"},400);
         const r=await env.DB.prepare("UPDATE current_stock_lots SET quantity=0 WHERE ingredient_id=? AND COALESCE(brand,'')=? AND COALESCE(store,'')=? AND quantity<>0").bind(ingredientId,brand,store).run();
         return json({ok:true,deleted:Number(r.meta.changes||0)});
       }
@@ -1599,217 +1604,377 @@ load();
       // ═══════ route-block: /bar/stock ═══════ (agents: edit only inside your own block)
 
       if (url.pathname === "/bar/stock") {
-        // Первичная загрузка склада выполняется на сервере. Это исключает
-        // зависимость открытия страницы от отдельного AJAX-запроса и старого
-        // браузерного кэша: пользователь сразу видит ингредиенты и остатки.
-        let stockIngredients=[], stockItems=[];
+        // Склад рисуется на сервере (первый кадр без ожидания API) и дальше
+        // обновляется на клиенте тем же кодом: stockUI() самодостаточна, её
+        // исходник вставляется в страницу. При включённом keepNames esbuild
+        // добавляет внутрь вызовы __name() — на этот случай на клиенте есть заглушка.
+        // Поэтому внутри stockUI нельзя ссылаться ни на что снаружи неё.
+        let stockIngredients=[], stockItems=[], recipeRows=[];
         let stockLoadError="";
         try{
-          const [ir,products]=await Promise.all([
+          const [ir,products,rr]=await Promise.all([
             env.DB.prepare("SELECT id,name,unit FROM ingredients WHERE is_active=1 ORDER BY name").all(),
             getProducts(env),
+            // Для «Пора докупить»: сколько ингредиента уходит на порцию в активных рецептах.
+            env.DB.prepare("SELECT ri.ingredient_id,ri.quantity,c.name FROM recipe_ingredients ri JOIN cocktails c ON c.id=ri.cocktail_id WHERE c.is_active=1 ORDER BY c.name").all().catch(()=>({results:[]})),
           ]);
           stockIngredients=ir.results||[];
           stockItems=products;
+          recipeRows=rr.results||[];
         }catch(e){
           stockLoadError=String(e?.message||e);
         }
-        const hEsc=s=>String(s??"").replace(/[&<>"\']/g,c=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;",'\'':"&#39;"}[c]));
-        const initialIngredients=JSON.stringify(stockIngredients).replace(/</g,"\\u003c");
-        const initialStock=JSON.stringify(stockItems).replace(/</g,"\\u003c");
-        return page(`
-<header><h1>📦 Склад</h1><div class="sub">Справочник товаров и текущие остатки</div></header>
-<div class="wrap">
-<div class="row" style="margin-bottom:14px"><a href="/" style="display:inline-block;padding:10px 14px;border:1px solid #333;border-radius:12px;background:#151515">🏠 Главное меню</a></div>
-<details class="card" id="addStockProduct" style="padding:0;overflow:hidden">
-<summary style="list-style:none;cursor:pointer;display:flex;align-items:center;justify-content:space-between;gap:12px;padding:18px 22px;color:#f0c766;font-weight:700;font-size:18px;touch-action:manipulation"><span>＋ Добавить позицию на склад</span><span id="addStockChevron" aria-hidden="true" style="font-size:22px;transition:transform .2s">⌄</span></summary>
-<div style="padding:0 22px 22px">
-<h2 style="margin-top:4px">Новый товар</h2>
-<form id="productForm">
-<label>Ингредиент *</label>
-<input id="stockIngredientSearch" type="search" placeholder="⌕ Найти ингредиент…" autocomplete="off" aria-label="Поиск ингредиента" style="margin-bottom:8px">
-<select name="ingredient_id" id="ingredientSelect" required><option value="">Выберите ингредиент...</option>${stockIngredients.map(p=>'<option value="'+p.id+'">'+hEsc(p.name)+' ('+hEsc(p.unit)+')</option>').join("")}</select>
-<button type="button" class="secondary" id="showInlineIngredient" style="margin-top:8px;padding:8px 12px;font-size:14px">＋ Нет в списке? Создать ингредиент</button>
-<div id="inlineIngredientBox" hidden style="margin-top:12px;padding:14px;border:1px solid #55452a;border-radius:14px;background:#11100d">
-<strong style="display:block;margin-bottom:10px;color:#f0c766">Новый ингредиент</strong>
-<label>Название *</label><input id="inlineIngredientName" placeholder="Например, Ром тёмный">
-<label>Единица измерения</label><select id="inlineIngredientUnit"><option value="ml">мл</option><option value="g">гр.</option><option value="pcs">шт.</option></select>
-<label>Крепость алкоголя, %</label><input id="inlineIngredientStrength" type="number" min="0" max="100" step="0.1" value="0" placeholder="Например, 40"><p class="muted" style="margin:6px 0 0">Для водки — 40, ликёра — например 20, сока или газировки — 0.</p>
-<div class="row" style="margin-top:12px;gap:8px"><button type="button" id="saveInlineIngredient">Сохранить ингредиент</button><button type="button" class="secondary" id="cancelInlineIngredient">Отмена</button></div>
-<p id="inlineIngredientMsg" class="muted" style="margin:8px 0 0"></p>
+        const stockUsage={};
+        for(const r of recipeRows){
+          const id=Number(r.ingredient_id),u=stockUsage[id]||(stockUsage[id]={per:0,names:[]});
+          u.per=Math.max(u.per,Number(r.quantity)||0);
+          if(!u.names.includes(r.name))u.names.push(r.name);
+        }
+        const stockUI=()=>{
+          const LOW=3,UNITS={ml:"мл",g:"г",pcs:"шт"},ui={LOW};
+          ui.esc=s=>String(s??"").replace(/[&<>"']/g,c=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[c]));
+          ui.norm=s=>String(s??"").toLowerCase().replace(/ё/g,"е").trim();
+          ui.unit=u=>UNITS[u]||String(u||"");
+          ui.num=(v,d)=>{v=Number(v)||0;const p=Math.pow(10,d||0),r=Math.round(Math.abs(v)*p)/p,parts=String(r).split(".");return (v<0&&r?"−":"")+parts[0].replace(/\B(?=(\d{3})+(?!\d))/g," ")+(parts[1]?","+parts[1]:"")};
+          ui.money=v=>ui.num(v,Math.abs(Number(v)||0)>=100?0:2)+" ₽";
+          ui.qty=(v,u)=>ui.num(v,2)+" "+ui.unit(u);
+          ui.rate=(v,u)=>ui.num(v,Number(v)<1?3:2)+" ₽/"+ui.unit(u);
+          ui.plural=(n,one,few,many)=>{const a=Math.abs(n)%100,b=a%10;return a>10&&a<20?many:b===1?one:b>1&&b<5?few:many};
+          ui.ic=(n,c)=>'<svg class="ic'+(c?" "+c:"")+'" aria-hidden="true"><use href="#i-'+n+'"/></svg>';
+          ui.servings=(p,use)=>use&&use.per>0?Math.floor(Number(p.stock)/use.per+1e-9):null;
+          ui.portions=s=>s<1?"меньше чем на порцию":"на "+s+" "+ui.plural(s,"порцию","порции","порций");
+          ui.isLow=(p,use)=>{const s=ui.servings(p,use);return s!==null&&s<=LOW};
+          ui.summary=items=>{const n=items.length,total=items.reduce((a,p)=>a+(Number(p.stock_value)||0),0);return n?n+" "+ui.plural(n,"ингредиент","ингредиента","ингредиентов")+" на "+ui.money(total):"Здесь будут остатки бара по партиям"};
+          ui.list=(items,usage,ingredients,q)=>{
+            const e=ui.esc,nq=ui.norm(q),chev=ui.ic("chevronRight","cell-chevron");
+            const shown=items.filter(p=>!nq||ui.norm(p.ingredient_name).includes(nq)||(p.details||[]).some(d=>ui.norm(d.brand).includes(nq)||ui.norm(d.store).includes(nq)));
+            const have=new Set(items.map(p=>Number(p.ingredient_id)));
+            const low=shown.filter(p=>ui.isLow(p,usage[p.ingredient_id]));
+            const out=ingredients.filter(i=>usage[i.id]&&!have.has(Number(i.id))&&(!nq||ui.norm(i.name).includes(nq)));
+            let h="";
+            // Пустой склад: главное действие — первым, «Пора докупить» ниже.
+            if(!items.length&&!nq)
+              h='<div class="empty-state">'+ui.ic("box")+'<h3>Склад пока пуст</h3><p>Добавьте первую бутылку — или внесите чек в <a href="/bar/shop">«Закупках»</a>.</p><button type="button" class="btn btn-primary" data-add-query>'+ui.ic("plus")+'Добавить на склад</button></div>';
+            if(low.length||out.length){
+              h+='<section class="section" aria-labelledby="restockHead"><div class="section-header"><h2 id="restockHead">Пора докупить</h2></div><div class="list">'
+                +out.map(i=>'<button type="button" class="cell" data-add="'+Number(i.id)+'"><span class="cell-body"><span class="cell-title">'+e(i.name)+'</span><span class="cell-sub">Нужен для: '+e(usage[i.id].names.join(", "))+'</span></span><span class="badge danger">нет</span>'+chev+'</button>').join("")
+                +low.map(p=>'<button type="button" class="cell" data-id="'+Number(p.ingredient_id)+'" aria-haspopup="dialog"><span class="cell-body"><span class="cell-title">'+e(p.ingredient_name)+'</span><span class="cell-sub">'+ui.qty(p.stock,p.unit)+' — хватит '+ui.portions(ui.servings(p,usage[p.ingredient_id]))+'</span></span><span class="badge warn">мало</span>'+chev+'</button>').join("")
+                +'</div><p class="section-footer">'+[low.length?"«Мало» — остатка хватит на "+LOW+" порции или меньше.":"",out.length?"«Нет» — ингредиент из рецептов закончился.":""].filter(Boolean).join(" ")+'</p></section>';
+            }
+            if(shown.length){
+              h+='<section class="section" aria-labelledby="stockHead"><div class="section-header"><h2 id="stockHead">На складе</h2><span class="num">'+shown.length+'</span></div><div class="list">'
+                +shown.map(p=>{const n=(p.details||[]).length;return '<button type="button" class="cell" data-id="'+Number(p.ingredient_id)+'" aria-haspopup="dialog"><span class="cell-body"><span class="cell-title">'+e(p.ingredient_name)+'</span><span class="cell-sub">'+ui.qty(p.stock,p.unit)+(n?' · '+n+' '+ui.plural(n,"партия","партии","партий"):'')+(ui.isLow(p,usage[p.ingredient_id])?' · <span class="low">мало</span>':'')+'</span></span><span class="cell-value num">'+ui.money(p.stock_value)+'</span>'+chev+'</button>'}).join("")
+                +'</div>'+(shown.some(p=>Number(p.reserved)>0)?'<p class="section-footer">Остатки — за вычетом резерва под черновики заказов.</p>':'')+'</section>';
+            }else if(nq&&!out.length){
+              h+='<div class="empty-state">'+ui.ic("search")+'<h3>Ничего не нашлось</h3><p>Попробуйте другое название, бренд или магазин.</p><button type="button" class="btn btn-tinted" data-add-query>'+ui.ic("plus")+'Добавить «'+e(String(q).trim())+'»</button></div>';
+            }
+            return h;
+          };
+          ui.kv=(k,v,cls)=>'<div class="cell"><span class="cell-body"><span class="cell-title">'+k+'</span></span><span class="cell-value num'+(cls?" "+cls:"")+'">'+v+'</span></div>';
+          ui.detail=(p,use)=>{
+            const e=ui.esc,u=p.unit,s=ui.servings(p,use),lots=p.details||[],notes=[];
+            let h='<div class="list">'+ui.kv("Доступно",ui.qty(p.stock,u))
+              +(Number(p.reserved)>0?ui.kv("В резерве",ui.qty(p.reserved,u)):"")
+              +ui.kv("Стоимость",ui.money(p.stock_value))
+              +ui.kv("Средняя цена",ui.rate(p.unit_price,u))
+              +(s!==null?ui.kv("Хватит",ui.portions(s),s<=LOW?"low":""):"")
+              +'</div>';
+            if(Number(p.reserved)>0)notes.push("Резерв отложен под черновики заказов и уже вычтен из «Доступно».");
+            if(use&&use.names.length)notes.push("В рецептах: "+e(use.names.join(", "))+".");
+            if(notes.length)h+='<p class="section-footer">'+notes.join(" ")+'</p>';
+            h+='<section class="section" aria-labelledby="lotsHead"><div class="section-header"><h3 id="lotsHead">Партии</h3><span class="num">'+lots.length+'</span></div><div class="list">'
+              +lots.map((d,i)=>{const b=e(d.brand),where=[d.store&&d.store!=="Ручной ввод"?e(d.store):"",d.source_type==="purchase"?"по чеку":"вручную",ui.money(d.stock_value)].filter(Boolean).join(" · ");
+                return '<div class="cell-wrap lot"><div class="cell"><span class="cell-body"><span class="cell-title">'+b+'</span><span class="cell-sub">'+where+'</span></span><span class="cell-value"><span class="num">'+ui.qty(d.stock,u)+'</span><span class="caption num">'+ui.rate(d.unit_price,u)+'</span></span></div>'
+                  +'<div class="lot-actions"><button type="button" class="btn btn-gray" data-edit="'+i+'" aria-label="Изменить партию «'+b+'»">'+ui.ic("pencil")+'Изменить</button><button type="button" class="btn btn-danger" data-del="'+i+'" aria-label="Удалить партию «'+b+'»">'+ui.ic("trash")+'Удалить</button></div></div>'}).join("")
+              +'</div><p class="section-footer">Изменение и удаление касаются только склада — чеки в «Закупках» остаются прежними.</p></section>'
+              +'<div class="section"><button type="button" class="btn btn-tinted btn-block" data-add-lot>'+ui.ic("plus")+'Добавить партию</button></div>';
+            return h;
+          };
+          return ui;
+        };
+        const ui=stockUI();
+        const toJson=v=>JSON.stringify(v).replace(/</g,"\\u003c");
+        const stockBody=stockLoadError
+          ?`<div id="stockView"><div class="empty-state" role="alert">${icon("warning")}<h3>Не удалось загрузить склад</h3><p>Проверьте связь и обновите страницу.</p><p class="caption">${ui.esc(stockLoadError)}</p><button class="btn btn-tinted" type="button" data-reload>${icon("refresh")}Обновить</button></div></div>`
+          :`<label class="search">${icon("search")}<input type="search" id="stockSearch" placeholder="Ингредиент, бренд или магазин" autocomplete="off" aria-label="Поиск по складу" enterkeyhint="search"></label>
+<div id="stockView">${ui.list(stockItems,stockUsage,stockIngredients,"")}</div>`;
+        const stockSheets=`
+<div class="sheet sheet-top" id="editSheet" hidden><div class="sheet-panel" role="dialog" aria-modal="true" aria-labelledby="editTitle">
+<div class="sheet-grabber"></div>
+<div class="sheet-head"><button class="btn btn-plain left" type="button" data-close-sheet>Отмена</button><h2 id="editTitle">Партия</h2><button class="btn btn-plain right strong" type="submit" form="editForm">Сохранить</button></div>
+<div class="sheet-body"><form id="editForm" novalidate autocomplete="off">
+<p class="footnote sheet-note" id="editFor"></p>
+<div class="list">
+<label class="field"><span>Бренд</span><input name="brand" required placeholder="Например, Финляндия" enterkeyhint="next"></label>
+<label class="field"><span>Количество, <span data-u>мл</span></span><input name="quantity" type="number" inputmode="decimal" min="0.01" step="0.01" required enterkeyhint="next"></label>
+<label class="field"><span>Цена за <span data-u>мл</span>, ₽</span><input name="unit_price" type="number" inputmode="decimal" min="0" step="0.0001" required enterkeyhint="done"></label>
 </div>
-<label>Бренд</label><input name="brand" placeholder="Например, Царская">
-<label>Количество ингредиента в бутылке / упаковке</label><input name="quantity" id="quantity" type="number" min="0" step="0.01" value="0" placeholder="Например, 500">
-<label>Цена за бутылку / упаковку, ₽</label><input name="price" id="stockPrice" type="number" min="0" step="0.01" placeholder="Например, 300">
-<label style="display:flex;align-items:center;gap:10px;margin-top:10px"><input name="take_average" id="takeAverage" type="checkbox" style="width:auto"> Взять среднюю цену по ингредиенту</label>
-<div style="margin-top:16px"><button>＋ Добавить товар</button></div>
-<p id="msg" class="muted"></p>
-</form>
+<p class="section-footer num" id="editTotal" aria-live="polite"></p>
+<p class="section-footer">Меняется только текущий склад, чек в «Закупках» останется прежним. После сохранения партия станет ручной записью.</p>
+<p class="form-msg" id="editMsg" role="alert"></p>
+</form></div></div></div>
+<div class="sheet sheet-top" id="addSheet" hidden><div class="sheet-panel" role="dialog" aria-modal="true" aria-labelledby="addTitle">
+<div class="sheet-grabber"></div>
+<div class="sheet-head"><button class="btn btn-plain left" type="button" data-close-sheet>Отмена</button><h2 id="addTitle">Новая партия</h2><button class="btn btn-plain right strong" type="submit" form="addForm">Добавить</button></div>
+<div class="sheet-body"><form id="addForm" novalidate autocomplete="off"><input type="hidden" name="ingredient_id">
+<div class="list"><label class="field"><span>Ингредиент</span><input id="ingInput" type="search" placeholder="Водка, лайм, тоник…" aria-describedby="ingHint" enterkeyhint="next" autocomplete="off" spellcheck="false"></label></div>
+<div class="list suggest" id="ingSuggest" role="group" aria-label="Подходящие ингредиенты"></div>
+<p class="section-footer" id="ingHint"></p>
+<div id="newIng" hidden>
+<div class="section-header new-head"><h3>Новый ингредиент</h3></div>
+<div class="list">
+<label class="field"><span>Название</span><input id="newIngName" placeholder="Например, ром тёмный" enterkeyhint="done"></label>
+<div class="field"><span id="newIngUnitLabel">Единица</span><div class="segmented" role="group" aria-labelledby="newIngUnitLabel"><button type="button" data-unit="ml" aria-pressed="true">мл</button><button type="button" data-unit="g" aria-pressed="false">граммы</button><button type="button" data-unit="pcs" aria-pressed="false">штуки</button></div></div>
+<label class="field"><span>Крепость, %</span><input id="newIngStrength" type="number" inputmode="decimal" min="0" max="100" step="0.1" value="0" enterkeyhint="done"></label>
 </div>
-</details>
-<div style="height:16px"></div>
-<div class="card"><h2>Товары</h2><div id="stock">${stockLoadError?'<div class="empty">Ошибка загрузки склада: '+hEsc(stockLoadError)+'<br><button type="button" onclick="location.reload()">Обновить</button></div>':(stockItems.length?stockItems.map(p=>'<div class="stock-item" data-id="'+p.ingredient_id+'" style="padding:12px 0;border-bottom:1px solid #292929"><div><b>🥃 '+hEsc(p.ingredient_name)+'</b></div><div class="muted" style="margin-top:5px">Всего: <b>'+Number(p.stock).toFixed(2)+' '+hEsc(p.unit)+'</b> · Средняя цена: <b>'+Number(p.unit_price).toFixed(4)+' ₽/'+hEsc(p.unit)+'</b></div><div style="margin-top:9px;padding-left:12px;border-left:2px solid #333">'+(p.details||[]).map(d=>'<div style="padding:5px 0"><b>'+hEsc(d.brand)+'</b> — '+Number(d.stock).toFixed(2)+' '+hEsc(p.unit)+' · '+Number(d.unit_price).toFixed(4)+' ₽/'+hEsc(p.unit)+(d.store?' · '+hEsc(d.store):'')+'</div>').join("")+'</div><div class="row" style="margin-top:9px"></div></div>').join(""):'<div class="empty">Товаров пока нет.</div>')}</div></div>
+<p class="section-footer">Водка — 40%, ликёр — около 20%, сок и газировка — 0%. По крепости ингредиентов считается крепость коктейля.</p>
+<p class="form-msg" id="newIngMsg" role="alert"></p>
+<div class="button-row new-actions"><button type="button" class="btn btn-gray" id="newIngCancel">Отмена</button><button type="button" class="btn btn-tinted" id="newIngSave">Создать</button></div>
 </div>
-<div id="stockEditModal" hidden style="position:fixed;inset:0;z-index:9999;background:rgba(0,0,0,.78);padding:18px;align-items:center;justify-content:center">
-  <div class="card" style="width:min(100%,520px);max-height:90vh;overflow:auto;border:1px solid #55452a;background:#11100d;padding:22px">
-    <div class="row" style="justify-content:space-between;align-items:center"><h2 style="margin:0">✏️ Редактировать склад</h2><button type="button" class="secondary" id="closeStockEdit" aria-label="Закрыть">✕</button></div>
-    <p class="muted" id="stockEditIngredient" style="margin:8px 0 16px"></p>
-    <form id="stockEditForm">
-      <label>Название / бренд *</label><input id="stockEditBrand" required>
-      <label>Количество, <span id="stockEditUnit"></span> *</label><input id="stockEditQty" type="number" min="0.01" step="0.01" required>
-      <label>Цена за единицу, ₽/<span id="stockEditPriceUnit"></span> *</label><input id="stockEditPrice" type="number" min="0" step="0.0001" required>
-      <p class="muted">Изменения затронут только текущий склад. Чек в магазине останется без изменений.</p>
-      <div class="row" style="gap:10px"><button type="submit" id="saveStockEdit">💾 Сохранить</button><button type="button" class="secondary" id="cancelStockEdit">Отмена</button></div>
-      <p id="stockEditMsg" class="muted" role="status"></p>
-    </form>
-  </div>
+<div class="section"><div class="list">
+<label class="field"><span>Бренд</span><input name="brand" list="brandOptions" placeholder="Например, Царская" enterkeyhint="next"></label>
+<label class="field"><span>Количество в бутылке или упаковке<span data-u-comma></span></span><input name="quantity" type="number" inputmode="decimal" min="0" step="0.01" placeholder="Например, 500" enterkeyhint="next"></label>
+<label class="field"><span>Цена за бутылку или упаковку, ₽</span><input name="price" type="number" inputmode="decimal" min="0" step="0.01" placeholder="Например, 300" enterkeyhint="done"></label>
+<label class="cell toggle"><span class="cell-body"><span class="cell-title">Средняя цена</span><span class="cell-sub" id="avgHint"></span></span><input type="checkbox" class="switch" id="takeAverage" role="switch"></label>
 </div>
+<p class="section-footer num" id="addCalc" aria-live="polite"></p></div>
+<datalist id="brandOptions"></datalist>
+<p class="form-msg" id="addMsg" role="alert"></p>
+<div class="section"><button class="btn btn-primary btn-block" type="submit">${icon("plus")}Добавить на склад</button></div>
+</form></div></div></div>
+<div class="sheet" id="detailSheet" hidden><div class="sheet-panel" role="dialog" aria-modal="true" aria-labelledby="detailTitle">
+<div class="sheet-grabber"></div>
+<div class="sheet-head"><span class="left"></span><h2 id="detailTitle" tabindex="-1">Ингредиент</h2><button class="btn btn-plain right strong" type="button" data-close-sheet>Готово</button></div>
+<div class="sheet-body" id="detailBody"></div>
+</div></div>`;
+        const stockScript=`<script>
+var __name=function(t){return t};
+// VIA (шторки, тосты) определяется скриптом каркаса ниже — запускаемся после разбора страницы.
+document.addEventListener("DOMContentLoaded",function(){
+"use strict";
+const UI=(${stockUI})();
+let items=${toJson(stockItems)};
+const ingredients=${toJson(stockIngredients)};
+const usage=${toJson(stockUsage)};
+const LOAD_ERROR=${stockLoadError?"true":"false"};
+${String.raw`const $=s=>document.querySelector(s);
+const view=$("#stockView"),summary=$("#stockSummary"),search=$("#stockSearch");
+let q="",openId=0,lastFetch=Date.now();
+const setMsg=(el,text,info)=>{el.textContent=text||"";el.classList.toggle("info",!!info)};
+const fail=(el,text,focus)=>{setMsg(el,text);if(focus)focus.focus()};
+const busy=(form,on)=>document.querySelectorAll('[form="'+form.id+'"],#'+form.id+' [type=submit]').forEach(b=>{b.disabled=on});
+const keyOf=d=>({brand:d.brand_key!=null?d.brand_key:d.brand,store:d.store_key!=null?d.store_key:(d.store||"")});
+const stockOf=id=>items.find(p=>Number(p.ingredient_id)===Number(id));
 
-<script>
-const esc=s=>String(s??"").replace(/[&<>"']/g,c=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[c]));
-let stockItems=${initialStock};
+// Шторка может открываться поверх другой: закрытие верхней не снимает блокировку
+// прокрутки, а фокус возвращается туда, откуда шторку открыли.
+const returnFocus=new Map();
+const shellClose=VIA.closeSheet;
+VIA.closeSheet=function(id){const s=typeof id==="string"?document.getElementById(id):id;shellClose(s);if(!s)return;
+  if(document.querySelector(".sheet.open"))document.documentElement.style.overflow="hidden";
+  if(s.id==="detailSheet")openId=0;
+  const f=returnFocus.get(s.id),el=typeof f==="function"?f():f;returnFocus.delete(s.id);
+  if(el&&document.contains(el))setTimeout(()=>el.focus({preventScroll:true}),0)};
+const open=(id,from)=>{if(from)returnFocus.set(id,from);VIA.openSheet(id)};
 
-function renderStock(){
-  const el=document.querySelector("#stock");
-  if(!stockItems.length){el.innerHTML='<div class="empty">Товаров пока нет.</div>';return}
-  el.innerHTML=stockItems.map(p=>'<div class="stock-item" data-id="'+p.ingredient_id+'" style="padding:12px 0;border-bottom:1px solid #292929"><div><b>🥃 '+esc(p.ingredient_name)+'</b></div><div class="muted" style="margin-top:5px">Всего: <b>'+Number(p.stock).toFixed(2)+' '+esc(p.unit)+'</b> · Средняя цена: <b>'+Number(p.unit_price).toFixed(4)+' ₽/'+esc(p.unit)+'</b></div><div style="margin-top:9px;padding-left:12px;border-left:2px solid #333">'+(p.details||[]).map((d,di)=>'<div class="stock-detail" style="padding:8px 0;border-bottom:1px solid #222"><div><b>'+esc(d.brand)+'</b> — '+Number(d.stock).toFixed(2)+' '+esc(p.unit)+' · '+Number(d.unit_price).toFixed(4)+' ₽/'+esc(p.unit)+(d.store?' · '+esc(d.store):'')+'</div><div class="row" style="margin-top:6px;gap:8px"><button type="button" class="secondary edit-source" data-i="'+di+'" style="padding:6px 10px;font-size:13px">✏️ Изменить</button><button type="button" class="secondary delete-source" data-i="'+di+'" style="padding:6px 10px;font-size:13px">🗑️ Удалить</button></div></div>').join("")+'</div><div class="row" style="margin-top:9px"></div></div>').join("");
-  bindStockButtons();
+const render=()=>{if(LOAD_ERROR||!view)return;view.innerHTML=UI.list(items,usage,ingredients,q);if(summary)summary.textContent=UI.summary(items)};
+const refresh=async()=>{const r=await fetch("/api/products",{cache:"no-store"});if(!r.ok)throw new Error("HTTP "+r.status);const d=await r.json();if(!Array.isArray(d))throw new Error("Неожиданный ответ");items=d;lastFetch=Date.now();render();if(openId)renderDetail()};
+const refreshOrReload=()=>refresh().catch(()=>location.reload());
+
+if(search)search.addEventListener("input",()=>{q=search.value;render()});
+if(view)view.addEventListener("click",e=>{const t=e.target.closest("[data-id],[data-add],[data-add-query],[data-reload]");if(!t)return;
+  if(t.dataset.id)openDetail(Number(t.dataset.id),t);
+  else if(t.dataset.add)openAdd({id:Number(t.dataset.add)},t);
+  else if(t.hasAttribute("data-add-query"))openAdd({query:q.trim()},t);
+  else location.reload()});
+// Вернулись на вкладку — тихо подтянуть остатки (их могли списать заказы на другом телефоне).
+document.addEventListener("visibilitychange",()=>{if(!document.hidden&&!LOAD_ERROR&&!document.querySelector(".sheet.open")&&Date.now()-lastFetch>30000)refresh().catch(()=>{})});
+addEventListener("pageshow",e=>{if(e.persisted&&!LOAD_ERROR)refresh().catch(()=>{})});
+
+// ——— Карточка ингредиента: сводка и партии ———
+const detailBody=$("#detailBody"),detailTitle=$("#detailTitle");
+const current=()=>stockOf(openId);
+function renderDetail(){const p=current();if(!p){if(openId)VIA.closeSheet("detailSheet");return}
+  const had=detailBody.contains(document.activeElement);
+  detailTitle.textContent=p.ingredient_name;detailBody.innerHTML=UI.detail(p,usage[p.ingredient_id]);
+  if(had||document.activeElement===document.body)detailTitle.focus({preventScroll:true})}
+function openDetail(id,from){openId=id;renderDetail();detailBody.scrollTop=0;returnFocus.set("detailSheet",()=>view.querySelector('[data-id="'+id+'"]')||from);VIA.openSheet("detailSheet")}
+detailBody.addEventListener("click",e=>{const t=e.target.closest("[data-edit],[data-del],[data-add-lot]");if(!t)return;const p=current();if(!p)return;
+  if(t.hasAttribute("data-add-lot")){openAdd({id:p.ingredient_id},t);return}
+  const d=(p.details||[])[Number(t.hasAttribute("data-edit")?t.dataset.edit:t.dataset.del)];if(!d)return;
+  if(t.hasAttribute("data-edit"))openEdit(p,d,t);else deleteLot(p,d,t)});
+
+async function deleteLot(p,d,btn){
+  if(!confirm("Удалить «"+d.brand+"» из текущего остатка склада? История покупки в магазине сохранится."))return;
+  btn.disabled=true;
+  try{const k=keyOf(d);
+    const r=await fetch("/api/products",{method:"DELETE",headers:{"content-type":"application/json"},body:JSON.stringify({ingredient_id:p.ingredient_id,brand:k.brand,store:k.store})});
+    const x=await r.json().catch(()=>({}));if(!r.ok)throw new Error(x.error||"Не удалось удалить партию");
+    VIA.toast(Number(x.deleted)===0?"Эта партия уже убрана со склада":"Партия «"+d.brand+"» удалена");
+    await refreshOrReload();
+  }catch(err){btn.disabled=false;VIA.toast(err.message||"Нет связи — попробуйте ещё раз",true)}
 }
 
-function bindStockButtons(){
-  document.querySelectorAll(".delete-source").forEach(btn=>btn.onclick=async()=>{
-    const row=btn.closest(".stock-item");
-    const p=stockItems.find(v=>Number(v.ingredient_id)===Number(row.dataset.id));
-    const d=p?.details?.[Number(btn.dataset.i)];
-    if(!p||!d)return;
-    if(!confirm("Удалить «"+d.brand+"» из текущего остатка склада? История покупки в магазине сохранится."))return;
-    const r=await fetch("/api/products",{method:"DELETE",headers:{"content-type":"application/json"},body:JSON.stringify({ingredient_id:p.ingredient_id,brand:d.brand,store:d.store||""})});
-    const x=await r.json();
-    if(!r.ok){alert(x.error||"Ошибка");return}
-    location.reload();
-  });
-
-  document.querySelectorAll(".edit-source").forEach(btn=>btn.onclick=()=>{
-    const row=btn.closest(".stock-item");
-    const p=stockItems.find(v=>Number(v.ingredient_id)===Number(row.dataset.id));
-    const d=p?.details?.[Number(btn.dataset.i)];
-    if(!p||!d)return;
-    const modal=document.querySelector("#stockEditModal");
-    modal.dataset.ingredientId=String(p.ingredient_id);
-    modal.dataset.oldBrand=d.brand;
-    modal.dataset.oldStore=d.store||"Ручной ввод";
-    modal.querySelector("#stockEditIngredient").textContent=p.ingredient_name;
-    modal.querySelector("#stockEditUnit").textContent=p.unit;
-    modal.querySelector("#stockEditPriceUnit").textContent=p.unit;
-    modal.querySelector("#stockEditBrand").value=d.brand;
-    modal.querySelector("#stockEditQty").value=Number(d.stock);
-    modal.querySelector("#stockEditPrice").value=Number(d.unit_price).toFixed(4);
-    modal.querySelector("#stockEditMsg").textContent="";
-    modal.querySelector("#saveStockEdit").disabled=false;
-    modal.hidden=false;modal.style.display="flex";
-  });
+// ——— Изменение партии ———
+const editForm=$("#editForm"),editMsg=$("#editMsg"),editTotal=$("#editTotal");let editCtx=null;
+const round=v=>String(Math.round(Number(v)*10000)/10000);
+const editCalc=()=>{const qv=Number(editForm.quantity.value),pv=Number(editForm.unit_price.value);editTotal.textContent=editCtx&&qv>0&&editForm.unit_price.value!==""&&pv>=0?"Стоимость партии: "+UI.money(qv*pv):""};
+function openEdit(p,d,from){
+  editCtx={ingredient_id:Number(p.ingredient_id),unit:p.unit,...keyOf(d)};
+  editForm.reset();setMsg(editMsg,"");busy(editForm,false);
+  $("#editFor").textContent=p.ingredient_name+" · "+d.brand+(d.store&&d.store!=="Ручной ввод"?", "+d.store:"");
+  editForm.querySelectorAll("[data-u]").forEach(el=>{el.textContent=UI.unit(p.unit)});
+  editForm.brand.value=d.brand;editForm.quantity.value=round(d.stock);editForm.unit_price.value=round(d.unit_price);
+  editCalc();open("editSheet",()=>detailBody.querySelector('[data-edit="'+(p.details||[]).indexOf(d)+'"]')||from);
 }
-
-function closeStockEdit(){const m=document.querySelector("#stockEditModal");m.hidden=true;m.style.display="none";}
-document.querySelector("#closeStockEdit").onclick=closeStockEdit;
-document.querySelector("#cancelStockEdit").onclick=closeStockEdit;
-document.querySelector("#stockEditModal").onclick=e=>{if(e.target.id==="stockEditModal")closeStockEdit();};
-document.querySelector("#stockEditForm").onsubmit=async e=>{
-  e.preventDefault();
-  const modal=document.querySelector("#stockEditModal"),msg=document.querySelector("#stockEditMsg"),save=document.querySelector("#saveStockEdit");
-  const brand=document.querySelector("#stockEditBrand").value.trim(),quantity=Number(document.querySelector("#stockEditQty").value),unit_price=Number(document.querySelector("#stockEditPrice").value);
-  if(!brand||!Number.isFinite(quantity)||quantity<=0||!Number.isFinite(unit_price)||unit_price<0){msg.textContent="Проверь название, количество и цену.";return;}
-  save.disabled=true;msg.textContent="Сохраняю…";
+editForm.addEventListener("input",()=>{setMsg(editMsg,"");editCalc()});
+editForm.addEventListener("submit",async e=>{e.preventDefault();if(!editCtx)return;
+  const brand=editForm.brand.value.trim(),quantity=Number(editForm.quantity.value),unit_price=Number(editForm.unit_price.value);
+  if(!brand)return fail(editMsg,"Укажите бренд, например «Финляндия».",editForm.brand);
+  if(!(quantity>0))return fail(editMsg,"Количество должно быть больше нуля.",editForm.quantity);
+  if(editForm.unit_price.value.trim()===""||!Number.isFinite(unit_price)||unit_price<0)return fail(editMsg,"Укажите цену за "+UI.unit(editCtx.unit)+": 0 или больше.",editForm.unit_price);
+  busy(editForm,true);setMsg(editMsg,"Сохраняем…",true);
   try{
-    const r=await fetch("/api/products",{method:"PUT",headers:{"content-type":"application/json"},body:JSON.stringify({source_edit:true,ingredient_id:Number(modal.dataset.ingredientId),old_brand:modal.dataset.oldBrand,old_store:modal.dataset.oldStore,brand,store:"Ручной ввод",quantity,unit_price})});
-    const d=await r.json();
-    if(!r.ok){msg.textContent="Ошибка: "+(d.details||d.error||"не удалось сохранить");save.disabled=false;return;}
-    closeStockEdit();location.reload();
-  }catch(err){msg.textContent="Ошибка соединения: "+String(err.message||err);save.disabled=false;}
-};
-document.addEventListener("keydown",e=>{if(e.key==="Escape")closeStockEdit();});
+    const r=await fetch("/api/products",{method:"PUT",headers:{"content-type":"application/json"},body:JSON.stringify({source_edit:true,ingredient_id:editCtx.ingredient_id,old_brand:editCtx.brand,old_store:editCtx.store,brand,store:"Ручной ввод",quantity,unit_price})});
+    const d=await r.json().catch(()=>({}));if(!r.ok)throw new Error(d.details||d.error||"Не удалось сохранить партию");
+    editCtx=null;VIA.closeSheet("editSheet");VIA.toast("Партия сохранена");await refreshOrReload();
+  }catch(err){setMsg(editMsg,(err.message||"Нет связи")+". Попробуйте ещё раз.")}
+  finally{busy(editForm,false)}
+});
 
-document.querySelector("#productForm").onsubmit=async e=>{
-  e.preventDefault();
-  const body=Object.fromEntries(new FormData(e.target));
-  body.name="";
-  body.ingredient_id=Number(body.ingredient_id);
-  delete body.unit;
-  body.quantity=Number(body.quantity||0);
-  body.price=Number(body.price||0);
-  body.take_average=document.querySelector("#takeAverage").checked;
-  const r=await fetch("/api/products",{method:"POST",headers:{"content-type":"application/json"},body:JSON.stringify(body)});
-  const d=await r.json();
-  document.querySelector("#msg").textContent=r.ok?"Товар добавлен ✅":"Ошибка: "+(d.error||"");
-  if(r.ok){e.target.reset();location.reload();}
-};
-
-function updateAveragePrice(){
-  const checked=document.querySelector("#takeAverage").checked;
-  const price=document.querySelector("#stockPrice");
-  price.disabled=checked;
-  if(!checked)return;
-  const ingredientId=Number(document.querySelector("#ingredientSelect").value);
-  const item=stockItems.find(v=>Number(v.ingredient_id)===ingredientId);
-  price.value=item&&Number(item.stock)>0?Number(item.unit_price)*Number(document.querySelector("#quantity").value||0)>0?(Number(item.unit_price)*Number(document.querySelector("#quantity").value||0)).toFixed(2):"":"";
+// ——— Добавление на склад ———
+const addForm=$("#addForm"),ingInput=$("#ingInput"),suggestBox=$("#ingSuggest"),ingHint=$("#ingHint"),addMsg=$("#addMsg"),takeAvg=$("#takeAverage"),avgHint=$("#avgHint"),addCalc=$("#addCalc"),brandOptions=$("#brandOptions");
+const newBox=$("#newIng"),newName=$("#newIngName"),newStrength=$("#newIngStrength"),newMsg=$("#newIngMsg"),newSave=$("#newIngSave");let newUnit="ml";
+const selected=()=>ingredients.find(i=>Number(i.id)===Number(addForm.ingredient_id.value));
+function renderSuggest(){
+  const sel=selected();suggestBox.hidden=!!sel||!newBox.hidden;if(suggestBox.hidden){suggestBox.innerHTML="";return}
+  const raw=ingInput.value.trim(),nq=UI.norm(raw);
+  const list=ingredients.filter(i=>!nq||UI.norm(i.name).includes(nq)).sort((a,b)=>(UI.norm(b.name).startsWith(nq)-UI.norm(a.name).startsWith(nq))||String(a.name).localeCompare(String(b.name),"ru"));
+  const exact=list.some(i=>UI.norm(i.name)===nq),top=list.slice(0,6);
+  suggestBox.innerHTML=top.map(i=>{const s=stockOf(i.id);return '<button type="button" class="cell" data-pick="'+Number(i.id)+'"><span class="cell-body"><span class="cell-title">'+UI.esc(i.name)+'</span></span><span class="cell-value num">'+(s?UI.qty(s.stock,s.unit):"нет на складе")+'</span></button>'}).join("")
+    +(list.length>top.length?'<p class="cell more">Ещё '+(list.length-top.length)+' — уточните название</p>':"")
+    +'<button type="button" class="cell create" data-create>'+UI.ic("plus")+'<span class="cell-body"><span class="cell-title">'+(nq&&!exact?"Создать «"+UI.esc(raw)+"»":"Создать новый ингредиент")+'</span></span></button>';
 }
-const stockIngredientSearch=document.querySelector("#stockIngredientSearch");
-const stockIngredientSelect=document.querySelector("#ingredientSelect");
-const stockIngredientOptions=Array.from(stockIngredientSelect.options).slice(1).map(o=>({value:o.value,text:o.textContent}));
-stockIngredientSearch.oninput=()=>{
-  const query=stockIngredientSearch.value.trim().toLocaleLowerCase("ru");
-  const selected=stockIngredientSelect.value;
-  stockIngredientSelect.replaceChildren(new Option("Выберите ингредиент…",""));
-  stockIngredientOptions.filter(o=>o.text.toLocaleLowerCase("ru").includes(query)).forEach(o=>stockIngredientSelect.add(new Option(o.text,o.value)));
-  if(selected&&stockIngredientOptions.some(o=>o.value===selected&&o.text.toLocaleLowerCase("ru").includes(query)))stockIngredientSelect.value=selected;
-  if(!stockIngredientSelect.value&&stockIngredientSelect.options.length===2&&query)stockIngredientSelect.selectedIndex=1;
-};
-document.querySelector("#takeAverage").onchange=updateAveragePrice;
-document.querySelector("#ingredientSelect").onchange=updateAveragePrice;
-document.querySelector("#quantity").oninput=updateAveragePrice;
+function syncAdd(){
+  const sel=selected(),s=sel&&stockOf(sel.id);
+  addForm.querySelectorAll("[data-u-comma]").forEach(el=>{el.textContent=sel?", "+UI.unit(sel.unit):""});
+  ingHint.textContent=!newBox.hidden?"":sel?(s?"На складе "+UI.qty(s.stock,s.unit)+", в среднем "+UI.rate(s.unit_price,s.unit)+".":"Сейчас этого на складе нет."):"Выберите из справочника или создайте новый.";
+  const canAvg=!!(s&&Number(s.stock)>0);
+  takeAvg.disabled=!canAvg;if(!canAvg)takeAvg.checked=false;
+  avgHint.textContent=canAvg?UI.rate(s.unit_price,s.unit)+" по текущим остаткам":sel?"Нет остатков — укажите цену вручную":"Сначала выберите ингредиент";
+  const price=addForm.price,qv=Number(addForm.quantity.value||0);
+  price.disabled=takeAvg.checked;
+  if(takeAvg.checked)price.value=canAvg&&Number(s.unit_price)*qv>0?(Number(s.unit_price)*qv).toFixed(2):"";
+  const pv=Number(price.value);
+  addCalc.textContent=sel&&qv>0&&price.value!==""&&pv>=0?"Выходит "+UI.rate(pv/qv,sel.unit):"";
+  const brands=[...new Set(((s&&s.details)||[]).map(d=>keyOf(d).brand).filter(Boolean))];
+  brandOptions.innerHTML=brands.map(b=>'<option value="'+UI.esc(b)+'"></option>').join("");
+  renderSuggest();
+}
+function pick(id,focusNext){const i=ingredients.find(x=>Number(x.id)===Number(id));if(!i)return;addForm.ingredient_id.value=String(i.id);ingInput.value=i.name;setMsg(addMsg,"");syncAdd();if(focusNext)addForm.brand.focus()}
+function openAdd(preset,from){
+  addForm.reset();addForm.ingredient_id.value="";setMsg(addMsg,"");busy(addForm,false);newBox.hidden=true;setMsg(newMsg,"");
+  ingInput.value=(preset&&preset.query)||"";
+  const hasId=!!(preset&&preset.id);
+  if(hasId)pick(preset.id);else syncAdd();
+  ingInput.toggleAttribute("autofocus",!hasId);addForm.brand.toggleAttribute("autofocus",hasId);
+  addForm.closest(".sheet-body").scrollTop=0;
+  open("addSheet",from);
+}
+$("#addOpen").addEventListener("click",e=>openAdd(null,e.currentTarget));
+ingInput.addEventListener("input",()=>{addForm.ingredient_id.value="";syncAdd()});
+ingInput.addEventListener("keydown",e=>{
+  if(e.key==="Enter"){e.preventDefault();if(selected())addForm.brand.focus();else{const f=suggestBox.querySelector("[data-pick]");if(f)pick(f.dataset.pick,true)}}
+  else if(e.key==="ArrowDown"&&!suggestBox.hidden){const f=suggestBox.querySelector("button");if(f){e.preventDefault();f.focus()}}});
+suggestBox.addEventListener("keydown",e=>{if(e.key!=="ArrowDown"&&e.key!=="ArrowUp")return;e.preventDefault();
+  const bs=[...suggestBox.querySelectorAll("button")],i=bs.indexOf(document.activeElement)+(e.key==="ArrowDown"?1:-1);(i<0?ingInput:bs[Math.min(i,bs.length-1)]).focus()});
+suggestBox.addEventListener("click",e=>{const b=e.target.closest("[data-pick],[data-create]");if(!b)return;if(b.dataset.pick)pick(b.dataset.pick,true);else showNew()});
+["quantity","price"].forEach(n=>addForm[n].addEventListener("input",syncAdd));
+addForm.addEventListener("input",e=>{if(!newBox.contains(e.target))setMsg(addMsg,"")});
+takeAvg.addEventListener("change",syncAdd);
 
-const inlineBox=document.querySelector("#inlineIngredientBox");
-document.querySelector("#showInlineIngredient").onclick=()=>{
-  inlineBox.hidden=false;
-  document.querySelector("#inlineIngredientName").focus();
-};
-document.querySelector("#cancelInlineIngredient").onclick=()=>{
-  inlineBox.hidden=true;
-  document.querySelector("#inlineIngredientMsg").textContent="";
-};
-document.querySelector("#saveInlineIngredient").onclick=async()=>{
-  const name=document.querySelector("#inlineIngredientName").value.trim();
-  const unit=document.querySelector("#inlineIngredientUnit").value;
-  const strength=Number(document.querySelector("#inlineIngredientStrength").value||0);
-  const msg=document.querySelector("#inlineIngredientMsg");
-  const save=document.querySelector("#saveInlineIngredient");
-  if(!name){msg.textContent="Введи название ингредиента.";document.querySelector("#inlineIngredientName").focus();return}
-  if(!Number.isFinite(strength)||strength<0||strength>100){msg.textContent="Укажи крепость от 0 до 100%.";document.querySelector("#inlineIngredientStrength").focus();return}
-  save.disabled=true;msg.textContent="Сохраняю…";
+const setUnit=u=>{newUnit=u;newBox.querySelectorAll("[data-unit]").forEach(b=>b.setAttribute("aria-pressed",String(b.dataset.unit===u)))};
+newBox.querySelectorAll("[data-unit]").forEach(b=>b.addEventListener("click",()=>setUnit(b.dataset.unit)));
+function showNew(){newBox.hidden=false;newName.value=ingInput.value.trim();newStrength.value="0";setUnit("ml");setMsg(newMsg,"");syncAdd();newName.focus()}
+$("#newIngCancel").addEventListener("click",()=>{newBox.hidden=true;setMsg(newMsg,"");syncAdd();ingInput.focus()});
+[newName,newStrength].forEach(el=>el.addEventListener("keydown",e=>{if(e.key==="Enter"){e.preventDefault();saveNew()}}));
+newSave.addEventListener("click",saveNew);
+async function saveNew(){
+  const name=newName.value.trim(),strength=Number(newStrength.value||0);
+  if(!name)return fail(newMsg,"Введите название ингредиента.",newName);
+  if(!Number.isFinite(strength)||strength<0||strength>100)return fail(newMsg,"Крепость — число от 0 до 100.",newStrength);
+  newSave.disabled=true;setMsg(newMsg,"Сохраняем…",true);
   try{
-    const r=await fetch("/api/ingredients",{method:"POST",headers:{"content-type":"application/json"},body:JSON.stringify({name,unit,strength_percent:strength})});
-    const d=await r.json();
-    if(!r.ok)throw new Error(d.error||"Не удалось сохранить ингредиент");
-    const select=document.querySelector("#ingredientSelect");
-    const search=document.querySelector("#stockIngredientSearch");
-    let option=Array.from(select.options).find(o=>o.value===String(Number(d.id)));
-    if(!option){option=document.createElement("option");option.value=String(d.id);option.textContent=name+" ("+unit+")";select.appendChild(option)}
-    const cached=stockIngredientOptions.find(o=>o.value===String(Number(d.id)));
-    if(!cached)stockIngredientOptions.push({value:String(d.id),text:option.textContent});
-    search.value="";
-    search.dispatchEvent(new Event("input"));
-    select.value=String(d.id);
-    document.querySelector("#inlineIngredientName").value="";
-    inlineBox.hidden=true;
-    msg.textContent="";
-    document.querySelector("#msg").textContent=d.exists?"Ингредиент уже был в справочнике — выбрал его.":"Ингредиент сохранён. Теперь заполни бренд, количество и цену.";
-    updateAveragePrice();
-    document.querySelector("#brand")?.focus();
-  }catch(err){msg.textContent=err.message||"Ошибка сохранения"}
-  finally{save.disabled=false}
-};
-renderStock();
-</script>`, "Склад");
+    const r=await fetch("/api/ingredients",{method:"POST",headers:{"content-type":"application/json"},body:JSON.stringify({name,unit:newUnit,strength_percent:strength})});
+    const d=await r.json().catch(()=>({}));if(!r.ok)throw new Error(d.error||"Не удалось сохранить ингредиент");
+    const id=Number(d.id);if(!ingredients.some(i=>Number(i.id)===id))ingredients.push({id,name,unit:newUnit});
+    newBox.hidden=true;setMsg(newMsg,"");pick(id,true);
+    VIA.toast(d.exists?"Такой ингредиент уже есть — выбрали его":"Ингредиент сохранён. Теперь бренд, количество и цена");
+  }catch(err){setMsg(newMsg,err.message||"Нет связи — попробуйте ещё раз")}
+  finally{newSave.disabled=false}
+}
+
+addForm.addEventListener("submit",async e=>{e.preventDefault();setMsg(addMsg,"");
+  if(!newBox.hidden)return fail(addMsg,"Сначала сохраните новый ингредиент или нажмите «Отмена».",newName);
+  let sel=selected();
+  if(!sel){const nq=UI.norm(ingInput.value),m=nq?ingredients.filter(i=>UI.norm(i.name).includes(nq)):[],one=m.find(i=>UI.norm(i.name)===nq)||(m.length===1?m[0]:null);if(one){pick(one.id);sel=one}}
+  if(!sel)return fail(addMsg,"Выберите ингредиент из списка или создайте новый.",ingInput);
+  const quantity=Number(addForm.quantity.value),take=takeAvg.checked,priceRaw=addForm.price.value.trim(),price=Number(priceRaw||0);
+  if(!(quantity>0))return fail(addMsg,"Укажите количество — сколько в бутылке или упаковке.",addForm.quantity);
+  if(!take&&(priceRaw===""||!Number.isFinite(price)||price<0))return fail(addMsg,"Укажите цену за бутылку — или включите «Средняя цена».",addForm.price);
+  busy(addForm,true);setMsg(addMsg,"Добавляем…",true);
+  try{
+    const r=await fetch("/api/products",{method:"POST",headers:{"content-type":"application/json"},body:JSON.stringify({ingredient_id:Number(sel.id),brand:addForm.brand.value.trim(),quantity,price,take_average:take,name:""})});
+    const d=await r.json().catch(()=>({}));if(!r.ok)throw new Error(d.error||"Не удалось добавить");
+    VIA.closeSheet("addSheet");VIA.toast("Добавлено: "+sel.name+", "+UI.qty(quantity,sel.unit));await refreshOrReload();
+  }catch(err){setMsg(addMsg,err.message||"Нет связи — попробуйте ещё раз")}
+  finally{busy(addForm,false)}
+});`}
+});
+</script>`;
+        const stockCss=`
+.list label,label.cell{margin:0}
+.sheet-top{z-index:85}
+.sheet-head .strong{font-weight:700}
+.sheet-top .sheet-head h2{white-space:nowrap}
+#stockView .cell:focus-visible,.sheet .cell:focus-visible{outline-offset:-3px;border-radius:12px}
+.field input:disabled{color:var(--label-2);-webkit-text-fill-color:var(--label-2);opacity:1}
+.field+.toggle{border-top:.5px solid var(--sep-strong)}
+.empty-state .btn .ic{width:1.3em;height:1.3em;margin:0;color:currentColor}
+.sheet-note{margin:2px 4px 10px}
+#stockView>.section:first-child,#stockView>.empty-state:first-child{margin-top:18px}
+.cell-sub .low,.cell-value.low{color:var(--warn)}
+.cell .badge{flex:none}
+.cell-value .caption{display:block;margin-top:2px}
+.lot .cell{padding-bottom:6px}
+.lot-actions{display:flex;gap:10px;padding:0 14px 12px}
+.lot-actions .btn{flex:1;min-height:44px;padding:0 12px;font-size:.9375rem}
+.lot-actions .ic{width:18px;height:18px}
+.suggest{margin-top:8px}
+.suggest .cell{min-height:48px}
+.suggest .more{min-height:40px;margin:0;color:var(--label-3);font-size:.8125rem}
+.suggest .create,.suggest .create .cell-title{color:var(--gold);font-weight:600}
+.new-head{margin-top:18px}
+.new-actions{margin-top:12px}
+.toggle{cursor:pointer}
+.list .switch{appearance:none;-webkit-appearance:none;flex:none;position:relative;width:51px;height:31px;margin:0;border:0;cursor:pointer;border-radius:999px!important;background:var(--bg-pressed)!important;box-shadow:inset 0 0 0 1px var(--sep-strong)!important;transition:background .2s ease}
+.list .switch::after{content:"";position:absolute;top:2px;left:2px;width:27px;height:27px;border-radius:50%;background:var(--label);transition:transform .2s ease}
+.list .switch:checked{background:var(--gold-fill)!important;box-shadow:none!important}
+.list .switch:checked::after{transform:translateX(20px)}
+.list .switch:disabled{opacity:.45;cursor:default}
+.list .switch:focus-visible{outline:2px solid var(--gold);outline-offset:2px}
+.form-msg{margin:12px 4px 0;font-size:.9375rem;color:var(--danger)}
+.form-msg.info{color:var(--label-2)}
+.form-msg:empty{display:none}
+.empty-state p{margin:0 0 16px}
+.empty-state .caption{overflow-wrap:anywhere}`;
+        return htmlResponse(renderDocument({
+          title:"Склад", app:"bar", tab:"stock", docTitle:"Склад · VIA Бар",
+          right:`<button class="icon-btn" type="button" id="addOpen" aria-label="Добавить на склад">${icon("plus")}</button>`,
+          sub:`<span id="stockSummary">${stockLoadError?"Остатки бара по партиям":ui.summary(stockItems)}</span>`,
+          extraCss:stockCss,
+          body:stockBody+stockSheets,
+        }).replace("</main>",()=>"</main>"+stockScript));
       }
 
 
