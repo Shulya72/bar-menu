@@ -49,14 +49,9 @@ const ICONS = {
   info: '<circle cx="12" cy="12" r="8.5"/><path d="M12 11v5.5"/><circle cx="12" cy="8" r=".6" fill="currentColor"/>',
 };
 
-// Монограмма VIA: золотое кольцо-«станция», корона и буквы VA (шрифт Prata).
-export const monogram = (size = 96, id = "m") => `<svg class="monogram" width="${size}" height="${size}" viewBox="0 0 120 120" role="img" aria-label="VIA Bar">
-<defs><linearGradient id="${id}g" x1="0" y1="0" x2="1" y2="1"><stop offset="0" stop-color="#F6DE9C"/><stop offset=".48" stop-color="#D6A84E"/><stop offset="1" stop-color="#9C6E24"/></linearGradient></defs>
-<circle cx="60" cy="60" r="54" fill="#0B0A08" stroke="url(#${id}g)" stroke-width="3"/>
-<circle cx="60" cy="60" r="47.5" fill="none" stroke="url(#${id}g)" stroke-width=".8" opacity=".55"/>
-<path d="M46.5 31 48.5 23.5l6.5 4.8L60 20.5l5 7.8 6.5-4.8 2 7.5z" fill="url(#${id}g)"/><rect x="46.5" y="32" width="27" height="2.2" rx="1.1" fill="url(#${id}g)"/><circle cx="48.4" cy="22.4" r="1.7" fill="url(#${id}g)"/><circle cx="60" cy="19" r="1.9" fill="url(#${id}g)"/><circle cx="71.6" cy="22.4" r="1.7" fill="url(#${id}g)"/>
-<text x="60" y="80" text-anchor="middle" font-family="Prata,Georgia,serif" font-size="46" letter-spacing="-3" fill="url(#${id}g)">VA</text>
-</svg>`;
+// Логотип VIA Bar (авторский знак хозяев: кольцо, «VIA BAR» / «SHULYA.PARTY», сплетённые VA).
+// Растровый файл вырезан из их макета: public/brand/via-logo.webp (512×512, прозрачный фон вокруг круга).
+export const monogram = (size = 96) => `<img class="monogram" src="/brand/via-logo.webp" width="${size}" height="${size}" alt="VIA Bar" decoding="async">`;
 
 export const icon = (name, cls = "") => `<svg class="ic ${cls}" aria-hidden="true"><use href="#i-${name}"/></svg>`;
 
@@ -322,7 +317,7 @@ const headTags = (title, app) => `<meta charset="utf-8">
 <meta name="apple-mobile-web-app-title" content="${app === "bar" ? "VIA Бар" : "VIA Bar"}">
 <link rel="manifest" href="${app === "bar" ? "/manifest-bar.webmanifest" : "/manifest.webmanifest"}">
 <link rel="apple-touch-icon" href="/icons/apple-touch-icon.png">
-<link rel="icon" href="/icons/favicon.svg" type="image/svg+xml">
+<link rel="icon" href="/icons/favicon-64.png" type="image/png" sizes="64x64">
 <link rel="preload" href="/fonts/prata-cyrillic-400.woff2" as="font" type="font/woff2" crossorigin>
 <title>${title}</title>`;
 

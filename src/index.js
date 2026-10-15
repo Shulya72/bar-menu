@@ -647,8 +647,8 @@ export default {
       if (url.pathname === "/") return htmlResponse(renderDocument({
         title:"VIA Bar", navbar:false,
         docTitle:"VIA Bar — семейный бар",
-        extraCss:".landing{min-height:calc(100dvh - 140px);display:flex;flex-direction:column;align-items:center;justify-content:center;text-align:center;gap:6px}.landing .monogram{filter:drop-shadow(0 12px 30px rgba(214,168,78,.18));margin-bottom:6px}.landing h2{font-family:var(--serif);font-weight:400;font-size:2.6rem;margin:6px 0 0;letter-spacing:.04em}.landing .tagline{color:var(--label-2);margin:0 0 26px}.landing .tracker{width:min(100%,320px);margin:0 auto 30px}.landing .button-row{width:min(100%,360px);flex-direction:column}.large-title{display:none}",
-        body:`<section class="landing">${monogram(132,"lm")}<h2>VIA Bar</h2><p class="tagline">Семейный бар у нас дома</p>
+        extraCss:".landing{min-height:calc(100dvh - 140px);display:flex;flex-direction:column;align-items:center;justify-content:center;text-align:center;gap:6px}.landing .monogram{width:min(232px,62vw);height:auto;filter:drop-shadow(0 14px 34px rgba(214,168,78,.16));margin-bottom:14px}.landing h2{font-family:var(--serif);font-weight:400;font-size:2.6rem;margin:6px 0 0;letter-spacing:.04em}.landing .tagline{color:var(--label-2);margin:0 0 26px}.landing .tracker{width:min(100%,320px);margin:0 auto 30px}.landing .button-row{width:min(100%,360px);flex-direction:column}.large-title{position:absolute;width:1px;height:1px;overflow:hidden;clip:rect(0 0 0 0);white-space:nowrap}",
+        body:`<section class="landing">${monogram(232)}<p class="tagline">Семейный бар у нас дома</p>
 <div class="tracker" aria-label="VIA — от имён Владимир и Анастасия"><div class="tracker-stop done"><span class="station"></span>Владимир</div><div class="tracker-stop done"><span class="station"></span>VIA</div><div class="tracker-stop done"><span class="station"></span>Анастасия</div></div>
 <div class="button-row"><a class="btn btn-primary btn-block" href="/menu">${icon("glass")}Открыть меню</a><a class="btn btn-tinted btn-block" href="/bar/orders">${icon("bell")}Я за стойкой</a></div></section>`,
       }));
@@ -1825,7 +1825,8 @@ addForm.addEventListener("submit",async e=>{e.preventDefault();setMsg(addMsg,"")
 .pane[hidden]{display:none!important}
 .tabbar button.tab{border:0;font-family:inherit;cursor:pointer;padding:0;background:transparent}
 .tabbar button.tab[aria-current=page]{background:var(--gold-soft)}
-.brand-sub{color:var(--label-2);margin:-2px 0 16px}
+.brand-row{display:flex;align-items:center;justify-content:space-between;gap:12px;margin:-6px 0 14px}.brand-row .monogram{flex:none}
+.brand-sub{color:var(--label-2);margin:0}
 .menu-tools{display:flex;flex-direction:column;gap:10px;margin-bottom:6px}
 .menu-row{position:relative;display:flex;align-items:flex-start;gap:12px;padding:12px 14px}
 .menu-row+.menu-row::before{content:"";position:absolute;top:0;left:82px;right:0;height:.5px;background:var(--sep-strong)}
@@ -1907,7 +1908,7 @@ addForm.addEventListener("submit",async e=>{e.preventDefault();setMsg(addMsg,"")
 <div class="sheet-body"><p class="footnote" style="margin:0 4px 12px">Оцените выпитые коктейли — хозяевам важно знать, что понравилось.</p><div class="list" id="revList"><div class="skeleton"></div></div></div></div></div>`;
         const guestBody = `
 <section class="pane" data-pane="menu" aria-label="Меню">
-<p class="brand-sub">Семейный бар Владимира и Анастасии</p>
+<div class="brand-row"><p class="brand-sub">Семейный бар Владимира и Анастасии</p>${monogram(52)}</div>
 <div class="menu-tools"><label class="search">${icon("search")}<input type="search" id="q" placeholder="Коктейль или ингредиент" autocomplete="off" aria-label="Поиск по меню"></label>
 <div class="chips" id="lineChips" role="group" aria-label="Крепость"></div></div>
 <div id="menuList"><div class="list" style="margin-top:20px"><div class="skeleton"></div><div class="skeleton"></div><div class="skeleton"></div></div></div>
@@ -2004,11 +2005,11 @@ finally{sending=false;renderCart();renderCartBar()}}
 
 /* ——— профиль ——— */
 function renderProfile(){const box=$("#profileBox");
-if(!guest){box.innerHTML='<div class="welcome">'+${JSON.stringify(monogram(96, "pm"))}+'<h2>Добро пожаловать</h2><p>Войдите, чтобы заказывать коктейли, следить за заказом и оценивать выпитое.</p><div class="button-row" style="flex-direction:column"><button class="btn btn-primary btn-block" type="button" id="pLogin">Войти</button><button class="btn btn-tinted btn-block" type="button" id="pReg">Регистрация</button></div></div>';
+if(!guest){box.innerHTML='<div class="welcome">'+${JSON.stringify(monogram(132))}+'<h2>Добро пожаловать</h2><p>Войдите, чтобы заказывать коктейли, следить за заказом и оценивать выпитое.</p><div class="button-row" style="flex-direction:column"><button class="btn btn-primary btn-block" type="button" id="pLogin">Войти</button><button class="btn btn-tinted btn-block" type="button" id="pReg">Регистрация</button></div></div>';
 $("#pLogin").onclick=()=>openAuth("login");$("#pReg").onclick=()=>openAuth("reg");return}
 const s=stats||{},phone=String(guest.phone||""),last4=phone.replace(/\D/g,"").slice(-4),latest=(s.history||[])[0],li=s.latest_order_items||[];
 const lp=li.find(i=>i.photo_url);
-box.innerHTML='<div class="member-card"><div class="member-top">'+${JSON.stringify(monogram(60, "mc"))}+'<div style="min-width:0"><h2 class="member-name">'+esc(guest.name)+'</h2><div class="member-phone num">'+(last4?"Телефон •• "+esc(last4):"")+'</div></div></div>'
+box.innerHTML='<div class="member-card"><div class="member-top">'+${JSON.stringify(monogram(64))}+'<div style="min-width:0"><h2 class="member-name">'+esc(guest.name)+'</h2><div class="member-phone num">'+(last4?"Телефон •• "+esc(last4):"")+'</div></div></div>'
 +'<div class="member-stats"><div><b class="num">'+Number(s.cocktails_count||0)+'</b><span>'+plural(Number(s.cocktails_count||0),["коктейль","коктейля","коктейлей"])+'</span></div><div><b>'+esc(s.favorite_cocktail||"—")+'</b><span>любимый коктейль</span></div><div><b class="num">'+rub(s.spent_rub)+'</b><span>всего</span></div></div></div>'
 +(latest?'<div class="section"><div class="section-header"><h2>Последний заказ</h2><span>'+esc(when(latest.created_at))+'</span></div><div class="list"><div class="cell">'+(lp?'<img class="thumb" src="'+esc(lp.photo_url)+'" alt="">':'<span class="thumb thumb-ph">'+ic("glass")+'</span>')+'<span class="cell-body"><span class="cell-title">'+esc(latest.items||"—")+'</span><span class="cell-sub num">'+rub(latest.total_rub)+' · '+(["Заказан","Принят","Выдан"][STEP[latest.status]??0])+'</span></span></div>'+(li.length?'<button class="cell" type="button" id="repeatOrder" style="color:var(--gold);justify-content:center;font-weight:600">'+ic("refresh")+' Повторить заказ</button>':"")+'</div></div>':"")
 +'<div class="section"><div class="list"><button class="cell has-icon" type="button" data-goto="order"><span class="cell-icon">'+ic("receipt")+'</span><span class="cell-body"><span class="cell-title">Мои заказы</span><span class="cell-sub">'+Number(s.orders_count||0)+' '+plural(Number(s.orders_count||0),["заказ","заказа","заказов"])+'</span></span>'+ic("chevronRight").replace('class="ic"','class="ic cell-chevron"')+'</button><button class="cell has-icon" type="button" id="openReviews"><span class="cell-icon">'+ic("star")+'</span><span class="cell-body"><span class="cell-title">Мои оценки</span><span class="cell-sub">Оцените выпитые коктейли</span></span>'+ic("chevronRight").replace('class="ic"','class="ic cell-chevron"')+'</button></div></div>'
