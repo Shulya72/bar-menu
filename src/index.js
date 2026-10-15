@@ -1980,93 +1980,246 @@ addForm.addEventListener("submit",async e=>{e.preventDefault();setMsg(addMsg,"")
 
       // ═══════ route-block: /menu ═══════ (agents: edit only inside your own block)
 
-      if (url.pathname === "/menu") return page(`
-<style>
-@import url('https://fonts.googleapis.com/css2?family=Cinzel:wght@600;700;900&family=Plus+Jakarta+Sans:wght@400;500;600;700;800&display=swap');
-:root{--via-gold:#e5b958;--via-light:#fbe29f;--via-muted:#9ca3af;--via-green:#e5b958}
-.guest-menu{max-width:520px;margin:auto;padding:24px 18px 100px;color:#f3f4f6;font-family:'Plus Jakarta Sans',system-ui,sans-serif}
-.guest-menu *{box-sizing:border-box}
-.via-brand{text-align:center;margin:0 0 24px;padding-top:4px}
-.via-monogram{width:76px;height:76px;display:block;margin:0 auto 14px;filter:drop-shadow(0 0 16px rgba(229,185,88,.35))}
-.via-family-pill{display:inline-flex;align-items:center;gap:7px;padding:5px 14px;background:rgba(229,185,88,.08);border:1px solid rgba(229,185,88,.28);border-radius:999px;font-size:10px;font-weight:700;letter-spacing:2px;color:var(--via-gold);text-transform:uppercase;margin-bottom:10px}
-.via-family-pill:before{content:'●';color:#10b981;font-size:8px}
-.via-brand-title{font-family:'Cinzel',Georgia,serif;font-size:34px;font-weight:900;letter-spacing:4px;background:linear-gradient(135deg,#fff 20%,var(--via-light) 60%,var(--via-gold));-webkit-background-clip:text;-webkit-text-fill-color:transparent;line-height:1.1;margin:0 0 7px}
-.via-brand-hosts{font-size:13px;letter-spacing:.5px;color:var(--via-muted);font-weight:500}.via-brand-hosts span{color:var(--via-gold);font-weight:700}
-.via-guest-card{background:rgba(15,13,9,.94);border:1px solid rgba(229,185,88,.24);border-radius:20px;padding:14px 16px;display:flex;align-items:center;gap:12px;margin-bottom:20px;box-shadow:0 8px 30px rgba(0,0,0,.35)}
-.via-guest-avatar{width:44px;height:44px;border-radius:50%;background:linear-gradient(135deg,var(--via-gold),#c89132);display:flex;align-items:center;justify-content:center;font-size:22px;flex-shrink:0}
-.via-guest-info{flex:1;min-width:0;text-align:left}.via-guest-label{font-size:10px;text-transform:uppercase;letter-spacing:1px;color:var(--via-muted);margin-bottom:3px}.via-guest-name{font-size:15px;font-weight:800;color:#fff}
-.via-guest-score{text-align:right}.via-score-value{font-size:20px;font-weight:800;color:var(--via-gold)}.via-score-caption{font-size:10px;color:var(--via-muted);text-transform:uppercase}
-#guestRegisterButton{border:1px solid rgba(229,185,88,.3)!important;border-radius:12px!important;background:rgba(229,185,88,.08)!important;color:var(--via-gold)!important;padding:10px 12px!important;font-size:12px!important;font-weight:800!important}
-.via-search-wrap{position:relative;margin-bottom:14px}.via-search-icon{position:absolute;left:14px;top:50%;transform:translateY(-50%);opacity:.55;pointer-events:none}
-.via-search{width:100%;height:48px;background:rgba(229,185,88,.045);border:1px solid rgba(229,185,88,.18);padding:0 15px 0 42px;border-radius:14px;color:#fff;font-size:16px!important;outline:none;font-family:inherit}.via-search:focus{border-color:var(--via-gold)}.via-search::placeholder{color:var(--via-muted)}
-.via-filters{display:flex;gap:8px;overflow-x:auto;padding:0 0 9px;margin-bottom:17px;scrollbar-width:none}.via-filters::-webkit-scrollbar{display:none}
-.via-filter{flex-shrink:0;padding:9px 13px;background:rgba(229,185,88,.045);border:1px solid rgba(229,185,88,.13);border-radius:12px;font-size:12px;font-weight:700;color:var(--via-muted);cursor:pointer;font-family:inherit;white-space:nowrap}
-.via-filter.active{background:linear-gradient(135deg,rgba(229,185,88,.25),rgba(200,145,50,.14));border-color:var(--via-gold);color:#fff;box-shadow:0 4px 14px rgba(229,185,88,.18)}
-#menu{display:flex;flex-direction:column;gap:18px}
-#menu .guest-card:not(.guest-empty){display:flex;flex-direction:column;align-items:stretch;min-width:0;overflow:hidden;margin:0;padding:12px;background:linear-gradient(155deg,rgba(24,21,16,.98),rgba(10,10,9,.99) 55%);border:1px solid rgba(214,177,99,.34);border-radius:22px;box-shadow:0 14px 34px rgba(0,0,0,.22)}
-#menu .guest-photo,#menu .guest-photo-placeholder{display:flex;align-items:center;justify-content:center;flex:none;width:100%;aspect-ratio:16/9;height:auto;max-height:none;object-fit:cover;object-position:center;border-radius:15px;background:radial-gradient(circle,rgba(229,185,88,.08),rgba(15,13,9,.9));border:1px solid rgba(229,185,88,.17);color:var(--via-gold);font-size:32px}
-#menu .guest-card h2{margin:17px 3px 7px;font-family:'Cinzel',Georgia,serif;font-size:25px;font-weight:700;letter-spacing:.1px;line-height:1.2;color:#f5e8c8}
-#menu .guest-description{font-size:14px;line-height:1.58;color:#b9b6ae;margin:0 3px 5px;overflow-wrap:anywhere}#menu .guest-description.is-collapsed{display:-webkit-box;-webkit-line-clamp:3;-webkit-box-orient:vertical;overflow:hidden}#menu .guest-description-toggle{align-self:flex-start;margin:0 3px 13px;padding:4px 0;border:0;background:transparent;color:var(--via-gold);font:600 12px "Plus Jakarta Sans",system-ui,sans-serif;cursor:pointer}#menu .guest-description-toggle:focus-visible{outline:1px solid var(--via-gold);outline-offset:3px;border-radius:3px}
-#menu .guest-strength{font-size:12px;letter-spacing:.15px;color:#bdb7aa;margin:0 3px 4px}
-#menu .guest-price{font-size:25px;line-height:1.2;color:var(--via-gold);font-weight:800;letter-spacing:.1px;margin:0 3px 4px}
-#menu .guest-ingredients{font-size:13px;line-height:1.6;color:#c3beb3;margin-top:13px;padding:12px 3px 1px;border-top:1px solid rgba(214,177,99,.16)}
-#menu .guest-empty{display:block!important;padding:28px;text-align:center;color:var(--via-muted);background:rgba(15,13,9,.94);border:1px solid rgba(229,185,88,.24);border-radius:20px}
-#menu .guest-order-controls{display:flex!important;align-items:center;justify-content:flex-start;gap:12px!important;margin-top:14px!important;padding-top:13px!important;border-top:1px solid rgba(214,177,99,.16)!important}
-#menu .guest-order-controls button{width:54px;min-width:54px;height:50px;border-radius:15px;font-size:24px;font-weight:800;padding:0;background:linear-gradient(135deg,#e5c16f,#c9953c);color:#17120a;touch-action:manipulation;-webkit-tap-highlight-color:transparent}
-#menu .guest-order-controls button.secondary{background:#242018;color:#f5e8c8;border:1px solid rgba(214,177,99,.14);touch-action:manipulation;-webkit-tap-highlight-color:transparent}
-#menu .guest-order-controls span{min-width:38px;text-align:center;font-size:19px;font-weight:700;color:#f3f0e8}
-@media(min-width:520px){#menu .guest-card:not(.guest-empty){padding:16px}#menu .guest-card h2{font-size:28px}}
-#guestRegisterModal>div{background:#131520!important;border:1px solid rgba(229,185,88,.24)!important;border-radius:22px!important}
-#guestRegisterModal h2{font-family:'Cinzel',Georgia,serif}
-#guestRegisterForm input{width:100%;margin:5px 0 12px;background:#0b0d13;border:1px solid #343541;border-radius:12px;color:#fff;padding:13px;font:inherit}
-#guestRegisterForm button[type=submit]{background:linear-gradient(135deg,var(--via-gold),#c89132);color:#111;border:0;border-radius:13px;padding:14px;font-weight:800}
-@media(max-width:430px){.guest-menu{padding:20px 14px 100px}.via-brand-title{font-size:31px;letter-spacing:3px}.via-monogram{width:72px;height:72px}.via-guest-card{padding:12px;gap:9px}#guestRegisterButton{padding:9px 10px!important;font-size:11px!important}#menu .guest-card:not(.guest-empty){grid-template-columns:78px minmax(0,1fr);column-gap:12px;padding:12px}#menu .guest-photo,#menu .guest-photo-placeholder{width:100%;height:auto;aspect-ratio:16/9;max-height:none}#menu .guest-card h2{font-size:15px}}
-</style>
-<div class="guest-menu">
-<header class="via-brand">
-<svg class="via-monogram" viewBox="0 0 1000 1000" fill="none" xmlns="http://www.w3.org/2000/svg" role="img" aria-label="Золотой герб VA семьи Шульминых">
-<defs>
-  <linearGradient id="viaCrestGold" x1="170" y1="180" x2="820" y2="850" gradientUnits="userSpaceOnUse">
-    <stop offset="0" stop-color="#fff5c7"/><stop offset=".22" stop-color="#fbe29f"/><stop offset=".52" stop-color="#e5b958"/><stop offset=".78" stop-color="#c89132"/><stop offset="1" stop-color="#fbe29f"/>
-  </linearGradient>
-  <filter id="viaCrestGlow" x="-30%" y="-30%" width="160%" height="160%">
-    <feGaussianBlur stdDeviation="9" result="blur"/><feMerge><feMergeNode in="blur"/><feMergeNode in="SourceGraphic"/></feMerge>
-  </filter>
-</defs>
-<!-- Evenly spaced dotted outer seal and precise concentric rings -->
-<circle cx="500" cy="500" r="365" stroke="url(#viaCrestGold)" stroke-width="15" stroke-linecap="round" stroke-dasharray="1 27" opacity=".95"/>
-<circle cx="500" cy="500" r="329" stroke="url(#viaCrestGold)" stroke-width="8" opacity=".95"/>
-<circle cx="500" cy="500" r="305" stroke="url(#viaCrestGold)" stroke-width="3.5" opacity=".72"/>
-<!-- Clean geometric VA monogram, inspired by the chosen crest -->
-<g stroke="url(#viaCrestGold)" stroke-linecap="butt" stroke-linejoin="miter" filter="url(#viaCrestGlow)">
-  <path d="M285 330 L445 680 L590 285 L745 680" stroke-width="30"/>
-  <path d="M520 545 L650 545" stroke-width="25"/>
-</g>
-</svg>
-<div class="via-family-pill">Shulmin Private Lounge</div><h1 class="via-brand-title">VIA BAR</h1>
-</header>
+      if (url.pathname === "/menu") {
+        // Гостевое приложение VIA Bar: три вкладки (Меню · Заказ · Профиль) на одной странице.
+        const guestCss = `
+.pane[hidden]{display:none!important}
+.tabbar button.tab{border:0;font-family:inherit;cursor:pointer;padding:0;background:transparent}
+.tabbar button.tab[aria-current=page]{background:var(--gold-soft)}
+.brand-sub{color:var(--label-2);margin:-2px 0 16px}
+.menu-tools{display:flex;flex-direction:column;gap:10px;margin-bottom:6px}
+.menu-row{position:relative;display:flex;align-items:flex-start;gap:12px;padding:12px 14px}
+.menu-row+.menu-row::before{content:"";position:absolute;top:0;left:82px;right:0;height:.5px;background:var(--sep-strong)}
+.menu-open{display:flex;gap:12px;flex:1;min-width:0;align-items:flex-start;text-align:left;background:none;border:0;padding:0;color:inherit;font:inherit;cursor:pointer}
+.menu-open:active{opacity:.7}
+.menu-open .thumb{width:56px;height:70px}
+.menu-name{display:block;font-family:var(--serif);font-size:1.15rem;line-height:1.2;color:var(--label)}
+.menu-desc{display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;overflow:hidden;color:var(--label-2);font-size:.875rem;margin-top:3px;line-height:1.3}
+.menu-ing{display:block;color:var(--label-3);font-size:.8125rem;margin-top:3px;line-height:1.3}
+.menu-meta{display:flex;align-items:center;gap:10px;margin-top:6px;font-size:.8125rem;color:var(--label-2)}
+.menu-side{flex:none;align-self:center}
+.scale{display:inline-flex;gap:3px;align-items:center}
+.scale i{width:7px;height:7px;border-radius:50%;background:var(--line);display:block}
+.scale i.o{background:none;box-shadow:inset 0 0 0 1.5px var(--line)}
+.add-btn{width:44px;height:44px;border-radius:50%;border:0;background:var(--gold-soft);color:var(--gold);display:grid;place-items:center;cursor:pointer;box-shadow:inset 0 0 0 .75px var(--gold-ring)}
+.add-btn:active{transform:scale(.92)}
+.stepper.tall{height:44px}.stepper.tall button{height:44px}
+.sheet-photo{width:100%;aspect-ratio:4/3;object-fit:cover;border-radius:var(--r-lg);background:var(--bg-raised-2);display:block}
+.sheet-title{font-family:var(--serif);font-size:1.75rem;line-height:1.15;margin:14px 0 6px}
+.sheet-desc{color:var(--label-2);line-height:1.45;margin:8px 0 0}
+.sheet-actions{display:flex;align-items:center;justify-content:space-between;gap:12px;margin-top:20px}
+.route-body .cell-title{font-size:.9375rem}
+.order-group{margin-top:14px}
+.order-group .tracker{padding:14px 10px 12px}
+.order-head{display:flex;justify-content:space-between;align-items:baseline;gap:10px}
+.member-card{position:relative;overflow:hidden;border-radius:var(--r-xl);padding:20px;background:radial-gradient(120% 90% at 100% 0%,rgba(230,193,115,.16),transparent 55%),linear-gradient(160deg,#1C1813,#0E0C09);box-shadow:inset 0 0 0 1px var(--gold-ring),0 14px 34px rgba(0,0,0,.45)}
+.member-top{display:flex;align-items:center;gap:14px}
+.member-name{font-family:var(--serif);font-size:1.75rem;line-height:1.1;margin:0;color:var(--label)}
+.member-phone{color:var(--label-2);font-size:.9375rem;margin-top:4px}
+.member-stats{display:grid;grid-template-columns:1fr 1.4fr 1fr;gap:10px;margin-top:20px;padding-top:16px;border-top:.5px solid var(--gold-ring)}
+.member-stats div{min-width:0}
+.member-stats b{display:block;font-size:1.0625rem;font-weight:600;color:var(--gold);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.member-stats span{display:block;font-size:.75rem;color:var(--label-2);margin-top:2px}
+.welcome{text-align:center;padding:26px 8px 8px}
+.welcome .monogram{margin:0 auto 12px;display:block}
+.welcome h2{font-family:var(--serif);font-weight:400;font-size:1.75rem;margin:0 0 8px}
+.welcome p{color:var(--label-2);margin:0 auto 22px;max-width:30ch}
+.stars{display:flex;gap:4px}
+.stars button{width:44px;height:44px;border:0;background:none;color:var(--label-3);display:grid;place-items:center;cursor:pointer;padding:0}
+.stars button[aria-checked=true]{color:var(--gold)}
+.stars button[aria-checked=true] .ic{fill:currentColor}
+.stars-static{color:var(--gold);letter-spacing:2px}
+.review-item{padding:12px 14px}
+.review-item+.review-item{border-top:.5px solid var(--sep-strong)}
+.cart-bar{position:fixed;z-index:45;left:50%;transform:translateX(-50%);bottom:calc(var(--tabbar-h) + 18px + var(--safe-b));width:min(calc(100% - 24px),520px);display:flex;align-items:center;gap:10px;padding:8px 8px 8px 18px;border-radius:999px;background:var(--material-strong);-webkit-backdrop-filter:blur(22px);backdrop-filter:blur(22px);box-shadow:var(--shadow),inset 0 0 0 .5px var(--sep-strong)}
+.cart-bar .txt{flex:1;min-width:0;font-weight:600}
+.cart-bar .txt small{display:block;font-weight:400;color:var(--label-2);font-size:.8125rem}
+.app-guest .screen{padding-bottom:calc(var(--tabbar-h) + 110px + var(--safe-b))}
+`;
+        const guestTabs = `<nav class="tabbar" aria-label="Разделы">
+<button class="tab" type="button" data-pane="menu" aria-current="page">${icon("glass")}<span>Меню</span></button>
+<button class="tab" type="button" data-pane="order">${icon("receipt")}<span>Заказ</span><b class="tab-badge" id="cartBadge" hidden></b></button>
+<button class="tab" type="button" data-pane="profile">${icon("person")}<span>Профиль</span></button>
+</nav>
+<div class="cart-bar" id="cartBar" hidden><div class="txt" id="cartBarText" role="status" aria-live="polite"></div><button class="btn btn-primary btn-sm" type="button" id="cartBarGo">К заказу</button></div>`;
+        const guestSheets = `
+<div class="sheet" id="cocktailSheet" hidden><div class="sheet-panel" role="dialog" aria-modal="true" aria-labelledby="csTitle">
+<div class="sheet-grabber"></div><div class="sheet-head"><span class="left"></span><h2 id="csHead">Коктейль</h2><button class="btn btn-plain right" type="button" data-close-sheet>Готово</button></div>
+<div class="sheet-body" id="csBody"></div></div></div>
 
-<div style="display:flex;justify-content:flex-end;margin:-8px 0 14px"><button type="button" id="guestRegisterButton" class="secondary">👤 Войти</button></div>
-<div class="via-search-wrap"><span class="via-search-icon">🔍</span><input id="ingredientSearch" class="via-search" placeholder="Поиск (джин, сауэр, виски)..." autocomplete="off"></div>
-<div class="via-filters" id="viaFilters"><button class="via-filter active" type="button" data-filter="all">Все меню</button><button class="via-filter" type="button" data-filter="duo">✨ Дуэт VIA</button><button class="via-filter" type="button" data-filter="vladimir">🥃 Выбор Владимира</button><button class="via-filter" type="button" data-filter="anastasia">🍸 Выбор Анастасии</button><button class="via-filter" type="button" data-filter="mocktail">🍃 Без алкоголя</button></div>
-<div id="guestRegisterModal" style="display:none;position:fixed;inset:0;background:rgba(0,0,0,.72);z-index:1000;padding:24px 14px;overflow:auto"><div style="max-width:430px;margin:8vh auto 0;background:#151515;border:1px solid #333;border-radius:18px;padding:20px;box-shadow:0 10px 40px rgba(0,0,0,.45)"><div style="display:flex;justify-content:space-between;align-items:center;gap:12px;margin-bottom:14px"><h2 style="margin:0;color:#f4f4f4">👤 Вход / регистрация</h2><button type="button" id="guestRegisterClose" class="secondary">✕</button></div><div style="color:#999;font-size:13px;line-height:1.4;margin-bottom:14px">Регистрация добровольная. После входа появится возможность делать заказы.</div><form id="guestRegisterForm"><label>Имя</label><input name="name" required maxlength="80" placeholder="Ваше имя" autocomplete="name"><label>Телефон</label><input name="phone" required maxlength="30" placeholder="+7 900 123-45-67" autocomplete="tel"><label>PIN-код</label><input name="pin" required minlength="4" maxlength="12" inputmode="numeric" pattern="[0-9]{4,12}" placeholder="4–12 цифр" autocomplete="new-password"><button type="submit" style="width:100%;margin-top:12px">Зарегистрироваться</button><div id="guestRegisterMessage" style="margin-top:12px;color:#aaa;font-size:14px"></div></form></div></div>
-<div id="menu"><div class="guest-card guest-empty">Загружаем меню салона…</div></div>
-</div>
-<script>
+<div class="sheet" id="authSheet" hidden><div class="sheet-panel" role="dialog" aria-modal="true" aria-labelledby="authTitle">
+<div class="sheet-grabber"></div><div class="sheet-head"><button class="btn btn-plain left" type="button" data-close-sheet>Отмена</button><h2 id="authTitle">Вход</h2><span class="right"></span></div>
+<div class="sheet-body">
+<div class="segmented" role="tablist" aria-label="Вход или регистрация" style="margin-bottom:16px"><button type="button" role="tab" id="authTabLogin" aria-selected="true">Вход</button><button type="button" role="tab" id="authTabReg" aria-selected="false">Регистрация</button></div>
+<p class="footnote" id="authNote" style="margin:0 4px 12px"></p>
+<form id="loginForm" autocomplete="on"><div class="list">
+<label class="field"><span>Телефон</span><input name="phone" type="tel" inputmode="tel" autocomplete="tel" required placeholder="+7 900 123-45-67"></label>
+<label class="field"><span>PIN-код</span><input name="pin" type="password" inputmode="numeric" autocomplete="current-password" pattern="[0-9]{4,12}" required placeholder="4–12 цифр"></label>
+</div><p class="footnote" id="loginMsg" role="alert" style="margin:10px 4px 0"></p><button class="btn btn-primary btn-block" type="submit" style="margin-top:14px">Войти</button></form>
+<form id="regForm" autocomplete="on" hidden><div class="list">
+<label class="field"><span>Как вас зовут</span><input name="name" autocomplete="name" required minlength="2" maxlength="80" placeholder="Имя"></label>
+<label class="field"><span>Телефон</span><input name="phone" type="tel" inputmode="tel" autocomplete="tel" required placeholder="+7 900 123-45-67"></label>
+<label class="field"><span>Придумайте PIN-код</span><input name="pin" type="password" inputmode="numeric" autocomplete="new-password" pattern="[0-9]{4,12}" required placeholder="4–12 цифр"></label>
+</div><p class="section-footer">Телефон и PIN нужны, чтобы хозяева знали, кому нести коктейль, и чтобы ваша история сохранилась.</p><p class="footnote" id="regMsg" role="alert" style="margin:10px 4px 0"></p><button class="btn btn-primary btn-block" type="submit" style="margin-top:14px">Зарегистрироваться</button></form>
+</div></div></div>
+
+<div class="sheet" id="reviewsSheet" hidden><div class="sheet-panel" role="dialog" aria-modal="true" aria-labelledby="revTitle">
+<div class="sheet-grabber"></div><div class="sheet-head"><span class="left"></span><h2 id="revTitle">Оценки</h2><button class="btn btn-plain right" type="button" data-close-sheet>Готово</button></div>
+<div class="sheet-body"><p class="footnote" style="margin:0 4px 12px">Оцените выпитые коктейли — хозяевам важно знать, что понравилось.</p><div class="list" id="revList"><div class="skeleton"></div></div></div></div></div>`;
+        const guestBody = `
+<section class="pane" data-pane="menu" aria-label="Меню">
+<p class="brand-sub">Семейный бар Владимира и Анастасии</p>
+<div class="menu-tools"><label class="search">${icon("search")}<input type="search" id="q" placeholder="Коктейль или ингредиент" autocomplete="off" aria-label="Поиск по меню"></label>
+<div class="chips" id="lineChips" role="group" aria-label="Крепость"></div></div>
+<div id="menuList"><div class="list" style="margin-top:20px"><div class="skeleton"></div><div class="skeleton"></div><div class="skeleton"></div></div></div>
+</section>
+<section class="pane" data-pane="order" aria-label="Заказ" hidden>
+<div id="cartBox"></div>
+<div id="ordersBox"></div>
+</section>
+<section class="pane" data-pane="profile" aria-label="Профиль" hidden>
+<div id="profileBox"><div class="skeleton" style="height:180px;border-radius:22px"></div></div>
+</section>`;
+        const guestScript = String.raw`<script>
+(function(){
+const $=s=>document.querySelector(s);
 const esc=s=>String(s??"").replace(/[&<>"']/g,c=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[c]));
-let cocktails=[],viaFilter="all";
-const norm=s=>String(s||"").toLowerCase().replace(/ё/g,"е");
-const curatorOf=c=>{const n=norm(c.name);if(/virgin|безалк|mocktail|garden/.test(n)||norm(c.strength).includes("безалк"))return "mocktail";if(/anastasia|анастас|passion sour|clover club/.test(n))return "anastasia";if(/via royal|royal heritage/.test(n))return "duo";return "vladimir"};
-const render=()=>{const q=norm(document.querySelector("#ingredientSearch").value.trim());const list=cocktails.filter(c=>{if(viaFilter!=="all"&&curatorOf(c)!==viaFilter)return false;if(q){const ing=(c.recipe_items||[]).map(i=>i.ingredient_name||i.name||"").join(" ");if(!norm(c.name+" "+ing+" "+(c.strength||"")).includes(q))return false}return true});const box=document.querySelector("#menu");if(!list.length){box.innerHTML='<div class="guest-card guest-empty">По вашему запросу коктейлей не найдено.</div>';return}box.innerHTML=list.map(c=>{const names=(c.recipe_items||[]).map(i=>String(i.ingredient_name||i.name||"").trim()).filter(Boolean);const unique=[...new Map(names.map(n=>[norm(n),n])).values()];const st=norm(c.strength);const strength=st.includes("безалк")?"Без алкоголя":st.includes("лег")?"Лёгкий":st.includes("сред")?"Средний":st.includes("креп")?"Крепкий":c.strength||"Не указана";return '<article class="guest-card" id="cocktail-'+Number(c.id)+'">'+((c.photo_url||c.avatar_url)?'<img class="guest-photo" loading="lazy" decoding="async" src="'+esc(c.photo_url||c.avatar_url)+'" alt="'+esc(c.name)+'">':'<div class="guest-photo-placeholder">🍸</div>')+'<h2>'+esc(c.name)+'</h2>'+(c.description&&String(c.description).trim()?'<div class="guest-description is-collapsed" id="guest-description-'+Number(c.id)+'">'+esc(c.description)+'</div>'+(String(c.description).trim().length>145?'<button type="button" class="guest-description-toggle" aria-expanded="false" data-description="'+Number(c.id)+'">Читать полностью ↓</button>':''): '')+'<div class="guest-strength">Крепость · '+esc(strength)+'</div><div class="guest-price">'+Number(c.price_rub||0).toLocaleString("ru-RU")+' ₽</div>'+(unique.length?'<div class="guest-ingredients"><span style="display:block;color:var(--via-gold);font-size:10px;letter-spacing:1.4px;text-transform:uppercase;margin-bottom:5px">Состав</span>'+unique.map(esc).join(", ")+'</div>':'')+'</article>'}).join("")};
-document.querySelector("#ingredientSearch").addEventListener("input",render);document.querySelector("#menu").addEventListener("click",e=>{const b=e.target.closest(".guest-description-toggle");if(!b)return;const d=document.querySelector("#guest-description-"+Number(b.dataset.description));if(!d)return;const expanded=b.getAttribute("aria-expanded")==="true";d.classList.toggle("is-collapsed",expanded);b.setAttribute("aria-expanded",String(!expanded));b.textContent=expanded?"Читать полностью ↓":"Свернуть ↑";});
-document.querySelectorAll(".via-filter").forEach(b=>b.addEventListener("click",()=>{viaFilter=b.dataset.filter;document.querySelectorAll(".via-filter").forEach(x=>x.classList.toggle("active",x===b));render()}));
-const guestRegisterButton=document.querySelector("#guestRegisterButton"),guestRegisterModal=document.querySelector("#guestRegisterModal"),guestRegisterClose=document.querySelector("#guestRegisterClose"),guestRegisterForm=document.querySelector("#guestRegisterForm"),guestRegisterMessage=document.querySelector("#guestRegisterMessage");
-const closeGuestRegister=()=>{guestRegisterModal.style.display="none";guestRegisterMessage.textContent=""};
-guestRegisterButton.onclick=()=>{guestRegisterModal.style.display="block";guestRegisterForm.elements.name.focus()};guestRegisterClose.onclick=closeGuestRegister;guestRegisterModal.onclick=e=>{if(e.target===guestRegisterModal)closeGuestRegister()};
-guestRegisterForm.onsubmit=async e=>{e.preventDefault();guestRegisterMessage.textContent="Подключаем…";try{const body=Object.fromEntries(new FormData(guestRegisterForm));const r=await fetch("/api/guest/register",{method:"POST",headers:{"content-type":"application/json"},body:JSON.stringify(body)});const d=await r.json();if(!r.ok){guestRegisterMessage.textContent=d.error||"Не удалось зарегистрироваться";return}guestRegisterMessage.textContent="Готово!";setTimeout(closeGuestRegister,900)}catch(err){guestRegisterMessage.textContent="Ошибка соединения. Попробуйте ещё раз."}};
-fetch("/api/guest/me").then(r=>r.json()).then(x=>{if(x.guest){document.querySelector("#guestRegisterButton").textContent="👤 "+x.guest.name}}).catch(()=>{});
-fetch("/api/cocktails?include_stock=0").then(r=>r.json()).then(x=>{cocktails=Array.isArray(x)?x:[];render()}).catch(()=>{document.querySelector("#menu").innerHTML='<div class="guest-card guest-empty">Не удалось загрузить меню. Попробуйте обновить страницу.</div>'});
-</script>`);
+const norm=s=>String(s||"").toLocaleLowerCase("ru").replace(/ё/g,"е");
+const rub=n=>Number(n||0).toLocaleString("ru-RU",{maximumFractionDigits:0})+" ₽";
+const plural=(n,f)=>{const a=Math.abs(n)%100,b=a%10;return f[a>10&&a<20?2:b===1?0:b>=2&&b<=4?1:2]};
+const toDate=s=>s?new Date(String(s).replace(" ","T")+(/[zZ]|[+-]\d\d:?\d\d$/.test(s)?"":"Z")):null;
+const when=s=>{const d=toDate(s);if(!d||isNaN(d))return"";const today=new Date();const t=d.toLocaleTimeString("ru-RU",{hour:"2-digit",minute:"2-digit"});return d.toDateString()===today.toDateString()?"сегодня в "+t:d.toLocaleDateString("ru-RU",{day:"numeric",month:"long"})+", "+t};
+const ic=n=>'<svg class="ic" aria-hidden="true"><use href="#i-'+n+'"/></svg>';
+const LINES=[{key:"Безалкогольный",cls:"line-zero",title:"Без градуса",dots:0,label:"без алкоголя"},{key:"Лёгкий",cls:"line-light",title:"Лёгкие",dots:1,label:"лёгкий"},{key:"Средний",cls:"line-mid",title:"Средние",dots:2,label:"средний"},{key:"Крепкий",cls:"line-strong",title:"Крепкие",dots:3,label:"крепкий"}];
+const lineOf=c=>{const s=norm(c.strength);return LINES.find(l=>norm(l.key)===s)||(s.includes("безалк")?LINES[0]:s.includes("лег")?LINES[1]:s.includes("сред")?LINES[2]:s.includes("креп")?LINES[3]:null)};
+const scale=l=>l?'<span class="scale '+l.cls+'" role="img" aria-label="Крепость: '+l.label+'">'+(l.dots?'<i></i>'.repeat(l.dots):'<i class="o"></i>')+'</span>':"";
+const photo=c=>c.avatar_url||c.photo_url||"";
+const ingNames=c=>{const seen=new Map();(c.recipe_items||[]).forEach(i=>{const n=String(i.ingredient_name||i.name||"").trim();if(n&&!seen.has(norm(n)))seen.set(norm(n),n)});return [...seen.values()]};
+
+let cocktails=[],byId=new Map(),guest=null,stats=null,lineFilter="all",pane="menu",pendingSend=false,sending=false;
+let cart={};try{cart=JSON.parse(localStorage.getItem("via.cart")||"{}")||{}}catch(e){cart={}}
+const saveCart=()=>{try{localStorage.setItem("via.cart",JSON.stringify(cart))}catch(e){}};
+const cartItems=()=>Object.entries(cart).map(([id,q])=>({c:byId.get(Number(id)),q:Number(q)})).filter(x=>x.c&&x.q>0);
+const cartCount=()=>cartItems().reduce((n,x)=>n+x.q,0);
+const cartTotal=()=>cartItems().reduce((n,x)=>n+x.q*Number(x.c.price_rub||0),0);
+
+/* ——— вкладки ——— */
+const TITLES={menu:"VIA Bar",order:"Заказ",profile:"Профиль"};
+function show(p,push){pane=p;document.querySelectorAll(".pane").forEach(s=>s.hidden=s.dataset.pane!==p);document.querySelectorAll(".tabbar .tab").forEach(t=>{if(t.dataset.pane===p)t.setAttribute("aria-current","page");else t.removeAttribute("aria-current")});
+$(".large-title").textContent=TITLES[p];$(".nav-title").textContent=TITLES[p];document.title=(p==="menu"?"VIA Bar — меню":TITLES[p]+" · VIA Bar");
+if(push!==false&&location.hash!=="#"+p)history.replaceState(null,"","#"+p);window.scrollTo(0,0);renderCartBar();
+if(p==="order"){renderCart();refreshStats()}if(p==="profile"){renderProfile();refreshStats()}}
+document.querySelectorAll(".tabbar .tab").forEach(t=>t.onclick=()=>show(t.dataset.pane));
+addEventListener("hashchange",()=>{const h=location.hash.slice(1);if(TITLES[h]&&h!==pane)show(h,false)});
+
+/* ——— меню ——— */
+function stepperHtml(id,q,big){const c=byId.get(id);const n=esc(c?c.name:"коктейль");return q>0?'<span class="stepper'+(big?" tall":"")+'" data-id="'+id+'"><button type="button" data-d="-1" aria-label="Убрать «'+n+'»">'+ic("minus")+'</button><output role="status" aria-label="«'+n+'» в заказе">'+q+'</output><button type="button" data-d="1" aria-label="Добавить «'+n+'»">'+ic("plus")+'</button></span>':'<button class="add-btn" type="button" data-add="'+id+'" aria-label="Добавить «'+n+'» в заказ">'+ic("plus")+'</button>'}
+function renderChips(){const present=LINES.filter(l=>cocktails.some(c=>lineOf(c)===l));
+$("#lineChips").innerHTML=['<button class="chip" type="button" data-line="all" aria-pressed="'+(lineFilter==="all")+'">Все</button>'].concat(present.map(l=>'<button class="chip '+l.cls+'" type="button" data-line="'+l.cls+'" aria-pressed="'+(lineFilter===l.cls)+'"><span class="dot"></span>'+l.title+'</button>')).join("")}
+function renderMenu(){const q=norm($("#q").value.trim());
+const match=c=>(lineFilter==="all"||(lineOf(c)||{}).cls===lineFilter)&&(!q||norm(c.name+" "+(c.description||"")+" "+ingNames(c).join(" ")).includes(q));
+const groups=LINES.map(l=>({l,items:cocktails.filter(c=>lineOf(c)===l&&match(c))})).concat([{l:null,items:cocktails.filter(c=>!lineOf(c)&&match(c))}]).filter(g=>g.items.length);
+if(!cocktails.length){$("#menuList").innerHTML='<div class="list" style="margin-top:20px"><div class="empty-state">'+ic("glass")+'<h3>Меню готовится</h3>Хозяева ещё не добавили коктейли.</div></div>';return}
+if(!groups.length){$("#menuList").innerHTML='<div class="list" style="margin-top:20px"><div class="empty-state">'+ic("search")+'<h3>Ничего не нашлось</h3>Попробуйте другое название или ингредиент.</div></div>';return}
+$("#menuList").innerHTML=groups.map(g=>'<div class="line-head '+(g.l?g.l.cls:"")+'">'+(g.l?'<span class="line-mark" aria-hidden="true"></span>':"")+'<h2>'+(g.l?g.l.title:"Другие")+'</h2><span class="count">'+g.items.length+'</span></div><div class="list '+(g.l?g.l.cls:"")+'">'+g.items.map(c=>{const id=Number(c.id),ings=ingNames(c),p=photo(c),price=Number(c.price_rub||0);
+return '<div class="menu-row" data-row="'+id+'"><button class="menu-open" type="button" data-open="'+id+'" aria-label="'+esc(c.name)+': подробнее">'+(p?'<img class="thumb" src="'+esc(p)+'" alt="" loading="lazy" decoding="async">':'<span class="thumb thumb-ph">'+ic("glass")+'</span>')+'<span style="min-width:0;flex:1"><span class="menu-name">'+esc(c.name)+'</span>'+(c.description?'<span class="menu-desc">'+esc(c.description)+'</span>':"")+(ings.length?'<span class="menu-ing">'+esc(ings.slice(0,5).join(", "))+(ings.length>5?"…":"")+'</span>':"")+'<span class="menu-meta">'+scale(lineOf(c))+(price?'<span class="num">'+rub(price)+'</span>':"")+'</span></span></button><span class="menu-side">'+stepperHtml(id,Number(cart[id]||0))+'</span></div>'}).join("")+'</div>').join("")}
+function updateRow(id){document.querySelectorAll('[data-row="'+id+'"] .menu-side,[data-sheet-stepper="'+id+'"]').forEach(el=>{const big=el.hasAttribute("data-sheet-stepper");el.innerHTML=stepperHtml(id,Number(cart[id]||0),big)})}
+function setQty(id,q){q=Math.max(0,Math.min(20,q));if(q)cart[id]=q;else delete cart[id];saveCart();updateRow(id);renderCartBar();if(pane==="order")renderCart()}
+document.addEventListener("click",e=>{const add=e.target.closest("[data-add]");if(add){const id=Number(add.dataset.add);setQty(id,Number(cart[id]||0)+1);const nb=document.querySelector('[data-row="'+id+'"] .stepper button[data-d="1"]');if(nb&&add.closest(".menu-side"))nb.focus();return}
+const st=e.target.closest(".stepper[data-id] button[data-d]");if(st){const id=Number(st.closest(".stepper").dataset.id),d=Number(st.dataset.d);setQty(id,Number(cart[id]||0)+d);return}
+const op=e.target.closest("[data-open]");if(op){openCocktail(Number(op.dataset.open));return}
+const ch=e.target.closest("#lineChips .chip");if(ch){lineFilter=ch.dataset.line;renderChips();renderMenu()}});
+$("#q").addEventListener("input",renderMenu);
+
+function openCocktail(id){const c=byId.get(id);if(!c)return;const l=lineOf(c),ings=(c.recipe_items||[]),price=Number(c.price_rub||0);
+$("#csHead").textContent=c.name;
+$("#csBody").innerHTML=(c.photo_url||c.avatar_url?'<img class="sheet-photo" src="'+esc(c.photo_url||c.avatar_url)+'" alt="'+esc(c.name)+'">':"")+'<h3 class="sheet-title" id="csTitle">'+esc(c.name)+'</h3><div class="row" style="gap:8px">'+(l?'<span class="badge line '+l.cls+'">'+scale(l)+' '+l.title.replace(/ие$/,"ий")+'</span>':"")+(price?'<span class="badge num">'+rub(price)+'</span>':"")+'</div>'+(c.description?'<p class="sheet-desc">'+esc(c.description)+'</p>':"")
++(ings.length?'<div class="section"><div class="section-header"><h2>Состав</h2></div><div class="route '+(l?l.cls:"")+'" style="padding:4px 4px 0">'+ings.map(i=>'<div class="route-stop done"><span class="station"></span><div class="route-body"><span class="cell-title">'+esc(i.ingredient_name||i.name||"Ингредиент")+'</span></div></div>').join("")+'</div></div>':"")
++'<div class="sheet-actions"><span class="footnote">'+(guest?"Добавьте в заказ — хозяева приготовят.":"Чтобы заказать, войдите в профиль.")+'</span><span data-sheet-stepper="'+id+'">'+stepperHtml(id,Number(cart[id]||0),true)+'</span></div>';
+VIA.openSheet("cocktailSheet")}
+
+/* ——— заказ ——— */
+function renderCartBar(){const n=cartCount();const b=$("#cartBadge");b.textContent=n;b.hidden=!n;const bar=$("#cartBar");bar.hidden=!n||pane==="order";if(n)$("#cartBarText").innerHTML=n+" "+plural(n,["коктейль","коктейля","коктейлей"])+(cartTotal()?'<small class="num">'+rub(cartTotal())+'</small>':"")}
+$("#cartBarGo").onclick=()=>show("order");
+const STEP={pending:0,accepted:1,served:2};
+function tracker(status){const s=STEP[status]??0;return '<div class="tracker" aria-label="Статус: '+(["Заказан","Принят","Выдан"][s])+'">'+["Заказан","Принят","Выдан"].map((t,i)=>'<div class="tracker-stop '+(i<s||(s===2&&i===2)?"done":i===s?"current":"")+'"><span class="station"></span>'+t+'</div>').join("")+'</div>'}
+function renderCart(){const items=cartItems();
+$("#cartBox").innerHTML=items.length?'<div class="section"><div class="section-header"><h2>Новый заказ</h2><span class="num">'+cartCount()+'</span></div><div class="list">'+items.map(x=>{const id=Number(x.c.id),p=photo(x.c);return '<div class="cell" data-row="'+id+'">'+(p?'<img class="thumb" src="'+esc(p)+'" alt="" style="width:44px;height:44px">':'<span class="thumb thumb-ph" style="width:44px;height:44px">'+ic("glass")+'</span>')+'<span class="cell-body"><span class="cell-title">'+esc(x.c.name)+'</span>'+(Number(x.c.price_rub)?'<span class="cell-sub num">'+rub(x.c.price_rub)+'</span>':"")+'</span><span class="menu-side">'+stepperHtml(id,x.q)+'</span></div>'}).join("")
++(cartTotal()?'<div class="cell"><span class="cell-body"><span class="cell-title">Итого</span></span><span class="cell-value num" style="color:var(--label);font-weight:600">'+rub(cartTotal())+'</span></div>':"")+'</div>'
++'<button class="btn btn-primary btn-block" type="button" id="sendOrder" style="margin-top:14px"'+(sending?" disabled":"")+'>'+(sending?"Отправляем…":guest?"Отправить хозяевам":"Войти и отправить")+'</button><p class="section-footer">Заказ увидят Владимир и Анастасия — статус обновится здесь.</p></div>'
+:'<div class="section"><div class="list"><div class="empty-state">'+ic("glass")+'<h3>Пока ничего не выбрано</h3>Загляните в меню и нажмите «+» у коктейля.</div></div><button class="btn btn-tinted btn-block" type="button" data-goto="menu" style="margin-top:12px">Открыть меню</button></div>';
+const sb=$("#sendOrder");if(sb)sb.onclick=sendOrder;renderOrders()}
+function renderOrders(){const box=$("#ordersBox");if(!guest){box.innerHTML="";return}const h=(stats&&stats.history)||[];
+if(!h.length){box.innerHTML=stats?'<div class="section"><div class="section-header"><h2>Мои заказы</h2></div><div class="list"><div class="empty-state">Заказов пока не было.</div></div></div>':"";return}
+box.innerHTML='<div class="section"><div class="section-header"><h2>Мои заказы</h2></div>'+h.map(o=>'<div class="list order-group"><div class="cell"><span class="cell-body"><span class="order-head"><span class="cell-title">Заказ №'+Number(o.id)+'</span><span class="cell-value num">'+rub(o.total_rub)+'</span></span><span class="cell-sub">'+esc(when(o.created_at))+'</span></span></div>'+tracker(o.status)+'<div class="cell"><span class="cell-body"><span class="cell-sub" style="color:var(--label)">'+esc(o.items||"Состав не указан")+'</span></span></div></div>').join("")+'</div>'}
+document.addEventListener("click",e=>{const g=e.target.closest("[data-goto]");if(g)show(g.dataset.goto)});
+async function sendOrder(){if(sending)return;const items=cartItems().map(x=>({cocktail_id:Number(x.c.id),quantity:x.q}));if(!items.length)return;
+if(!guest){pendingSend=true;openAuth("login","Войдите или зарегистрируйтесь — и заказ сразу уйдёт хозяевам.");return}
+sending=true;renderCart();
+try{const r=await fetch("/api/guest/order",{method:"POST",headers:{"content-type":"application/json"},body:JSON.stringify({items})});const d=await r.json().catch(()=>({}));
+if(r.status===401){guest=null;pendingSend=true;openAuth("login","Сессия закончилась — войдите ещё раз.");return}
+if(!r.ok)throw new Error(d.error||"Не удалось отправить заказ");
+cart={};saveCart();cocktails.forEach(c=>updateRow(Number(c.id)));VIA.toast("Заказ №"+d.order_id+" отправлен хозяевам");await refreshStats(true)}
+catch(e){VIA.toast(e.message||"Ошибка сети. Попробуйте ещё раз.",true)}
+finally{sending=false;renderCart();renderCartBar()}}
+
+/* ——— профиль ——— */
+function renderProfile(){const box=$("#profileBox");
+if(!guest){box.innerHTML='<div class="welcome">'+${JSON.stringify(monogram(96, "pm"))}+'<h2>Добро пожаловать</h2><p>Войдите, чтобы заказывать коктейли, следить за заказом и оценивать выпитое.</p><div class="button-row" style="flex-direction:column"><button class="btn btn-primary btn-block" type="button" id="pLogin">Войти</button><button class="btn btn-tinted btn-block" type="button" id="pReg">Регистрация</button></div></div>';
+$("#pLogin").onclick=()=>openAuth("login");$("#pReg").onclick=()=>openAuth("reg");return}
+const s=stats||{},phone=String(guest.phone||""),last4=phone.replace(/\D/g,"").slice(-4),latest=(s.history||[])[0],li=s.latest_order_items||[];
+const lp=li.find(i=>i.photo_url);
+box.innerHTML='<div class="member-card"><div class="member-top">'+${JSON.stringify(monogram(60, "mc"))}+'<div style="min-width:0"><h2 class="member-name">'+esc(guest.name)+'</h2><div class="member-phone num">'+(last4?"Телефон •• "+esc(last4):"")+'</div></div></div>'
++'<div class="member-stats"><div><b class="num">'+Number(s.cocktails_count||0)+'</b><span>'+plural(Number(s.cocktails_count||0),["коктейль","коктейля","коктейлей"])+'</span></div><div><b>'+esc(s.favorite_cocktail||"—")+'</b><span>любимый коктейль</span></div><div><b class="num">'+rub(s.spent_rub)+'</b><span>всего</span></div></div></div>'
++(latest?'<div class="section"><div class="section-header"><h2>Последний заказ</h2><span>'+esc(when(latest.created_at))+'</span></div><div class="list"><div class="cell">'+(lp?'<img class="thumb" src="'+esc(lp.photo_url)+'" alt="">':'<span class="thumb thumb-ph">'+ic("glass")+'</span>')+'<span class="cell-body"><span class="cell-title">'+esc(latest.items||"—")+'</span><span class="cell-sub num">'+rub(latest.total_rub)+' · '+(["Заказан","Принят","Выдан"][STEP[latest.status]??0])+'</span></span></div>'+(li.length?'<button class="cell" type="button" id="repeatOrder" style="color:var(--gold);justify-content:center;font-weight:600">'+ic("refresh")+' Повторить заказ</button>':"")+'</div></div>':"")
++'<div class="section"><div class="list"><button class="cell has-icon" type="button" data-goto="order"><span class="cell-icon">'+ic("receipt")+'</span><span class="cell-body"><span class="cell-title">Мои заказы</span><span class="cell-sub">'+Number(s.orders_count||0)+' '+plural(Number(s.orders_count||0),["заказ","заказа","заказов"])+'</span></span>'+ic("chevronRight").replace('class="ic"','class="ic cell-chevron"')+'</button><button class="cell has-icon" type="button" id="openReviews"><span class="cell-icon">'+ic("star")+'</span><span class="cell-body"><span class="cell-title">Мои оценки</span><span class="cell-sub">Оцените выпитые коктейли</span></span>'+ic("chevronRight").replace('class="ic"','class="ic cell-chevron"')+'</button></div></div>'
++'<div class="section"><button class="btn btn-danger btn-block" type="button" id="logout">'+ic("logout")+'Выйти</button></div>';
+const rp=$("#repeatOrder");if(rp)rp.onclick=()=>{li.forEach(i=>{const id=Number(i.cocktail_id);if(byId.has(id))cart[id]=Math.min(20,Number(cart[id]||0)+Number(i.quantity||1))});saveCart();cocktails.forEach(c=>updateRow(Number(c.id)));renderCartBar();VIA.toast("Добавили в заказ");show("order")};
+$("#openReviews").onclick=openReviews;$("#logout").onclick=logout}
+
+async function refreshStats(force){if(!guest){renderOrders();return}try{const r=await fetch("/api/guest/stats");const d=await r.json();if(!d.guest){guest=null;stats=null}else stats=d}catch(e){}if(pane==="order")renderOrders();if(pane==="profile")renderProfile()}
+setInterval(()=>{if(!document.hidden&&guest&&pane!=="menu")refreshStats()},15000);
+document.addEventListener("visibilitychange",()=>{if(!document.hidden&&guest&&pane!=="menu")refreshStats()});
+
+/* ——— вход и регистрация ——— */
+function authMode(m){const login=m==="login";$("#loginForm").hidden=!login;$("#regForm").hidden=login;$("#authTabLogin").setAttribute("aria-selected",String(login));$("#authTabReg").setAttribute("aria-selected",String(!login));$("#authTitle").textContent=login?"Вход":"Регистрация";$("#loginMsg").textContent="";$("#regMsg").textContent=""}
+function openAuth(m,note){authMode(m||"login");$("#authNote").textContent=note||"";$("#authNote").hidden=!note;VIA.openSheet("authSheet");setTimeout(()=>{const f=(m==="reg"?$("#regForm"):$("#loginForm")).querySelector("input");if(f)f.focus()},320)}
+$("#authTabLogin").onclick=()=>authMode("login");$("#authTabReg").onclick=()=>authMode("reg");
+async function afterAuth(name){VIA.closeSheet("authSheet");await loadMe();VIA.toast("Здравствуйте, "+(name||(guest&&guest.name)||"гость")+"!");if(pendingSend){pendingSend=false;show("order");sendOrder()}else if(pane!=="menu")show(pane,false)}
+$("#loginForm").onsubmit=async e=>{e.preventDefault();const f=new FormData(e.target),m=$("#loginMsg");m.textContent="Проверяем…";
+try{const r=await fetch("/api/guest/login",{method:"POST",headers:{"content-type":"application/json"},body:JSON.stringify({phone:f.get("phone"),pin:f.get("pin")})});const d=await r.json().catch(()=>({}));if(!r.ok)throw new Error(d.error||"Не удалось войти");e.target.reset();afterAuth(d.name)}catch(err){m.textContent=err.message||"Ошибка сети. Попробуйте ещё раз."}};
+$("#regForm").onsubmit=async e=>{e.preventDefault();const f=new FormData(e.target),m=$("#regMsg");m.textContent="Сохраняем…";
+try{const r=await fetch("/api/guest/register",{method:"POST",headers:{"content-type":"application/json"},body:JSON.stringify({name:f.get("name"),phone:f.get("phone"),pin:f.get("pin")})});const d=await r.json().catch(()=>({}));if(!r.ok)throw new Error(d.error||"Не удалось зарегистрироваться");const nm=f.get("name");e.target.reset();afterAuth(nm)}catch(err){m.textContent=err.message||"Ошибка сети. Попробуйте ещё раз."}};
+async function logout(){if(!confirm("Выйти из профиля?"))return;try{await fetch("/api/guest/logout",{method:"POST"})}catch(e){}guest=null;stats=null;renderProfile();renderCart();VIA.toast("Вы вышли из профиля")}
+
+/* ——— оценки ——— */
+async function openReviews(){VIA.openSheet("reviewsSheet");const box=$("#revList");box.innerHTML='<div class="skeleton"></div>';
+try{const r=await fetch("/api/guest/reviews");const d=await r.json();if(!r.ok)throw new Error(d.error||"Не удалось загрузить");const items=d.items||[];
+if(!items.length){box.innerHTML='<div class="empty-state">'+ic("star")+'<h3>Пока нечего оценить</h3>Оценить можно коктейль, который хозяева уже выдали.</div>';return}
+box.innerHTML=items.map(it=>'<div class="review-item" data-item="'+Number(it.order_item_id)+'"><div class="order-head"><span class="cell-title">'+esc(it.cocktail_name)+(Number(it.quantity)>1?" × "+Number(it.quantity):"")+'</span><span class="caption">Заказ №'+Number(it.order_id)+'</span></div>'
++(it.rating?'<div style="margin-top:6px"><span class="stars-static" aria-label="Оценка '+Number(it.rating)+' из 5">'+"★".repeat(Number(it.rating))+"☆".repeat(5-Number(it.rating))+'</span>'+(it.comment?'<div class="cell-sub">'+esc(it.comment)+'</div>':"")+'</div>'
+:'<form class="rev-form" style="margin-top:4px"><div class="stars" role="radiogroup" aria-label="Оценка «'+esc(it.cocktail_name)+'»">'+[1,2,3,4,5].map(n=>'<button type="button" role="radio" aria-checked="false" data-star="'+n+'" aria-label="'+n+" "+plural(n,["звезда","звезды","звёзд"])+'">'+ic("star")+'</button>').join("")+'</div><label class="field" style="padding:0"><span class="hidden">Комментарий</span><textarea name="comment" maxlength="500" placeholder="Пара слов хозяевам (необязательно)" aria-label="Комментарий" style="min-height:56px"></textarea></label><input type="hidden" name="rating"><button class="btn btn-tinted btn-sm" type="submit" disabled>Отправить оценку</button><p class="footnote" role="alert"></p></form>')+'</div>').join("")}
+catch(e){box.innerHTML='<div class="empty-state"><h3>Не удалось загрузить</h3>'+esc(e.message)+'</div>'}}
+$("#revList").addEventListener("click",e=>{const b=e.target.closest("[data-star]");if(!b)return;const f=b.closest("form"),n=Number(b.dataset.star);f.rating.value=n;f.querySelectorAll("[data-star]").forEach(x=>x.setAttribute("aria-checked",String(Number(x.dataset.star)<=n)));f.querySelector("button[type=submit]").disabled=false});
+$("#revList").addEventListener("submit",async e=>{e.preventDefault();const f=e.target,item=Number(f.closest("[data-item]").dataset.item),msg=f.querySelector("[role=alert]");msg.textContent="Сохраняем…";
+try{const r=await fetch("/api/guest/reviews",{method:"POST",headers:{"content-type":"application/json"},body:JSON.stringify({order_item_id:item,rating:Number(f.rating.value),comment:f.comment.value})});const d=await r.json().catch(()=>({}));if(!r.ok)throw new Error(d.error||"Не удалось сохранить");VIA.toast("Спасибо! Хозяева увидят оценку");openReviews()}catch(err){msg.textContent=err.message}});
+
+/* ——— загрузка ——— */
+async function loadMe(){try{const r=await fetch("/api/guest/me");const d=await r.json();guest=d.guest||null}catch(e){guest=null}if(guest)await refreshStats();renderProfile();if(pane==="order")renderCart()}
+async function loadMenu(){try{const r=await fetch("/api/cocktails?include_stock=0");if(!r.ok)throw 0;const x=await r.json();cocktails=Array.isArray(x)?x:[];byId=new Map(cocktails.map(c=>[Number(c.id),c]));
+Object.keys(cart).forEach(id=>{if(!byId.has(Number(id)))delete cart[id]});saveCart();renderChips();renderMenu();renderCartBar();if(pane==="order")renderCart()}
+catch(e){$("#menuList").innerHTML='<div class="list" style="margin-top:20px"><div class="empty-state"><h3>Не удалось загрузить меню</h3>Проверьте интернет и обновите страницу.<div style="margin-top:14px"><button class="btn btn-tinted btn-sm" type="button" onclick="location.reload()">Обновить</button></div></div></div>'}}
+const start=location.hash.slice(1);
+Promise.all([loadMenu(),loadMe()]).then(()=>{if(TITLES[start]&&start!=="menu")show(start,false)});
+if(TITLES[start]&&start!=="menu")show(start,false);
+})();
+</script>`;
+        return htmlResponse(renderDocument({
+          title:"VIA Bar", app:"guest", docTitle:"VIA Bar — меню",
+          right:`<button class="icon-btn" type="button" data-goto="profile" aria-label="Профиль">${icon("person")}</button>`,
+          extraCss:guestCss, body:guestBody,
+        }).replace("</main>","</main>"+guestTabs+guestSheets+guestScript));
+      }
 
 
       // ═══════ route-block: /bar/shop ═══════ (agents: edit only inside your own block)

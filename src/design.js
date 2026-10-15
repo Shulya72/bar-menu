@@ -190,7 +190,7 @@ a.cell:active,button.cell:active,.cell.tappable:active{background:var(--bg-press
 .badge.danger{background:color-mix(in srgb,var(--danger) 16%,transparent);color:var(--danger)}
 
 /* ——— Фирменный приём: маршрут и станции ——— */
-.route{position:relative;--line:var(--gold)}
+.route{position:relative}:where(.route){--line:var(--gold)}
 .route-stop{position:relative;display:flex;gap:14px;align-items:flex-start;padding:0 0 18px}
 .route-stop:last-child{padding-bottom:0}
 .route-stop::before{content:"";position:absolute;left:8px;top:16px;bottom:-2px;width:3px;border-radius:2px;background:var(--line)}
