@@ -124,7 +124,7 @@ a{color:var(--gold);text-decoration:none}
 .tab .ic{width:24px;height:24px}
 .tab[aria-current=page]{color:var(--gold);background:var(--gold-soft)}
 .tab:active{transform:scale(.94)}
-.tab-badge{position:absolute;top:4px;left:calc(50% + 6px);min-width:18px;height:18px;padding:0 5px;border-radius:9px;background:var(--danger);color:#fff;font-size:.6875rem;font-weight:700;line-height:18px;text-align:center}
+.tab-badge{position:absolute;top:4px;left:calc(50% + 6px);min-width:18px;height:18px;padding:0 5px;border-radius:9px;background:#C8283A;color:#fff;font-size:.6875rem;font-weight:700;line-height:18px;text-align:center}
 @media (prefers-reduced-transparency:reduce){.tabbar,.navbar.scrolled,.sheet-panel{background:var(--material-strong);-webkit-backdrop-filter:none;backdrop-filter:none}}
 
 /* ——— Сгруппированные списки (iOS inset grouped) ——— */
@@ -251,7 +251,7 @@ a.cell:active,button.cell:active,.cell.tappable:active{background:var(--bg-press
 .empty-state h3{color:var(--label);margin:0 0 6px;font-size:1.0625rem}
 .skeleton{background:linear-gradient(90deg,var(--bg-raised) 0%,var(--bg-raised-2) 50%,var(--bg-raised) 100%);background-size:200% 100%;animation:sk 1.2s ease-in-out infinite;border-radius:10px;min-height:52px}
 @keyframes sk{to{background-position:-200% 0}}
-.toast{position:fixed;left:50%;bottom:calc(var(--tabbar-h) + 26px + var(--safe-b));transform:translate(-50%,12px);z-index:90;max-width:min(92vw,420px);padding:12px 18px;border-radius:999px;background:var(--material-strong);-webkit-backdrop-filter:blur(20px);backdrop-filter:blur(20px);box-shadow:var(--shadow),inset 0 0 0 .5px var(--sep-strong);color:var(--label);font-size:.9375rem;font-weight:500;opacity:0;pointer-events:none;transition:opacity .2s ease,transform .25s ease;text-align:center}
+.toast{position:fixed;left:50%;width:max-content;bottom:calc(var(--tabbar-h) + 26px + var(--safe-b));transform:translate(-50%,12px);z-index:90;max-width:min(92vw,420px);padding:12px 18px;border-radius:999px;background:var(--material-strong);-webkit-backdrop-filter:blur(20px);backdrop-filter:blur(20px);box-shadow:var(--shadow),inset 0 0 0 .5px var(--sep-strong);color:var(--label);font-size:.9375rem;font-weight:500;opacity:0;pointer-events:none;transition:opacity .2s ease,transform .25s ease;text-align:center}
 .toast.show{opacity:1;transform:translate(-50%,0)}
 .toast.error{color:var(--danger)}
 .thumb{width:56px;height:56px;flex:none;border-radius:12px;object-fit:cover;background:var(--bg-raised-2);box-shadow:inset 0 0 0 .5px var(--sep)}
@@ -311,6 +311,7 @@ const tabbar = (tabs, current) => `<nav class="tabbar" aria-label="Раздел�
 // Значок «новые гостевые заказы» на вкладке «Заказы» (обновляется, пока вкладка видима).
 const BAR_BADGE_JS = `<script>
 (function(){var b=document.getElementById("ordersBadge");if(!b)return;
+if(document.querySelector('.tab[data-tab="orders"][aria-current]'))return; // страница заказов сама опрашивает очередь
 var load=function(){if(document.hidden)return;fetch("/api/bar/guest-orders").then(function(r){return r.ok?r.json():null}).then(function(d){if(!d)return;var n=(d.orders||[]).filter(function(o){return o.status==="pending"}).length;b.textContent=n;b.hidden=!n}).catch(function(){})};
 load();setInterval(load,20000);document.addEventListener("visibilitychange",load)})();
 </script>`;
