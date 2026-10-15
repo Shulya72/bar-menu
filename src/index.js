@@ -821,6 +821,9 @@ export default {
 </div></div>`,
       }));
 
+
+      // ═══════ route-block: /bar/recipes ═══════ (agents: edit only inside your own block)
+
       if (url.pathname === "/bar/recipes") return page(`
 <header><h1>🍸 Книга рецептов</h1><div class="sub">Рецепт здесь — источник для гостевой «Карты бара»</div></header>
 <div class="wrap">
@@ -1188,6 +1191,9 @@ loadOrderBar();
 </script>`, "Книга рецептов");
 
 
+
+      // ═══════ route-block: /bar/ingredients ═══════ (agents: edit only inside your own block)
+
       if (url.pathname === "/bar/ingredients") return htmlResponse(renderDocument({
         title:"Ингредиенты", app:"bar", tab:"more", back:{href:"/bar",label:"Ещё"}, docTitle:"Ингредиенты · VIA Бар",
         right:`<button class="icon-btn" type="button" data-open-sheet="ingredientSheet" aria-label="Добавить ингредиент">${icon("plus")}</button>`,
@@ -1229,6 +1235,9 @@ try{const r=await fetch("/api/ingredients",{method:id?"PUT":"POST",headers:{"con
 del.onclick=async()=>{const id=Number(form.id.value);if(!id||!confirm("Удалить ингредиент «"+form.name.value+"»?"))return;try{const r=await fetch("/api/ingredients?id="+id,{method:"DELETE"});const d=await r.json().catch(()=>({}));if(!r.ok)throw new Error(d.error||"Не удалось удалить");VIA.closeSheet("ingredientSheet");VIA.toast("Ингредиент удалён");load()}catch(err){msg.textContent=err.message}};
 load();
 </script>`));
+
+
+      // ═══════ route-block: /bar/stock ═══════ (agents: edit only inside your own block)
 
       if (url.pathname === "/bar/stock") {
         // Первичная загрузка склада выполняется на сервере. Это исключает
@@ -1444,6 +1453,9 @@ renderStock();
 </script>`, "Склад");
       }
 
+
+      // ═══════ route-block: /menu ═══════ (agents: edit only inside your own block)
+
       if (url.pathname === "/menu") return page(`
 <style>
 @import url('https://fonts.googleapis.com/css2?family=Cinzel:wght@600;700;900&family=Plus+Jakarta+Sans:wght@400;500;600;700;800&display=swap');
@@ -1531,6 +1543,9 @@ guestRegisterForm.onsubmit=async e=>{e.preventDefault();guestRegisterMessage.tex
 fetch("/api/guest/me").then(r=>r.json()).then(x=>{if(x.guest){document.querySelector("#guestRegisterButton").textContent="👤 "+x.guest.name}}).catch(()=>{});
 fetch("/api/cocktails?include_stock=0").then(r=>r.json()).then(x=>{cocktails=Array.isArray(x)?x:[];render()}).catch(()=>{document.querySelector("#menu").innerHTML='<div class="guest-card guest-empty">Не удалось загрузить меню. Попробуйте обновить страницу.</div>'});
 </script>`);
+
+
+      // ═══════ route-block: /bar/shop ═══════ (agents: edit only inside your own block)
 
       if (url.pathname === "/bar/shop") return page(`
 <header><h1>🛒 Магазин</h1><div class="sub">Закупки и партии товара</div></header>
@@ -1649,6 +1664,9 @@ document.querySelector("#todayFilter").onclick=()=>{const d=new Date();const s=d
 })();
 </script>`, "Магазин");
 
+
+      // ═══════ route-block: /bar/statistics ═══════ (agents: edit only inside your own block)
+
       if (url.pathname === "/bar/statistics") return page(`<header><h1>📊 Статистика</h1><div class="sub">Смены, заказы и приготовленные коктейли</div></header>
 <div class="wrap">
 <div class="row" style="margin-bottom:14px"><a href="/" style="display:inline-block;padding:10px 14px;border:1px solid #333;border-radius:12px;background:#151515">🏠 Главное меню</a><a href="/bar/recipes" style="display:inline-block;padding:10px 14px;border:1px solid #333;border-radius:12px;background:#151515">🍸 Книга рецептов</a></div>
@@ -1670,6 +1688,9 @@ async function loadStats(){
 }
 loadStats();
 </script>`, "Статистика");
+
+
+      // ═══════ route-block: /bar/orders ═══════ (agents: edit only inside your own block)
 
       if (url.pathname === "/bar/orders") return page(`<header><h1>📋 Текущий заказ</h1><div class="sub">＋ и − меняют заказ. Склад резервируется сразу, окончательное списание — после принятия.</div></header>
 <div class="wrap">
@@ -1720,6 +1741,8 @@ async function loadOrder(){
 async function changeOrder(id,delta){const r=await fetch("/api/bar/order",{method:"POST",headers:{"content-type":"application/json"},body:JSON.stringify({cocktail_id:id,delta})});const d=await r.json();if(!r.ok){alert(d.error||"Ошибка");return;}loadOrder()}
 Promise.all([loadOrderRecipes(),loadOrder()]);
 </script>`, "Заказы");
+
+      // ═══════ end of route blocks ═══════
 
       return new Response("Не найдено",{status:404});
     } catch (error) {
