@@ -2071,122 +2071,433 @@ fetch("/api/cocktails?include_stock=0").then(r=>r.json()).then(x=>{cocktails=Arr
 
       // ═══════ route-block: /bar/shop ═══════ (agents: edit only inside your own block)
 
-      if (url.pathname === "/bar/shop") return page(`
-<header><h1>🛒 Магазин</h1><div class="sub">Закупки и партии товара</div></header>
-<div class="wrap">
-<div class="row" style="margin-bottom:14px"><a href="/" style="display:inline-block;padding:10px 14px;border:1px solid #333;border-radius:12px;background:#151515">🏠 Главное меню</a><a href="/bar/stock" style="display:inline-block;padding:10px 14px;border:1px solid #333;border-radius:12px;background:#151515">📦 Склад</a></div>
-
-<div class="card"><h2>Новая закупка</h2><p class="muted">Фиксируем фактически купленную партию.</p>
-<form id="purchaseForm">
-<label>Ингредиент *</label><select name="ingredient_id" id="ingredientSelect" required><option value="">Загрузка...</option></select>
-<label>Магазин / поставщик</label><input name="store" placeholder="Например, Перекрёсток">
-<label>Бренд</label><input name="brand" placeholder="Например, Царская">
-<label>Дата покупки *</label><input name="purchased_at" type="date" required>
-<div class="grid"><div><label>Количество *</label><input name="quantity" type="number" min="0.01" step="0.01" required placeholder="1000"></div><div><label>Цена закупки, ₽ *</label><input name="price_rub" type="number" min="0" step="0.01" required placeholder="650"></div></div>
-<div style="margin-top:16px"><button>🛒 Оприходовать закупку</button></div><p id="msg" class="muted"></p>
-</form></div>
-
-<div style="height:16px"></div>
-<div class="card"><h2>🔎 Фильтр закупок</h2>
-<div class="grid">
-<div><label>С даты</label><input id="filterFrom" type="date"></div>
-<div><label>По дату</label><input id="filterTo" type="date"></div>
+      if (url.pathname === "/bar/shop") return htmlResponse(renderDocument({
+        title:"Закупки", app:"bar", tab:"shop", docTitle:"Закупки · VIA Бар",
+        right:`<button class="icon-btn" type="button" id="addPurchase" aria-label="Новая закупка" aria-haspopup="dialog">${icon("plus")}</button>`,
+        sub:"Чеки покупок для бара. Новая закупка сразу пополняет склад.",
+        extraCss:`
+.shop-filters{display:flex;align-items:center;gap:8px}
+.shop-filters .segmented{flex:1;min-width:0}
+.shop-filters .segmented button{position:relative;min-height:40px;padding:0 4px}
+.shop-filters .segmented button::after{content:"";position:absolute;inset:-2px 0}
+.filter-btn{position:relative;flex:none;width:44px;height:44px;display:grid;place-items:center;padding:0;border:0;border-radius:10px;background:var(--bg-raised-2);box-shadow:inset 0 0 0 .5px var(--sep);color:var(--label);cursor:pointer}
+.filter-btn .ic{width:22px;height:22px}
+.filter-btn:active{background:var(--bg-pressed)}
+.filter-btn[data-active]{background:var(--gold-soft);color:var(--gold);box-shadow:inset 0 0 0 1px var(--gold-ring)}
+.filter-btn .dot{position:absolute;top:7px;right:7px;width:8px;height:8px;border-radius:50%;background:var(--gold)}
+.filter-note{display:flex;align-items:center;justify-content:space-between;gap:8px;margin:6px 4px 0;font-size:.875rem;color:var(--label-2)}
+.filter-note span{min-width:0;overflow-wrap:anywhere}
+.filter-note .btn{flex:none;margin-right:-10px}
+.filter-note:not([hidden])+.section{margin-top:10px}
+.empty-state p{text-wrap:balance}
+.field input[list]::-webkit-calendar-picker-indicator{display:none!important}
+#history{transition:opacity .2s ease}
+#history.loading{opacity:.5}
+.summary .cell-value,.receipt .price{color:var(--label);font-weight:600}
+.cell-value.stack{display:flex;flex-direction:column;align-items:flex-end;gap:2px}
+.suggest{margin-top:8px}
+.suggest .cell{min-height:46px}
+.suggest .create,.suggest .create .ic{color:var(--gold)}
+.suggest .more{min-height:40px;margin:0;font-size:.8125rem;color:var(--label-3)}
+.sheet-head .strong{font-weight:700}
+.sheet-head h2:focus{outline:none}
+.list>.field-row:first-child{border-top:0}
+.field-row+.field{border-top:.5px solid var(--sep-strong)}
+.field input[type=date]{-webkit-appearance:none;appearance:none;text-align:left}
+.field input[type=date]::-webkit-date-and-time-value{text-align:left}
+.form-msg{margin:10px 4px 0;font-size:.875rem;color:var(--danger)}
+.form-msg.info{color:var(--label-2)}
+.form-msg:empty{display:none}
+#newIng{margin-top:8px}
+#newIng .button-row{margin-top:12px}
+`,
+        body:`<div class="shop-filters">
+<div class="segmented" id="presets" role="group" aria-label="Период"><button type="button" data-preset="today" aria-pressed="false">Сегодня</button><button type="button" data-preset="week" aria-pressed="false">Неделя</button><button type="button" data-preset="month" aria-pressed="true">Месяц</button><button type="button" data-preset="all" aria-pressed="false">Всё</button></div>
+<button type="button" class="filter-btn" id="filterBtn" aria-haspopup="dialog" aria-label="Фильтр по датам и ингредиенту">${icon("filter")}<span class="dot" hidden></span></button>
 </div>
-<label>Ингредиент</label><select id="filterIngredient"><option value="">Все ингредиенты</option></select>
-<div class="row" style="margin-top:14px"><button type="button" id="applyFilter">🔎 Показать</button><button type="button" class="secondary" id="todayFilter">Сегодня</button><button type="button" class="secondary" id="clearFilter">Сбросить</button></div>
-<p class="muted">Например, выберите «Водка», чтобы увидеть все покупки водки. Чтобы посмотреть покупки только за 5 число — поставьте 5-е число в оба поля.</p>
-</div>
+<div class="filter-note" id="filterNote" hidden><span id="filterNoteText"></span><button type="button" class="btn btn-plain" data-reset-filter>Сбросить</button></div>
+<div class="section summary" id="summary"><div class="list"><div class="skeleton"></div></div></div>
+<div id="history" aria-busy="true"><div class="section"><div class="list"><div class="skeleton"></div><div class="skeleton"></div><div class="skeleton"></div></div></div></div>
+<p class="section-footer" id="historyFooter" hidden></p>
 
-<div style="height:16px"></div><div class="card"><h2>Закупки</h2><div id="history">Загрузка...</div></div>
+<div class="sheet" id="purchaseSheet" hidden><div class="sheet-panel" role="dialog" aria-modal="true" aria-labelledby="purchaseTitle">
+<div class="sheet-grabber"></div>
+<div class="sheet-head"><button class="btn btn-plain left" type="button" data-close-sheet>Отмена</button><h2 id="purchaseTitle" tabindex="-1">Новая закупка</h2><button class="btn btn-plain right strong" type="submit" form="purchaseForm" id="purchaseSubmit">Добавить</button></div>
+<div class="sheet-body"><form id="purchaseForm" novalidate autocomplete="off"><input type="hidden" name="ingredient_id">
+<div id="ingPick">
+<div class="list"><label class="field"><span>Ингредиент</span><input id="ingInput" type="text" placeholder="Водка, лайм, тоник…" autocomplete="off" autocapitalize="sentences" spellcheck="false" enterkeyhint="next" aria-describedby="ingHint"></label></div>
+<div class="list suggest" id="ingSuggest" role="group" aria-label="Подходящие ингредиенты" hidden></div>
+<p class="form-msg" id="ingMsg" role="alert"></p>
+<p class="section-footer" id="ingHint"></p>
 </div>
+<div id="newIng" hidden>
+<div class="section-header"><h3>Новый ингредиент</h3></div>
+<div class="list">
+<label class="field"><span>Название</span><input id="newIngName" placeholder="Например, ром тёмный" autocomplete="off" enterkeyhint="done"></label>
+<div class="field"><span id="newIngUnitLabel">Единица</span><div class="segmented" role="group" aria-labelledby="newIngUnitLabel"><button type="button" data-unit="ml" aria-pressed="true">мл</button><button type="button" data-unit="g" aria-pressed="false">граммы</button><button type="button" data-unit="pcs" aria-pressed="false">штуки</button></div></div>
+<label class="field"><span>Крепость, %</span><input id="newIngStrength" type="text" inputmode="decimal" value="0" autocomplete="off" enterkeyhint="done"></label>
+</div>
+<p class="section-footer">Водка — 40%, ликёр — около 20%, сок и газировка — 0%. По крепости ингредиентов считается крепость коктейля.</p>
+<p class="form-msg" id="newIngMsg" role="alert"></p>
+<div class="button-row"><button type="button" class="btn btn-gray" id="newIngCancel">Назад к списку</button><button type="button" class="btn btn-tinted" id="newIngSave">Создать</button></div>
+</div>
+<div class="section"><div class="list">
+<div class="field-row"><label class="field"><span>Количество<span data-u></span></span><input name="quantity" type="text" inputmode="decimal" placeholder="700" autocomplete="off" enterkeyhint="next"></label><label class="field"><span>Цена, ₽</span><input name="price_rub" type="text" inputmode="decimal" placeholder="1400" autocomplete="off" enterkeyhint="next"></label></div>
+<label class="field"><span>Бренд</span><input name="brand" list="brandList" placeholder="Например, Бакарди" autocomplete="off" enterkeyhint="next"></label>
+<label class="field"><span>Магазин</span><input name="store" list="storeList" placeholder="Например, Перекрёсток" autocomplete="off" enterkeyhint="next"></label>
+<label class="field"><span>Дата покупки</span><input name="purchased_at" type="date" required></label>
+</div><p class="form-msg" id="purchaseMsg" role="alert"></p><p class="section-footer num" id="purchaseCalc" aria-live="polite"></p></div>
+<p class="section-footer" id="purchaseNote"></p>
+<div class="section" id="purchaseDeleteWrap" hidden><button class="btn btn-danger btn-block" type="button" id="purchaseDelete">${icon("trash")}Удалить чек</button></div>
+<datalist id="brandList"></datalist><datalist id="storeList"></datalist>
+</form></div></div></div>
+
+<div class="sheet" id="filterSheet" hidden><div class="sheet-panel" role="dialog" aria-modal="true" aria-labelledby="filterTitle">
+<div class="sheet-grabber"></div>
+<div class="sheet-head"><button class="btn btn-plain left" type="button" data-close-sheet>Отмена</button><h2 id="filterTitle">Фильтр</h2><button class="btn btn-plain right strong" type="submit" form="filterForm">Показать</button></div>
+<div class="sheet-body"><form id="filterForm" novalidate>
+<div class="list"><label class="field"><span>Ингредиент</span><select name="ing" id="filterIng"><option value="">Все ингредиенты</option></select></label></div>
+<p class="section-footer" id="filterIngHint">Например, «Водка» — все покупки водки за выбранный период.</p>
+<div class="section"><div class="section-header"><h3>Период</h3></div>
+<div class="list"><div class="field-row"><label class="field"><span>С даты</span><input type="date" name="from"></label><label class="field"><span>По дату</span><input type="date" name="to"></label></div></div>
+<p class="section-footer">Один день — одна и та же дата в обоих полях. Пустое поле — без ограничения.</p></div>
+<div class="section"><button class="btn btn-gray btn-block" type="button" data-reset-filter>Сбросить фильтр</button></div>
+</form></div></div></div>`,
+      }).replace("</main>",String.raw`</main>
 <script>
+(function(){
+"use strict";
 const esc=s=>String(s??"").replace(/[&<>"']/g,c=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[c]));
-let ingredients=[];
+const $=s=>document.querySelector(s);
+const ic=(n,c)=>'<svg class="ic'+(c?" "+c:"")+'" aria-hidden="true"><use href="#i-'+n+'"/></svg>';
+const UNITS={ml:"мл",g:"г",pcs:"шт"};
+const unitOf=u=>UNITS[u]||String(u||"");
+const norm=s=>String(s??"").toLocaleLowerCase("ru").replace(/ё/g,"е").trim();
+const plural=(n,a,b,c)=>{const m=Math.abs(n)%100,k=m%10;return m>10&&m<20?c:k===1?a:k>1&&k<5?b:c};
+const fmt=(v,o)=>(Number(v)||0).toLocaleString("ru-RU",o);
+const money=v=>{v=Math.round((Number(v)||0)*100)/100;return fmt(v,{minimumFractionDigits:Number.isInteger(v)?0:2,maximumFractionDigits:2})+" ₽"};
+const qty=(v,u)=>fmt(v,{maximumFractionDigits:2})+" "+unitOf(u);
+// Цена за единицу: 2,5 ₽ — с копейками, 0,14 ₽ — две значащие цифры.
+const rate=(price,q)=>{q=Number(q);const v=Number(price)/q;if(!(q>0)||!Number.isFinite(v))return"";return v>=1?fmt(v,{maximumFractionDigits:v>=100?0:2}):fmt(v,{maximumSignificantDigits:2})};
+const toNum=s=>{s=String(s??"").replace(/[\s ]/g,"").replace(",",".");return s===""?NaN:Number(s)};
+const toInput=v=>String(Math.round((Number(v)||0)*10000)/10000).replace(".",",");
+const netError=e=>e instanceof TypeError;
+
+// ——— Даты ———
 const pad=n=>String(n).padStart(2,"0");
-const localDate=()=>{const d=new Date();return d.getFullYear()+"-"+pad(d.getMonth()+1)+"-"+pad(d.getDate())};
-document.querySelector("#purchaseForm [name=purchased_at]").value=localDate();
-const formatDate=s=>{const m=String(s||"").match(/^(\d{4})-(\d{2})-(\d{2})/);return m?m[3]+"."+m[2]+"."+m[1]:String(s||"")};
-const unitPrice=(price,qty)=>qty>0?(Number(price)/Number(qty)).toFixed(4):"0.0000";
-
-async function loadIngredients(){
-  const r=await fetch("/api/ingredients");
-  const data=await r.json();
-  if(!r.ok||!Array.isArray(data)) throw new Error(data?.error||"Не удалось загрузить ингредиенты");
-  ingredients=data;
-  const opts=ingredients.map(i=>'<option value="'+i.id+'">'+esc(i.name)+' ('+esc(i.unit)+')</option>').join("");
-  document.querySelector("#ingredientSelect").innerHTML='<option value="">Выберите ингредиент...</option>'+opts;
-  document.querySelector("#filterIngredient").innerHTML='<option value="">Все ингредиенты</option>'+opts;
-}
-
-async function loadHistory(){
-  const params=new URLSearchParams();
-  const from=document.querySelector("#filterFrom").value, to=document.querySelector("#filterTo").value, ing=document.querySelector("#filterIngredient").value;
-  if(from)params.set("date_from",from); if(to)params.set("date_to",to); if(ing)params.set("ingredient_id",ing);
-  const r=await fetch("/api/shop/purchases?"+params.toString()); const history=await r.json();
-  if(!r.ok||!Array.isArray(history)) throw new Error(history?.error||"Не удалось загрузить закупки");
-  document.querySelector("#history").innerHTML=history.length?history.map(x=>{
-    const consumed=Math.max(0,Number(x.purchased_qty)-Number(x.remaining_qty));
-    return '<div class="purchase-item" data-id="'+x.id+'" style="padding:13px 0;border-bottom:1px solid #292929">'+
-      '<div class="purchase-view"><b>'+esc(x.ingredient_name)+'</b><div class="muted">Дата покупки: '+formatDate(x.purchased_at)+'</div><div class="muted">'+Number(x.purchased_qty)+' '+esc(x.unit)+' · '+Number(x.price_rub).toFixed(2)+' ₽ · '+unitPrice(x.price_rub,x.purchased_qty)+' ₽/'+esc(x.unit)+(x.store?' · '+esc(x.store):'')+(x.brand?' · '+esc(x.brand):'')+'</div>'+
-      '<div class="muted">Запись о покупке · остаток на складе ведётся отдельно</div>'+
-      '<div class="row" style="margin-top:9px"><button type="button" class="secondary edit">✏️ Изменить</button><button type="button" class="secondary delete">🗑 Удалить</button></div></div></div>';
-  }).join(""):'<div class="empty">По выбранному фильтру закупок нет.</div>';
-  document.querySelectorAll(".purchase-item .edit").forEach(b=>b.onclick=()=>editPurchase(history,b.closest(".purchase-item").dataset.id));
-  document.querySelectorAll(".purchase-item .delete").forEach(b=>b.onclick=()=>deletePurchase(b.closest(".purchase-item").dataset.id));
-}
-
-function editPurchase(history,id){
-  const item=history.find(x=>String(x.id)===String(id)); if(!item)return;
-  const row=document.querySelector('.purchase-item[data-id="'+id+'"]');
-  const consumed=0;
-  const dt=String(item.purchased_at||"").slice(0,10);
-  row.innerHTML='<div><div class="grid">'+
-    '<div><label>Ингредиент</label><select class="edit-ingredient">'+ingredients.map(i=>'<option value="'+i.id+'"'+(Number(i.id)===Number(item.ingredient_id)?' selected':'')+'>'+esc(i.name)+' ('+esc(i.unit)+')</option>').join("")+'</select></div>'+
-    '<div><label>Магазин / поставщик</label><input class="edit-store" value="'+esc(item.store||"")+'"></div>'+
-    '<div><label>Бренд</label><input class="edit-brand" value="'+esc(item.brand||"")+'"></div>'+
-    '<div><label>Дата покупки</label><input class="edit-date" type="date" value="'+dt+'"></div>'+
-    '<div><label>Количество</label><input class="edit-qty" type="number" min="0.01" step="0.01" value="'+Number(item.purchased_qty)+'"></div>'+
-    '<div><label>Цена закупки, ₽</label><input class="edit-price" type="number" min="0" step="0.01" value="'+Number(item.price_rub)+'"></div>'+
-    '</div><p class="muted">Редактирование изменит только запись о покупке, текущий остаток склада не изменится.</p>'+
-    '<div class="row"><button type="button" class="save-edit">💾 Сохранить</button><button type="button" class="secondary cancel-edit">Отмена</button><span class="edit-msg muted"></span></div></div>';
-  row.querySelector(".cancel-edit").onclick=loadHistory;
-  row.querySelector(".save-edit").onclick=async()=>{
-    const body={id:Number(id),ingredient_id:Number(row.querySelector(".edit-ingredient").value),store:row.querySelector(".edit-store").value.trim(),brand:row.querySelector(".edit-brand").value.trim(),purchased_at:row.querySelector(".edit-date").value,quantity:Number(row.querySelector(".edit-qty").value),price_rub:Number(row.querySelector(".edit-price").value)};
-    const msg=row.querySelector(".edit-msg");
-    const r=await fetch("/api/shop/purchase",{method:"PUT",headers:{"content-type":"application/json"},body:JSON.stringify(body)}); const d=await r.json();
-    if(!r.ok){msg.textContent="Ошибка: "+(d.error||"не удалось сохранить");return} await loadHistory();
-  };
-}
-
-async function deletePurchase(id){
-  if(!confirm("Удалить запись о покупке из истории магазина? Текущий склад останется без изменений."))return;
-  const r=await fetch("/api/shop/purchase?id="+encodeURIComponent(id),{method:"DELETE"}); const d=await r.json();
-  if(!r.ok){alert(d.error||"Не удалось удалить закупку");return} await loadHistory();
-}
-
-document.querySelector("#purchaseForm").onsubmit=async e=>{
-  e.preventDefault(); const body=Object.fromEntries(new FormData(e.target));
-  body.ingredient_id=Number(body.ingredient_id); body.quantity=Number(body.quantity); body.price_rub=Number(body.price_rub);
-  const r=await fetch("/api/shop/purchase",{method:"POST",headers:{"content-type":"application/json"},body:JSON.stringify(body)}); const d=await r.json();
-  document.querySelector("#msg").textContent=r.ok?"Закупка добавлена ✅":"Ошибка: "+(d.error||"не удалось сохранить");
-  if(r.ok){e.target.reset();document.querySelector("#purchaseForm [name=purchased_at]").value=localDate();await loadHistory();}
+const iso=d=>d.getFullYear()+"-"+pad(d.getMonth()+1)+"-"+pad(d.getDate());
+const dayOffset=n=>{const d=new Date();d.setDate(d.getDate()+n);return iso(d)};
+const MONTHS=["января","февраля","марта","апреля","мая","июня","июля","августа","сентября","октября","ноября","декабря"];
+const parseDay=s=>{const m=/^(\d{4})-(\d{2})-(\d{2})/.exec(String(s||""));return m?{y:+m[1],m:+m[2],d:+m[3]}:null};
+const dayText=(s,year)=>{const p=parseDay(s);if(!p)return String(s||"");return p.d+" "+MONTHS[p.m-1]+(year||p.y!==new Date().getFullYear()?" "+p.y:"")};
+const dayTitle=s=>s===dayOffset(0)?"Сегодня":s===dayOffset(-1)?"Вчера":parseDay(s)?dayText(s):"Без даты";
+const rangeText=(a,b)=>{
+  if(!a&&!b)return"За всё время";
+  if(a&&!b)return"С "+dayText(a);
+  if(!a&&b)return"По "+dayText(b);
+  if(a===b)return a===dayOffset(0)?"Сегодня":dayText(a);
+  const x=parseDay(a),y=parseDay(b);if(!x||!y)return a+" – "+b;
+  if(x.y===y.y&&x.m===y.m)return x.d+"–"+dayText(b);
+  if(x.y===y.y)return x.d+" "+MONTHS[x.m-1]+" – "+dayText(b);
+  return dayText(a,true)+" – "+dayText(b,true);
 };
 
-document.querySelector("#applyFilter").onclick=loadHistory;
-document.querySelector("#clearFilter").onclick=()=>{document.querySelector("#filterFrom").value="";document.querySelector("#filterTo").value="";document.querySelector("#filterIngredient").value="";loadHistory();};
-document.querySelector("#todayFilter").onclick=()=>{const d=new Date();const s=d.getFullYear()+"-"+pad(d.getMonth()+1)+"-"+pad(d.getDate());document.querySelector("#filterFrom").value=s;document.querySelector("#filterTo").value=s;loadHistory();};
+// ——— Фильтр: период (пресет или свои даты) и ингредиент ———
+const PRESETS={today:()=>[dayOffset(0),dayOffset(0)],week:()=>[dayOffset(-6),dayOffset(0)],month:()=>[dayOffset(-29),dayOffset(0)],all:()=>["",""]};
+const KEY="via-shop-period";
+let savedPreset="month";
+try{const v=localStorage.getItem(KEY);if(v&&PRESETS[v])savedPreset=v}catch(_){}
+const state={preset:savedPreset,from:"",to:"",ing:""};
+const applyPreset=p=>{state.preset=p;const r=PRESETS[p]();state.from=r[0];state.to=r[1]};
+applyPreset(savedPreset);
+const filtered=()=>!!state.ing||!state.preset;
 
-(async()=>{
-  try{
-    await loadIngredients();
-    await loadHistory();
-  }catch(e){
-    document.querySelector("#ingredientSelect").innerHTML='<option value="">Ошибка загрузки ингредиентов</option>';
-    document.querySelector("#filterIngredient").innerHTML='<option value="">Не удалось загрузить</option>';
-    document.querySelector("#history").innerHTML='<div class="empty">Ошибка: '+esc(e.message||e)+'</div>';
+const presetsEl=$("#presets"),filterBtn=$("#filterBtn"),filterNote=$("#filterNote"),filterNoteText=$("#filterNoteText");
+const summaryEl=$("#summary"),historyEl=$("#history"),footerEl=$("#historyFooter");
+let ingredients=[],ingState="loading",rows=[],loaded=false,seq=0,lastLoad=0;
+const brands=new Set(),stores=new Set(),lastBought=new Map();
+const ingName=id=>{const i=ingredients.find(x=>String(x.id)===String(id));if(i)return i.name;const r=rows.find(x=>String(x.ingredient_id)===String(id));return r?r.ingredient_name:""};
+
+function syncFilterUi(){
+  presetsEl.querySelectorAll("[data-preset]").forEach(b=>b.setAttribute("aria-pressed",String(b.dataset.preset===state.preset)));
+  const on=filtered();
+  filterBtn.toggleAttribute("data-active",on);filterBtn.querySelector(".dot").hidden=!on;
+  filterBtn.setAttribute("aria-label",on?"Фильтр по датам и ингредиенту, включён":"Фильтр по датам и ингредиенту");
+  filterNote.hidden=!on;
+  if(on){const parts=[];if(state.ing)parts.push("«"+(ingName(state.ing)||"ингредиент")+"»");if(!state.preset)parts.push(rangeText(state.from,state.to));filterNoteText.textContent="Фильтр: "+parts.join(", ")}
+}
+
+// ——— История чеков ———
+const rowHtml=r=>{
+  const sub=[qty(r.purchased_qty,r.unit),esc(r.brand),esc(r.store)].filter(Boolean).join(" · "),rt=rate(r.price_rub,r.purchased_qty);
+  return '<button type="button" class="cell receipt" data-id="'+Number(r.id)+'" aria-haspopup="dialog"><span class="cell-body"><span class="cell-title">'+esc(r.ingredient_name)+'</span><span class="cell-sub">'+sub+'</span></span>'
+    +'<span class="cell-value stack"><span class="price num">'+money(r.price_rub)+'</span>'+(rt?'<span class="caption num">'+rt+' ₽/'+esc(unitOf(r.unit))+'</span>':'')+'</span>'+ic("chevronRight","cell-chevron")+'</button>';
+};
+function emptyHtml(){
+  if(!filtered()&&state.preset==="all")
+    return '<div class="empty-state">'+ic("bag")+'<h3>Пока ни одной закупки</h3><p>Внесите первый чек — покупка сразу попадёт на склад.</p><button type="button" class="btn btn-primary" data-new>'+ic("plus")+'Новая закупка</button></div>';
+  const when={today:"Сегодня закупок не было",week:"За неделю закупок не было",month:"За месяц закупок не было",all:"Закупок не было"}[state.preset]||"За эти даты закупок нет";
+  const name="«"+esc(ingName(state.ing)||"Этот ингредиент")+"»";
+  const text=state.ing?(state.preset==="all"?name+" ещё не покупали.":"Закупок "+name+" за этот период нет."):"Посмотрите все закупки или внесите новую кнопкой «+».";
+  return '<div class="empty-state">'+ic("receipt")+'<h3>'+(state.ing?"Ничего не нашлось":when)+'</h3><p>'+text+'</p><button type="button" class="btn btn-tinted" data-show-all>Показать все закупки</button></div>';
+}
+function render(){
+  const n=rows.length;
+  if(!n){summaryEl.hidden=true;footerEl.hidden=true;historyEl.innerHTML=emptyHtml();return}
+  const total=rows.reduce((s,r)=>s+(Number(r.price_rub)||0),0);
+  let h='<div class="list"><div class="cell has-icon"><span class="cell-icon">'+ic("coin")+'</span><span class="cell-body"><span class="cell-title">Потрачено</span><span class="cell-sub">'+esc(rangeText(state.from,state.to))+' · '+n+' '+plural(n,"закупка","закупки","закупок")+'</span></span><span class="cell-value num">'+money(total)+'</span></div>';
+  if(state.ing){
+    const q=rows.reduce((s,r)=>s+(Number(r.purchased_qty)||0),0),u=rows[0].unit,rt=rate(total,q);
+    h+='<div class="cell has-icon"><span class="cell-icon">'+ic("bottle")+'</span><span class="cell-body"><span class="cell-title">Куплено</span><span class="cell-sub">'+esc(rows[0].ingredient_name)+(rt?' · в среднем '+rt+' ₽ за '+esc(unitOf(u)):'')+'</span></span><span class="cell-value num">'+qty(q,u)+'</span></div>';
   }
+  summaryEl.innerHTML=h+'</div>';summaryEl.hidden=false;
+  const groups=[];let g=null;
+  rows.forEach(r=>{const k=String(r.purchased_at||"").slice(0,10);if(!g||g.key!==k){g={key:k,items:[],sum:0};groups.push(g)}g.items.push(r);g.sum+=Number(r.price_rub)||0});
+  historyEl.innerHTML=groups.map((x,i)=>'<section class="section" aria-labelledby="day'+i+'"><div class="section-header"><h2 id="day'+i+'">'+esc(dayTitle(x.key))+'</h2><span class="num">'+money(x.sum)+'</span></div><div class="list">'+x.items.map(rowHtml).join("")+'</div></section>').join("");
+  footerEl.textContent=(n>=500?"Показаны последние 500 закупок — более ранние найдутся через фильтр по датам. ":"")+"Коснитесь чека, чтобы исправить или удалить его. Остатки на складе от этого не изменятся.";
+  footerEl.hidden=false;
+}
+function renderError(detail){
+  summaryEl.hidden=true;footerEl.hidden=true;
+  historyEl.innerHTML='<div class="empty-state" role="alert">'+ic("warning")+'<h3>Не удалось загрузить закупки</h3><p>Проверьте связь и попробуйте ещё раз.</p>'+(detail?'<p class="caption">'+esc(detail)+'</p>':'')+'<button type="button" class="btn btn-tinted" data-retry>'+ic("refresh")+'Повторить</button></div>';
+}
+async function loadHistory(quiet){
+  const my=++seq;
+  if(state.preset)applyPreset(state.preset);
+  syncFilterUi();
+  if(loaded&&!quiet)historyEl.classList.add("loading");
+  historyEl.setAttribute("aria-busy","true");
+  const p=new URLSearchParams();
+  if(state.from)p.set("date_from",state.from);if(state.to)p.set("date_to",state.to);if(state.ing)p.set("ingredient_id",state.ing);
+  try{
+    const r=await fetch("/api/shop/purchases"+(p.toString()?"?"+p:""),{cache:"no-store"});
+    const d=await r.json().catch(()=>null);
+    if(!r.ok||!Array.isArray(d))throw new Error((d&&(d.details||d.error))||"Сервер ответил "+r.status);
+    if(my!==seq)return;
+    rows=d;loaded=true;lastLoad=Date.now();
+    d.forEach(x=>{if(x.brand)brands.add(x.brand);if(x.store)stores.add(x.store);
+      const id=Number(x.ingredient_id),day=String(x.purchased_at||"");if(id&&day>(lastBought.get(id)||""))lastBought.set(id,day)});
+    render();syncFilterUi();
+  }catch(e){if(my===seq)renderError(netError(e)?"":String(e.message||""))}
+  finally{if(my===seq){historyEl.classList.remove("loading");historyEl.removeAttribute("aria-busy")}}
+}
+
+// ——— Справочник ингредиентов ———
+async function loadIngredients(){
+  ingState="loading";
+  try{
+    const r=await fetch("/api/ingredients",{cache:"no-store"});
+    const d=await r.json().catch(()=>null);
+    if(!r.ok||!Array.isArray(d))throw new Error("bad");
+    ingredients=d;ingState="ok";
+  }catch(e){ingState="error"}
+  fillFilterSelect();syncFilterUi();
+  if(!$("#purchaseSheet").hidden)syncIng();
+}
+const filterForm=$("#filterForm"),filterIng=$("#filterIng");
+function fillFilterSelect(){
+  const cur=state.ing;
+  let o='<option value="">Все ингредиенты</option>'+ingredients.map(i=>'<option value="'+Number(i.id)+'">'+esc(i.name)+'</option>').join("");
+  if(cur&&!ingredients.some(i=>String(i.id)===String(cur)))o+='<option value="'+esc(cur)+'">'+esc(ingName(cur)||"Ингредиент")+'</option>';
+  filterIng.innerHTML=o;filterIng.value=cur;
+  $("#filterIngHint").textContent=ingState==="error"?"Список ингредиентов не загрузился — фильтр по датам работает. Обновите страницу, чтобы выбрать ингредиент.":"Например, «Водка» — все покупки водки за выбранный период.";
+}
+
+// Загружаем историю и справочник параллельно.
+loadHistory();loadIngredients();
+
+presetsEl.addEventListener("click",e=>{const b=e.target.closest("[data-preset]");if(!b)return;
+  savedPreset=b.dataset.preset;try{localStorage.setItem(KEY,savedPreset)}catch(_){}
+  applyPreset(savedPreset);loadHistory()});
+const resetFilter=()=>{state.ing="";applyPreset(savedPreset);loadHistory()};
+document.querySelectorAll("[data-reset-filter]").forEach(b=>b.addEventListener("click",()=>{
+  const inSheet=!!b.closest(".sheet");resetFilter();
+  if(inSheet)VIA.closeSheet("filterSheet");else presetsEl.querySelector('[aria-pressed="true"]')?.focus()}));
+historyEl.addEventListener("click",e=>{const t=e.target.closest("[data-id],[data-new],[data-show-all],[data-retry]");if(!t)return;
+  if(t.dataset.id){const r=rows.find(x=>String(x.id)===t.dataset.id);if(r)openPurchase(r,t)}
+  else if(t.hasAttribute("data-new"))openPurchase(null,t);
+  else if(t.hasAttribute("data-show-all")){state.ing="";applyPreset("all");loadHistory()}
+  else loadHistory()});
+// Вернулись на вкладку — тихо обновить: чек мог добавить второй хозяин со своего телефона.
+document.addEventListener("visibilitychange",()=>{if(!document.hidden&&loaded&&!document.querySelector(".sheet.open")&&Date.now()-lastLoad>60000)loadHistory(true)});
+addEventListener("pageshow",e=>{if(e.persisted)loadHistory(true)});
+
+// ——— Шторка фильтра ———
+filterBtn.addEventListener("click",()=>{
+  fillFilterSelect();filterForm.elements.from.value=state.from;filterForm.elements.to.value=state.to;
+  returnTo.filterSheet=()=>filterBtn;VIA.openSheet("filterSheet")});
+filterForm.addEventListener("submit",e=>{e.preventDefault();
+  let a=filterForm.elements.from.value,b=filterForm.elements.to.value;if(a&&b&&a>b){const t=a;a=b;b=t}
+  state.ing=filterIng.value;
+  const match=Object.keys(PRESETS).filter(k=>{const r=PRESETS[k]();return r[0]===a&&r[1]===b});
+  state.preset=match.includes(state.preset)?state.preset:(match[0]||null);
+  state.from=a;state.to=b;
+  VIA.closeSheet("filterSheet");loadHistory()});
+
+// ——— Шторка закупки: новая или исправление чека ———
+const form=$("#purchaseForm"),F=form.elements,ingInput=$("#ingInput"),suggest=$("#ingSuggest"),ingHint=$("#ingHint"),ingPick=$("#ingPick");
+const newIng=$("#newIng"),newName=$("#newIngName"),newStrength=$("#newIngStrength"),newMsg=$("#newIngMsg"),newSave=$("#newIngSave");
+const msg=$("#purchaseMsg"),ingMsg=$("#ingMsg"),calcEl=$("#purchaseCalc"),noteEl=$("#purchaseNote"),titleEl=$("#purchaseTitle"),submitBtn=$("#purchaseSubmit"),delWrap=$("#purchaseDeleteWrap"),delBtn=$("#purchaseDelete");
+let editing=null,saving=false,newUnit="ml";
+const setMsg=(el,text,info)=>{el.textContent=text||"";el.classList.toggle("info",!!info)};
+const fail=(el,text,field)=>{setMsg(el,text);if(field)field.focus();return false};
+const selectedIng=()=>{const id=F.ingredient_id.value;if(!id)return null;
+  return ingredients.find(i=>String(i.id)===id)||(editing&&String(editing.ingredient_id)===id?{id:editing.ingredient_id,name:editing.ingredient_name,unit:editing.unit}:null)};
+// Сначала — начинающиеся с запроса, затем недавно купленные, затем по алфавиту.
+const recent=i=>lastBought.get(Number(i.id))||"";
+const matches=q=>ingredients.filter(i=>!q||norm(i.name).includes(q)).sort((a,b)=>(norm(b.name).startsWith(q)-norm(a.name).startsWith(q))||recent(b).localeCompare(recent(a))||String(a.name).localeCompare(String(b.name),"ru"));
+
+function renderSuggest(){
+  if(ingState!=="ok"&&!ingredients.length){
+    suggest.innerHTML=ingState==="loading"?'<p class="cell more">Загружаем справочник…</p>':'<button type="button" class="cell" data-retry-ing>'+ic("refresh")+'<span class="cell-body"><span class="cell-title">Справочник не загрузился — повторить</span></span></button>';
+    return;
+  }
+  const raw=ingInput.value.trim(),q=norm(raw),list=matches(q),top=list.slice(0,6),exact=list.some(i=>norm(i.name)===q);
+  suggest.innerHTML=top.map(i=>'<button type="button" class="cell" data-pick="'+Number(i.id)+'"><span class="cell-body"><span class="cell-title">'+esc(i.name)+'</span></span><span class="cell-value">'+esc(unitOf(i.unit))+'</span></button>').join("")
+    +(list.length>top.length?'<p class="cell more">Ещё '+(list.length-top.length)+' — уточните название</p>':'')
+    +'<button type="button" class="cell create" data-create>'+ic("plus")+'<span class="cell-body"><span class="cell-title">'+(q&&!exact?"Создать «"+esc(raw)+"»":"Новый ингредиент")+'</span></span></button>';
+}
+function syncIng(){
+  const sel=selectedIng(),creating=!newIng.hidden;
+  ingPick.hidden=creating;
+  suggest.hidden=!!sel||creating;
+  if(!suggest.hidden)renderSuggest();else suggest.innerHTML="";
+  const u=sel?unitOf(sel.unit):"";
+  form.querySelectorAll("[data-u]").forEach(el=>{el.textContent=u?", "+u:""});
+  ingHint.textContent=sel?"":ingState==="error"&&!ingredients.length?"":"Выберите из справочника или создайте новый.";
+  ingHint.hidden=!ingHint.textContent;
+  calc();
+}
+function calc(){
+  const sel=selectedIng(),q=toNum(F.quantity.value),p=toNum(F.price_rub.value),rt=sel&&q>0&&p>=0?rate(p,q):"";
+  calcEl.textContent=rt?"Выходит "+rt+" ₽ за "+unitOf(sel.unit):"";calcEl.hidden=!rt;
+}
+function pick(id){
+  const i=ingredients.find(x=>Number(x.id)===Number(id));if(!i)return;
+  F.ingredient_id.value=i.id;ingInput.value=i.name;setMsg(ingMsg,"");syncIng();F.quantity.focus();
+}
+const setNewUnit=u=>{newUnit=u;newIng.querySelectorAll("[data-unit]").forEach(b=>b.setAttribute("aria-pressed",String(b.dataset.unit===u)))};
+newIng.querySelectorAll("[data-unit]").forEach(b=>b.addEventListener("click",()=>setNewUnit(b.dataset.unit)));
+function showNewIng(name){newIng.hidden=false;newName.value=name||"";newStrength.value="0";setNewUnit("ml");setMsg(newMsg,"");setMsg(ingMsg,"");syncIng();newName.focus()}
+function hideNewIng(){newIng.hidden=true;syncIng()}
+$("#newIngCancel").addEventListener("click",()=>{hideNewIng();ingInput.focus()});
+async function createIng(){
+  const name=newName.value.trim(),st=newStrength.value.trim()===""?0:toNum(newStrength.value);
+  if(!name)return fail(newMsg,"Введите название ингредиента.",newName);
+  if(!Number.isFinite(st)||st<0||st>100)return fail(newMsg,"Крепость — число от 0 до 100.",newStrength);
+  newSave.disabled=true;setMsg(newMsg,"Создаём…",true);
+  try{
+    const r=await fetch("/api/ingredients",{method:"POST",headers:{"content-type":"application/json"},body:JSON.stringify({name,unit:newUnit,strength_percent:st})});
+    const d=await r.json().catch(()=>({}));
+    if(!r.ok)throw new Error(d.error||"Не удалось создать ингредиент");
+    const id=Number(d.id);
+    await loadIngredients();
+    if(!ingredients.some(i=>Number(i.id)===id)){ingredients.push({id,name,unit:newUnit,strength_percent:st});fillFilterSelect()}
+    newIng.hidden=true;pick(id);
+    VIA.toast(d.exists?"Такой ингредиент уже есть — выбрали его":"Ингредиент «"+name+"» добавлен");
+  }catch(err){setMsg(newMsg,netError(err)?"Нет связи — проверьте интернет и попробуйте ещё раз.":err.message)}
+  finally{newSave.disabled=false}
+}
+newSave.addEventListener("click",createIng);
+[newName,newStrength].forEach(el=>el.addEventListener("keydown",e=>{if(e.key==="Enter"){e.preventDefault();createIng()}}));
+suggest.addEventListener("click",e=>{const t=e.target.closest("[data-pick],[data-create],[data-retry-ing]");if(!t)return;
+  if(t.dataset.pick)pick(t.dataset.pick);
+  else if(t.hasAttribute("data-create")){const q=norm(ingInput.value);showNewIng(q&&!matches(q).some(i=>norm(i.name)===q)?ingInput.value.trim():"")}
+  else{ingState="loading";renderSuggest();loadIngredients()}});
+ingInput.addEventListener("input",()=>{const sel=selectedIng();if(sel&&ingInput.value!==sel.name)F.ingredient_id.value="";syncIng()});
+ingInput.addEventListener("focus",()=>{if(selectedIng())setTimeout(()=>ingInput.select(),0)});
+ingInput.addEventListener("keydown",e=>{if(e.key!=="Enter")return;e.preventDefault();
+  if(selectedIng()){F.quantity.focus();return}
+  const q=norm(ingInput.value);if(!q)return;
+  const list=matches(q),exact=list.find(i=>norm(i.name)===q);
+  if(exact||list.length===1)pick((exact||list[0]).id);else if(!list.length)showNewIng(ingInput.value.trim())});
+form.addEventListener("input",e=>{if(e.target===F.quantity||e.target===F.price_rub)calc();if(e.target===ingInput)setMsg(ingMsg,"");else if(!saving)setMsg(msg,"")});
+const fillDatalists=()=>{
+  const o=s=>[...s].sort((a,b)=>String(a).localeCompare(String(b),"ru")).map(v=>'<option value="'+esc(v)+'"></option>').join("");
+  $("#brandList").innerHTML=o(brands);$("#storeList").innerHTML=o(stores);
+};
+
+function openPurchase(item,trigger){
+  editing=item||null;
+  form.reset();setMsg(msg,"");setMsg(ingMsg,"");newIng.hidden=true;
+  if(item){
+    const known=item.ingredient_id&&(ingredients.some(i=>String(i.id)===String(item.ingredient_id))||ingState!=="ok");
+    F.ingredient_id.value=known?String(item.ingredient_id):"";
+    ingInput.value=item.ingredient_name||"";
+    F.quantity.value=toInput(item.purchased_qty);F.price_rub.value=toInput(item.price_rub);
+    F.brand.value=item.brand||"";F.store.value=item.store||"";
+    F.purchased_at.value=String(item.purchased_at||"").slice(0,10)||dayOffset(0);
+  }else{
+    F.ingredient_id.value="";ingInput.value="";F.purchased_at.value=dayOffset(0);
+  }
+  titleEl.textContent=item?"Закупка":"Новая закупка";
+  submitBtn.textContent=item?"Сохранить":"Добавить";
+  noteEl.textContent=item?"Изменится только чек — остаток на складе останется прежним.":"Покупка сразу пополнит склад, а по её цене пересчитается стоимость остатков этого ингредиента.";
+  delWrap.hidden=!item;
+  ingInput.autofocus=!item;
+  fillDatalists();syncIng();
+  const id=item?Number(item.id):0;
+  returnTo.purchaseSheet=()=>(id&&historyEl.querySelector('[data-id="'+id+'"]'))||(trigger&&document.contains(trigger)?trigger:$("#addPurchase"));
+  $("#purchaseSheet .sheet-body").scrollTop=0;
+  VIA.openSheet("purchaseSheet");
+  if(item)setTimeout(()=>{if(!$("#purchaseSheet").hidden)titleEl.focus({preventScroll:true})},320);
+}
+$("#addPurchase").addEventListener("click",e=>openPurchase(null,e.currentTarget));
+
+const inFilter=b=>(!state.ing||String(state.ing)===String(b.ingredient_id))&&(!state.from||b.purchased_at>=state.from)&&(!state.to||b.purchased_at<=state.to);
+const busy=on=>{saving=on;submitBtn.disabled=on;delBtn.disabled=on};
+// Ошибка сервера или сети — показываем у полей и прокручиваем к ней.
+const showError=err=>{setMsg(msg,netError(err)?"Нет связи — проверьте интернет и попробуйте ещё раз.":err.message);msg.scrollIntoView({block:"nearest",behavior:"smooth"})};
+form.addEventListener("submit",async e=>{e.preventDefault();if(saving)return;
+  if(!newIng.hidden)return fail(newMsg,"Сначала создайте ингредиент — или вернитесь к списку.",newName);
+  const sel=selectedIng();
+  if(!sel)return fail(ingMsg,ingInput.value.trim()?"Выберите ингредиент из списка или создайте новый.":"Укажите ингредиент.",ingInput);
+  const q=toNum(F.quantity.value),price=toNum(F.price_rub.value),date=F.purchased_at.value;
+  if(!(q>0))return fail(msg,"Укажите количество — больше нуля.",F.quantity);
+  if(!(price>=0))return fail(msg,"Укажите цену покупки: 0 или больше.",F.price_rub);
+  if(!/^\d{4}-\d{2}-\d{2}$/.test(date))return fail(msg,"Укажите дату покупки.",F.purchased_at);
+  const body={ingredient_id:Number(sel.id),store:F.store.value.trim(),brand:F.brand.value.trim(),purchased_at:date,quantity:q,price_rub:price};
+  const wasEdit=!!editing;if(wasEdit)body.id=Number(editing.id);
+  busy(true);setMsg(msg,"Сохраняем…",true);
+  try{
+    const r=await fetch("/api/shop/purchase",{method:wasEdit?"PUT":"POST",headers:{"content-type":"application/json"},body:JSON.stringify(body)});
+    const d=await r.json().catch(()=>({}));
+    if(!r.ok)throw new Error(d.error||"Не удалось сохранить. Попробуйте ещё раз.");
+    if(body.brand)brands.add(body.brand);if(body.store)stores.add(body.store);
+    setMsg(msg,"");VIA.closeSheet("purchaseSheet");
+    VIA.toast(wasEdit?"Чек сохранён":inFilter(body)?"Закупка добавлена":"Закупка добавлена — её не видно из-за фильтра");
+    await loadHistory();restoreFocus("purchaseSheet");
+  }catch(err){showError(err)}
+  finally{busy(false)}
+});
+delBtn.addEventListener("click",async()=>{if(!editing||saving)return;
+  const it=editing;
+  if(!confirm("Удалить чек «"+it.ingredient_name+", "+qty(it.purchased_qty,it.unit).replace(/ /g," ")+"» из истории закупок? Остаток на складе не изменится."))return;
+  busy(true);setMsg(msg,"Удаляем…",true);
+  try{
+    const r=await fetch("/api/shop/purchase?id="+encodeURIComponent(it.id),{method:"DELETE"});
+    const d=await r.json().catch(()=>({}));
+    if(!r.ok)throw new Error(d.error||"Не удалось удалить закупку");
+    setMsg(msg,"");editing=null;returnTo.purchaseSheet=()=>$("#addPurchase");
+    VIA.closeSheet("purchaseSheet");VIA.toast("Чек удалён");
+    await loadHistory();
+  }catch(err){showError(err)}
+  finally{busy(false)}
+});
+
+// Фокус возвращается туда, откуда открыли шторку (VIA появляется чуть ниже — каркас).
+const returnTo={};
+function restoreFocus(id){
+  const f=returnTo[id],el=f&&f();if(!el||!document.contains(el))return;
+  const a=document.activeElement;
+  if(!a||a===document.body||a.closest(".sheet:not(.open)"))el.focus({preventScroll:true});
+}
+document.addEventListener("DOMContentLoaded",()=>{
+  const close=VIA.closeSheet;
+  VIA.closeSheet=function(id){const s=typeof id==="string"?document.getElementById(id):id;close(s);if(s&&s.id)setTimeout(()=>restoreFocus(s.id),0)};
+});
 })();
-</script>`, "Магазин");
+</script>`));
 
 
       // ═══════ route-block: /bar/statistics ═══════ (agents: edit only inside your own block)
