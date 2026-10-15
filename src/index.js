@@ -48,8 +48,14 @@ const migrateSchema=async env=>{
   if(!ok)throw new Error("schema migration incomplete");
   await env.DB.prepare("INSERT OR IGNORE INTO app_migrations(name) VALUES(?)").bind(SCHEMA_VERSION).run();
 };
-let schemaReady=null;
-export const ensureSchema=env=>schemaReady||(schemaReady=migrateSchema(env).catch(e=>{schemaReady=null;console.error("schema migration failed:",e?.message)}));
+// Флаг, а не общий промис: в Workers промис, начатый одним запросом, нельзя
+// безопасно ждать из другого — если первый запрос оборвётся, второй зависнет.
+// Одновременные «холодные» запросы просто проверят отметку каждый сам.
+let schemaReady=false;
+export const ensureSchema=async env=>{
+  if(schemaReady)return;
+  try{await migrateSchema(env);schemaReady=true}catch(e){console.error("schema migration failed:",e?.message)}
+};
 
 const getOpenBarShift=async env=>{return await env.DB.prepare("SELECT id,status,started_at,closed_at FROM bar_shifts WHERE status='open' ORDER BY id DESC LIMIT 1").first();};
 const ensureOpenBarShift=async env=>{let shift=await getOpenBarShift(env);if(shift)return shift;const r=await env.DB.prepare("INSERT INTO bar_shifts(status) VALUES('open')").run();return await env.DB.prepare("SELECT id,status,started_at,closed_at FROM bar_shifts WHERE id=?").bind(Number(r.meta.last_row_id)).first();};

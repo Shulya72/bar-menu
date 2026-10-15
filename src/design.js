@@ -70,7 +70,7 @@ export const DESIGN_CSS = `
 :root{
   color-scheme:dark;
   --bg:#0A0908;--bg-raised:#16130F;--bg-raised-2:#201C16;--bg-pressed:#2A251C;
-  --label:#F5EFE3;--label-2:#B9B0A0;--label-3:#857C6D;
+  --label:#F5EFE3;--label-2:#B9B0A0;--label-3:#938A79;
   --sep:rgba(233,201,128,.13);--sep-strong:rgba(233,201,128,.26);
   --gold:#E6C173;--gold-hi:#F6DE9C;--gold-lo:#B07F2E;--gold-ink:#1C1408;
   --gold-fill:linear-gradient(160deg,#F4D88F 0%,#D9AC55 52%,#B98535 100%);
@@ -85,18 +85,6 @@ export const DESIGN_CSS = `
   --sans:-apple-system,"SF Pro Text",system-ui,"Segoe UI",Roboto,"Helvetica Neue",Arial,sans-serif;
   --serif:Prata,"Iowan Old Style",Georgia,serif;
 }
-@media (prefers-color-scheme:light){:root{
-  color-scheme:light;
-  --bg:#F2F0EC;--bg-raised:#FFFFFF;--bg-raised-2:#F7F4EE;--bg-pressed:#ECE6DA;
-  --label:#14110C;--label-2:#5E574B;--label-3:#8A8273;
-  --sep:rgba(60,45,20,.13);--sep-strong:rgba(60,45,20,.24);
-  --gold:#94661A;--gold-hi:#B98535;--gold-lo:#7A5210;--gold-ink:#1C1408;
-  --gold-soft:rgba(148,102,26,.11);--gold-ring:rgba(148,102,26,.38);
-  --line-zero:#11896A;--line-light:#A88412;--line-mid:#C4621A;--line-strong:#C93A46;
-  --ok:#11896A;--warn:#C4621A;--danger:#D3343F;
-  --material:rgba(250,248,244,.74);--material-strong:rgba(250,248,244,.9);
-  --shadow:0 10px 30px rgba(60,45,20,.12),0 2px 6px rgba(60,45,20,.08);
-}}
 *{box-sizing:border-box}
 html{font-size:17px;font:-apple-system-body;-webkit-text-size-adjust:100%;background:var(--bg)}
 body{margin:0;min-height:100dvh;background:var(--bg);color:var(--label);font-family:var(--sans);font-size:1rem;line-height:1.35;-webkit-font-smoothing:antialiased;-webkit-tap-highlight-color:transparent;overscroll-behavior-y:none}
@@ -250,6 +238,7 @@ a.cell:active,button.cell:active,.cell.tappable:active{background:var(--bg-press
 .sheet.open{opacity:1;pointer-events:auto}
 .sheet-panel{position:relative;width:100%;max-width:720px;max-height:92dvh;display:flex;flex-direction:column;background:var(--material-strong);-webkit-backdrop-filter:blur(30px) saturate(170%);backdrop-filter:blur(30px) saturate(170%);border-radius:var(--r-xl) var(--r-xl) 0 0;box-shadow:0 -10px 40px rgba(0,0,0,.4),inset 0 .5px 0 rgba(255,255,255,.12);transform:translateY(100%);transition:transform .34s cubic-bezier(.2,.9,.25,1);padding-bottom:var(--safe-b)}
 .sheet.open .sheet-panel{transform:none}
+.sheet-grabber,.sheet-head{touch-action:none}
 .sheet-grabber{width:38px;height:5px;border-radius:3px;background:var(--label-3);opacity:.6;margin:7px auto 0;flex:none}
 .sheet-head{display:grid;grid-template-columns:1fr auto 1fr;align-items:center;min-height:48px;padding:0 8px;flex:none}
 .sheet-head h2{grid-column:2;margin:0;font-size:1rem;font-weight:600;text-align:center}
@@ -299,7 +288,7 @@ export const SHELL_JS = `<script>
   document.addEventListener("click",function(e){var c=e.target.closest("[data-close-sheet]");if(c){VIA.closeSheet(c.closest(".sheet"));return}var o=e.target.closest("[data-open-sheet]");if(o){VIA.openSheet(o.getAttribute("data-open-sheet"));return}if(e.target.classList&&e.target.classList.contains("sheet"))VIA.closeSheet(e.target)});
   document.addEventListener("keydown",function(e){if(e.key==="Escape"){var s=document.querySelector(".sheet.open");if(s)VIA.closeSheet(s)}});
   // Свайп вниз по шапке шторки закрывает её
-  var drag=null;document.addEventListener("pointerdown",function(e){var h=e.target.closest(".sheet-grabber,.sheet-head");if(!h||e.target.closest("button,a,input"))return;var p=h.closest(".sheet-panel");drag={p:p,y:e.clientY,dy:0};p.style.transition="none"});
+  var drag=null;document.addEventListener("pointerdown",function(e){var h=e.target.closest(".sheet-grabber,.sheet-head");if(!h||e.target.closest("button,a,input"))return;var p=h.closest(".sheet-panel");drag={p:p,y:e.clientY,dy:0};p.style.transition="none";try{h.setPointerCapture(e.pointerId)}catch(_){}});
   document.addEventListener("pointermove",function(e){if(!drag)return;drag.dy=Math.max(0,e.clientY-drag.y);drag.p.style.transform="translateY("+drag.dy+"px)"});
   var end=function(){if(!drag)return;var p=drag.p;p.style.transition="";p.style.transform="";if(drag.dy>110)VIA.closeSheet(p.closest(".sheet"));drag=null};
   document.addEventListener("pointerup",end);document.addEventListener("pointercancel",end);
@@ -328,9 +317,8 @@ load();setInterval(load,20000);document.addEventListener("visibilitychange",load
 
 const headTags = (title, app) => `<meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
-<meta name="color-scheme" content="dark light">
-<meta name="theme-color" content="#0A0908" media="(prefers-color-scheme: dark)">
-<meta name="theme-color" content="#F2F0EC" media="(prefers-color-scheme: light)">
+<meta name="color-scheme" content="dark">
+<meta name="theme-color" content="#0A0908">
 <meta name="apple-mobile-web-app-capable" content="yes">
 <meta name="mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
