@@ -1,0 +1,16 @@
+{
+  "name": "VIA Bar",
+  "short_name": "VIA Bar",
+  "description": "Семейный бар Владимира и Анастасии: меню, заказ и личный кабинет гостя.",
+  "lang": "ru",
+  "start_url": "/menu",
+  "scope": "/",
+  "display": "standalone",
+  "background_color": "#0A0908",
+  "theme_color": "#0A0908",
+  "icons": [
+    { "src": "/icons/icon-192.png", "sizes": "192x192", "type": "image/png" },
+    { "src": "/icons/icon-512.png", "sizes": "512x512", "type": "image/png" },
+    { "src": "/icons/icon-maskable-512.png", "sizes": "512x512", "type": "image/png", "purpose": "maskable" }
+  ]
+}

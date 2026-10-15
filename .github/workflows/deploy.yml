@@ -18,6 +18,7 @@ jobs:
         run: |
           node --input-type=module --check < src/worker.js
           node --input-type=module --check < src/index.js
+          node --input-type=module --check < src/design.js
 
       - name: Deploy Worker
         uses: cloudflare/wrangler-action@v4
@@ -25,3 +26,5 @@ jobs:
           apiToken: ${{ secrets.CLOUDFLARE_API_TOKEN }}
           accountId: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
           command: deploy
+          # [assets] (fonts, icons, manifests) needs a current wrangler
+          wranglerVersion: "4.151.0"
