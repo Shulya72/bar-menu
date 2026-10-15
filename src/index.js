@@ -2527,55 +2527,441 @@ loadStats();
 
       // ═══════ route-block: /bar/orders ═══════ (agents: edit only inside your own block)
 
-      if (url.pathname === "/bar/orders") return page(`<header><h1>📋 Текущий заказ</h1><div class="sub">＋ и − меняют заказ. Склад резервируется сразу, окончательное списание — после принятия.</div></header>
-<div class="wrap">
-<div class="row" style="margin-bottom:14px"><a href="/" style="display:inline-block;padding:10px 14px;border:1px solid #333;border-radius:12px;background:#151515">🏠 Главное меню</a><a href="/bar/recipes" style="display:inline-block;padding:10px 14px;border:1px solid #333;border-radius:12px;background:#151515">🍸 Книга рецептов</a></div>
-<div class="card"><div id="order">Загрузка…</div></div>
-<div id="orderRecipeModal" hidden style="position:fixed;inset:0;z-index:1000;background:#000c;display:none;align-items:flex-end;justify-content:center;padding:14px">
- <section style="width:100%;max-width:620px;max-height:84vh;overflow:auto;background:linear-gradient(145deg,#1b1913,#0b0b0a);border:1px solid #55452a;border-radius:24px;padding:20px;box-shadow:0 20px 70px #000">
-  <div style="display:flex;align-items:center;justify-content:space-between;gap:12px"><h2 id="orderRecipeTitle" style="margin:0;color:#f1dfb5"></h2><button type="button" id="closeOrderRecipe" class="secondary" aria-label="Закрыть рецепт" style="min-width:44px;width:44px;height:44px;padding:0;border-radius:50%">×</button></div>
-  <div id="orderRecipeBody" style="margin-top:14px"></div>
- </section>
+      // Заказы: очередь гостевых заказов (принять → выдать) и заказ за стойкой
+      // (черновик с резервом ингредиентов → принять со списанием). Рецепт — в шторке.
+      if (url.pathname === "/bar/orders") return htmlResponse(renderDocument({
+        title:"Заказы", app:"bar", tab:"orders", docTitle:"Заказы · VIA Бар",
+        right:`<button class="icon-btn" type="button" id="refreshBtn" aria-label="Обновить заказы">${icon("refresh")}</button>`,
+        extraCss:`
+.toast{width:max-content;border-radius:22px}
+.vh{position:absolute!important;width:1px!important;height:1px!important;margin:-1px!important;padding:0!important;overflow:hidden!important;clip:rect(0 0 0 0);clip-path:inset(50%);white-space:nowrap;border:0}
+.q-seg{margin:6px 0 2px}
+.q-seg button{position:relative;display:flex;align-items:center;justify-content:center;gap:7px;min-height:40px;font-size:.9375rem}
+.q-seg button::after{content:"";position:absolute;inset:-2px 0}
+.q-num{min-width:20px;height:20px;padding:0 6px;border-radius:10px;background:var(--bg-pressed);color:var(--label-2);font-size:.75rem;font-weight:700;line-height:20px;text-align:center;font-variant-numeric:tabular-nums}
+.q-num.hot{background:var(--gold-soft);color:var(--gold);box-shadow:inset 0 0 0 .75px var(--gold-ring)}
+.q-num:empty{display:none}
+.q-note{display:flex;gap:8px;align-items:flex-start;margin:14px 4px 0;color:var(--warn);font-size:.8125rem;line-height:1.35}
+.q-note .ic{width:16px;height:16px;margin-top:1px}
+.q-note[hidden]{display:none}
+.q-skel .skeleton{min-height:64px;border-radius:0}.q-skel .skeleton+.skeleton{border-top:.5px solid var(--sep-strong)}
+.q-card.is-pending{box-shadow:inset 0 0 0 1px var(--gold-ring)}
+.q-order.is-fresh .q-card{animation:q-fresh 2.8s ease-out}
+@keyframes q-fresh{0%,35%{box-shadow:inset 0 0 0 1.5px var(--gold),0 0 0 5px var(--gold-soft)}}
+.q-order.is-leaving{overflow:hidden;transition:opacity .3s ease,max-height .35s ease,margin-top .35s ease}
+.q-order.is-gone{opacity:0;max-height:0!important;margin-top:0}
+.q-head{align-items:flex-start;padding-top:12px;padding-bottom:12px}
+.q-head .cell-icon{margin-top:1px}
+.q-head .cell-title{font-weight:600;font-size:1.0625rem;margin:0}
+.q-head .badge{margin-top:6px}
+.q-initial{font-weight:700;font-size:.9375rem}
+.q-when,.q-phone{display:block;font-variant-numeric:tabular-nums}
+.q-track{display:block;padding:12px 2px 14px}
+.q-track ol,.rc-panel ol{list-style:none;margin:0;padding:0}
+.q-item{cursor:pointer;--sep-inset:36px}
+.q-item .cell-value{color:var(--label);font-weight:600}
+.q-dot{width:10px;height:10px;flex:none;border-radius:50%;background:var(--line,var(--label-3))}
+.q-act{gap:12px;padding-top:12px;padding-bottom:12px}
+.q-act .cell-title{font-size:1.0625rem}
+.q-act .btn{min-width:136px}
+.q-done{color:var(--ok);font-weight:600;display:inline-flex;align-items:center;gap:6px;min-height:50px}
+.q-drows{position:relative}
+.q-drow{gap:8px;padding-top:4px;padding-bottom:4px;--sep-inset:38px}
+.q-dname{flex:1;min-width:0;display:flex;align-items:center;gap:14px;min-height:52px;padding:4px 0;border:0;background:none;color:var(--label);font:inherit;text-align:left;cursor:pointer}
+.q-dname:active{opacity:.7}
+.q-dname .cell-sub:empty{display:none}
+.q-stepper{flex:none}
+.q-stepper button{position:relative}
+.q-stepper button::after{content:"";position:absolute;inset:-4px 0}
+.q-stepper .ic{width:20px;height:20px}
+.q-stepper output{min-width:26px;text-align:center;font-weight:700;font-variant-numeric:tabular-nums}
+.q-addrow{color:var(--gold);font-weight:500;gap:9px;cursor:pointer;--sep-inset:38px}
+.q-addrow .ic{width:20px;height:20px;margin-left:-5px}
+.q-total{color:var(--label);font-size:1.0625rem}
+.q-actions{margin-top:18px}
+.q-actions .btn-gray{flex:0 0 auto}
+.q-msg{color:var(--danger);margin:12px 4px 0;line-height:1.35}
+.q-msg:empty{display:none}
+.empty-state p{margin:0 auto;max-width:34ch;line-height:1.4}
+.q-empty-actions{display:flex;flex-direction:column;align-items:center;gap:4px;margin-top:18px}
+.empty-state .btn .ic{width:1.3em;height:1.3em;margin:0;color:inherit}
+.q-pick{cursor:pointer;--sep-inset:36px}
+.q-pick .ic.q-plus{color:var(--gold);width:22px;height:22px}
+.q-pick .badge{font-variant-numeric:tabular-nums}
+#pickList:empty{display:none}
+.scale{display:inline-flex;align-items:center;gap:3px}
+.scale i{display:block;width:7px;height:7px;border-radius:50%;background:var(--line)}
+.scale i.o{background:none;box-shadow:inset 0 0 0 1.5px var(--line)}
+.route.line-zero{--line:var(--line-zero)}.route.line-light{--line:var(--line-light)}.route.line-mid{--line:var(--line-mid)}.route.line-strong{--line:var(--line-strong)}
+.section-header h4{margin:0;font:inherit}
+.sheet-panel:focus,#panelGuests:focus,#panelBar:focus{outline:none}
+.rc-photo{display:block;width:100%;aspect-ratio:4/3;object-fit:cover;border-radius:var(--r-lg);background:var(--bg-raised-2);margin:2px 0 14px}
+.rc-name{font-size:1.75rem;line-height:1.15;margin:4px 0 10px;text-wrap:balance;overflow-wrap:anywhere}
+.rc-meta{display:flex;align-items:center;gap:10px;flex-wrap:wrap}
+.rc-meta .badge{height:26px;padding:0 11px;font-size:.8125rem}
+.rc-price{color:var(--label-2);font-weight:600;font-variant-numeric:tabular-nums}
+.rc-desc{color:var(--label-2);margin:12px 0 0;line-height:1.45;white-space:pre-line}
+.rc-panel{padding:16px 14px}
+.rc-row{display:flex;justify-content:space-between;gap:12px;align-items:baseline}
+.rc-ing{font-weight:500;overflow-wrap:anywhere}
+.rc-qty{font-weight:600;white-space:nowrap;font-variant-numeric:tabular-nums}
+.rc-text{white-space:pre-line;line-height:1.45;margin:0}
+.rc-empty{margin:0;color:var(--label-2)}
+`,
+        body:`<div class="segmented q-seg" role="tablist" aria-label="Очередь заказов">
+<button type="button" role="tab" id="segGuests" aria-controls="panelGuests" aria-selected="true">Гости<span class="q-num" id="segGuestsNum"></span></button>
+<button type="button" role="tab" id="segBar" aria-controls="panelBar" aria-selected="false" tabindex="-1">Стойка<span class="q-num" id="segBarNum"></span></button>
 </div>
+<section id="panelGuests" role="tabpanel" aria-labelledby="segGuests" tabindex="-1">
+<h2 class="vh">Заказы гостей</h2>
+<p class="q-note" id="guestNote" role="status" hidden></p>
+<div id="guestList"><div class="section q-skel" aria-hidden="true"><div class="list"><div class="skeleton"></div><div class="skeleton"></div><div class="skeleton"></div></div></div></div>
+<div class="empty-state" id="guestEmpty" hidden>${icon("bell")}<h3>Гости пока ничего не заказали</h3><p>Новые заказы из меню появятся здесь сами — список обновляется каждые 10 секунд.</p><div class="q-empty-actions"><a class="btn btn-tinted" href="/menu">${icon("glass")}Гостевое меню</a></div></div>
+<div class="empty-state" id="guestError" hidden>${icon("warning")}<h3>Не удалось загрузить заказы гостей</h3><p>Проверьте интернет. Мы попробуем ещё раз через 10 секунд.</p><div class="q-empty-actions"><button class="btn btn-tinted" type="button" data-retry>${icon("refresh")}Повторить</button></div></div>
+</section>
+<section id="panelBar" role="tabpanel" aria-labelledby="segBar" tabindex="-1" hidden>
+<h2 class="vh">Заказ за стойкой</h2>
+<div class="section q-skel" id="draftSkel" aria-hidden="true"><div class="list"><div class="skeleton"></div><div class="skeleton"></div></div></div>
+<div class="empty-state" id="draftError" hidden>${icon("warning")}<h3>Не удалось загрузить заказ</h3><p>Проверьте интернет. Мы попробуем ещё раз через 10 секунд.</p><div class="q-empty-actions"><button class="btn btn-tinted" type="button" data-retry>${icon("refresh")}Повторить</button></div></div>
+<div class="empty-state" id="draftEmpty" hidden>${icon("glass")}<h3>Заказ за стойкой пуст</h3><p>Добавьте коктейли — ингредиенты зарезервируются сразу, а спишутся со склада, когда вы примете заказ.</p><div class="q-empty-actions"><button class="btn btn-tinted" type="button" data-open-pick>${icon("plus")}Добавить коктейль</button><a class="btn btn-plain" href="/bar/recipes">Открыть рецепты</a></div><p class="footnote" id="shiftNote"></p></div>
+<div id="draftFull" hidden>
+<div class="section"><div class="section-header"><h3 id="draftHead">Текущий заказ</h3><span id="shiftInfo"></span></div>
+<div class="list"><div class="cell-wrap q-drows" id="draftRows"></div><button type="button" class="cell q-addrow" id="draftAddRow" data-open-pick>${icon("plus")}<span class="cell-body">Добавить коктейль</span></button></div></div>
+<div class="section"><div class="list"><div class="cell"><span class="cell-body"><span class="cell-title">Итого</span><span class="cell-sub" id="draftCount"></span></span><span class="cell-value price q-total" id="draftTotal"></span></div></div>
+<p class="section-footer">Ингредиенты уже зарезервированы. Со склада они спишутся, когда вы примете заказ.</p></div>
+<div class="button-row q-actions"><button class="btn btn-gray" type="button" id="draftClear">Очистить</button><button class="btn btn-primary" type="button" id="draftAccept">${icon("check")}Принять заказ</button></div>
 </div>
+<p class="q-msg" id="draftMsg" role="alert"></p>
+</section>
+<div class="sheet" id="recipeSheet" hidden><div class="sheet-panel" role="dialog" aria-modal="true" aria-labelledby="recipeName" tabindex="-1">
+<div class="sheet-grabber"></div>
+<div class="sheet-head"><span class="left"></span><h2>Рецепт</h2><button class="btn btn-plain right" type="button" data-close-sheet style="font-weight:700">Готово</button></div>
+<div class="sheet-body" id="recipeBody"></div>
+</div></div>
+<div class="sheet" id="pickSheet" hidden><div class="sheet-panel" role="dialog" aria-modal="true" aria-labelledby="pickTitle" tabindex="-1">
+<div class="sheet-grabber"></div>
+<div class="sheet-head"><span class="left"></span><h2 id="pickTitle">Добавить в заказ</h2><button class="btn btn-plain right" type="button" data-close-sheet style="font-weight:700">Готово</button></div>
+<div class="sheet-body">
+<label class="search">${icon("search")}<input type="search" id="pickSearch" placeholder="Поиск коктейля" autocomplete="off" aria-label="Поиск коктейля"></label>
+<div class="section"><div class="list" id="pickList"></div><div class="empty-state" id="pickEmpty" hidden></div>
+<p class="section-footer">Нажмите на коктейль, чтобы добавить порцию. Ингредиенты зарезервируются сразу.</p></div>
+</div></div></div>`,
+      }).replace("</main>",()=>String.raw`</main>
 <script>
-const orderEsc=s=>String(s??"").replace(/[&<>"']/g,c=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[c]));
-const orderUnit=u=>u==="g"?"гр.":u==="ml"?"мл.":u==="pcs"?"шт.":String(u||"");
-let orderCocktails=new Map();
-async function loadOrderRecipes(){
- try{const r=await fetch("/api/cocktails?include_stock=0");if(!r.ok)return;const data=await r.json();orderCocktails=new Map((Array.isArray(data)?data:[]).map(c=>[Number(c.id),c]));}catch(e){}
+(function(){
+const $=s=>document.querySelector(s);
+const esc=s=>String(s??"").replace(/[&<>"']/g,c=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[c]));
+const ic=(n,c)=>'<svg class="ic'+(c?" "+c:"")+'" aria-hidden="true"><use href="#i-'+n+'"/></svg>';
+const UNIT={ml:"мл",g:"гр",pcs:"шт."};
+const unitLabel=u=>UNIT[u]||String(u??"");
+const fmtQty=v=>Number(v||0).toLocaleString("ru-RU",{maximumFractionDigits:2});
+const fmtRub=v=>Math.round(Number(v||0)).toLocaleString("ru-RU")+" ₽";
+const plural=(n,f)=>{const a=Math.abs(n)%100,b=a%10;return f[a>10&&a<20?2:b===1?0:b>1&&b<5?1:2]};
+const drinks=n=>n+" "+plural(n,["коктейль","коктейля","коктейлей"]);
+const LINES={"Безалкогольный":{cls:"line-zero",dots:0,label:"без алкоголя"},"Лёгкий":{cls:"line-light",dots:1,label:"лёгкий"},"Средний":{cls:"line-mid",dots:2,label:"средний"},"Крепкий":{cls:"line-strong",dots:3,label:"крепкий"}};
+const lineOf=c=>c?LINES[String(c.strength||"").trim()]||null:null;
+const scaleHtml=L=>'<span class="scale" aria-hidden="true">'+(L.dots===0?'<i class="o"></i>':'<i></i>'.repeat(L.dots))+'</span>';
+const dotHtml=cid=>{const L=lineOf(cocktails.get(Number(cid)));return '<span class="q-dot'+(L?" "+L.cls:"")+'" data-line-cid="'+Number(cid)+'" aria-hidden="true"></span>'};
+const parseTs=s=>{if(!s)return null;const t=String(s).trim().replace(" ","T");const d=new Date(/[zZ]$|[+-]\d\d:?\d\d$/.test(t)?t:t+"Z");return isNaN(d)?null:d};
+const hhmm=d=>d.toLocaleTimeString("ru-RU",{hour:"2-digit",minute:"2-digit"});
+const ago=d=>{const m=Math.max(0,Math.floor((Date.now()-d)/60000));if(m<1)return "только что";if(m<60)return m+" мин назад";return Math.floor(m/60)+" ч назад"};
+const whenText=s=>{const d=parseTs(s);if(!d)return String(s||"");return Date.now()-d>864e5?d.toLocaleDateString("ru-RU",{day:"numeric",month:"short"})+", "+hhmm(d):hhmm(d)+" · "+ago(d)};
+const fmtPhone=p=>{const s=String(p||"").trim(),m=s.match(/^\+?7(\d{3})(\d{3})(\d{2})(\d{2})$/);return m?"+7 "+m[1]+" "+m[2]+"-"+m[3]+"-"+m[4]:s};
+const netErr="Нет связи. Проверьте интернет и попробуйте ещё раз.";
+async function api(url,opt){const r=await fetch(url,Object.assign({cache:"no-store"},opt||{}));const d=await r.json().catch(()=>({}));if(!r.ok){const e=new Error(d.error||"");e.status=r.status;throw e}return d}
+const post=(url,body,method)=>api(url,{method:method||"POST",headers:{"content-type":"application/json"},body:JSON.stringify(body||{})});
+
+/* ——— Коктейли (рецепты для шторки и добавления) ——— */
+let cocktails=new Map(),cocktailsOk=false,cocktailsReq=null;
+function loadCocktails(){
+  if(cocktailsReq)return cocktailsReq;
+  cocktailsReq=api("/api/cocktails?include_stock=0").then(d=>{cocktails=new Map((Array.isArray(d)?d:[]).map(c=>[Number(c.id),c]));cocktailsOk=true;paintLines();if(isOpen("pickSheet"))renderPick();return true}).catch(()=>false).finally(()=>{cocktailsReq=null});
+  return cocktailsReq;
 }
-function openOrderRecipe(id){
- const c=orderCocktails.get(Number(id));if(!c){alert("Не удалось загрузить рецепт. Обнови страницу и попробуй ещё раз.");return;}
- document.querySelector("#orderRecipeTitle").textContent=c.name||"Рецепт коктейля";
- const ingredients=(c.recipe_items||[]).map(i=>'<div style="display:flex;justify-content:space-between;gap:14px;padding:10px 0;border-bottom:1px solid #342b1c"><span>'+orderEsc(i.ingredient_name||i.name||"Ингредиент")+'</span><b style="white-space:nowrap;color:#e5bd61">'+orderEsc(i.quantity)+' '+orderEsc(orderUnit(i.unit))+'</b></div>').join("");
- const body=document.querySelector("#orderRecipeBody");
- body.innerHTML=(c.photo_url?'<img src="'+orderEsc(c.photo_url)+'" alt="" loading="lazy" style="display:block;width:100%;max-height:240px;object-fit:cover;border-radius:14px;margin-bottom:14px;border:1px solid #493b25">':"")+
- (c.description?'<p style="color:#b9b5ac;line-height:1.55">'+orderEsc(c.description)+'</p>':"")+
- (c.strength?'<p style="color:#e5bd61;margin:10px 0">Крепость · '+orderEsc(c.strength)+'</p>':"")+
- '<h3 style="margin:18px 0 4px;color:#f1dfb5">Состав и дозировки</h3>'+
- (ingredients||'<p class="muted">Состав пока не указан.</p>')+
- (c.method?'<h3 style="margin:18px 0 6px;color:#f1dfb5">Способ приготовления</h3><p style="white-space:pre-line;line-height:1.55">'+orderEsc(c.method)+'</p>':"")+
- (c.glass?'<h3 style="margin:18px 0 6px;color:#f1dfb5">Инвентарь</h3><p style="white-space:pre-line;line-height:1.55">'+orderEsc(c.glass)+'</p>':"");
- const modal=document.querySelector("#orderRecipeModal");modal.hidden=false;modal.style.display="flex";document.body.style.overflow="hidden";
+function paintLines(){document.querySelectorAll("[data-line-cid]").forEach(n=>{const L=lineOf(cocktails.get(Number(n.dataset.lineCid)));n.className="q-dot"+(L?" "+L.cls:"")})}
+const isOpen=id=>{const s=document.getElementById(id);return !!s&&s.classList.contains("open")};
+
+/* ——— Шторки: фокус внутрь при открытии и обратно при закрытии ——— */
+let opener=null;
+function openSheet(id){opener=document.activeElement;VIA.openSheet(id);setTimeout(()=>{const p=document.querySelector("#"+id+" .sheet-panel");if(p&&!p.contains(document.activeElement))p.focus({preventScroll:true})},60)}
+document.querySelectorAll(".sheet").forEach(s=>new MutationObserver(()=>{if(s.classList.contains("open")||!opener)return;const o=opener;opener=null;const a=document.activeElement;if((s.contains(a)||a===document.body||!a)&&o.isConnected)o.focus({preventScroll:true})}).observe(s,{attributes:true,attributeFilter:["class"]}));
+
+/* ——— Шторка рецепта ——— */
+function recipeHtml(c){
+  const L=lineOf(c),items=c.recipe_items||[];let h="";
+  if(c.photo_url)h+='<img class="rc-photo" src="'+esc(c.photo_url)+'" alt="Фото: '+esc(c.name)+'" decoding="async">';
+  h+='<h3 class="rc-name serif" id="recipeName">'+esc(c.name||"Коктейль")+'</h3>';
+  const meta=(L?'<span class="badge line '+L.cls+'">'+scaleHtml(L)+esc(c.strength)+'</span>':c.strength?'<span class="badge">'+esc(c.strength)+'</span>':"")+(Number(c.price_rub||0)>0?'<span class="rc-price">'+fmtRub(c.price_rub)+'</span>':"");
+  if(meta)h+='<div class="rc-meta">'+meta+'</div>';
+  if(c.description)h+='<p class="rc-desc">'+esc(c.description)+'</p>';
+  h+='<div class="section"><div class="section-header"><h4>Состав</h4>'+(items.length?'<span>'+items.length+" "+plural(items.length,["ингредиент","ингредиента","ингредиентов"])+'</span>':"")+'</div>';
+  h+=items.length?'<div class="list rc-panel"><ol class="route'+(L?" "+L.cls:"")+'">'+items.map(i=>'<li class="route-stop"><span class="station"></span><div class="route-body rc-row"><span class="rc-ing">'+esc(i.ingredient_name||i.name||"Ингредиент")+'</span><span class="rc-qty">'+fmtQty(i.quantity)+" "+esc(unitLabel(i.unit))+'</span></div></li>').join("")+'</ol></div>':'<div class="list rc-panel"><p class="rc-empty">Состав пока не указан.</p></div>';
+  h+='</div>';
+  const steps=String(c.method||"").split(/\n+/).map(s=>s.trim()).filter(Boolean);
+  if(steps.length)h+='<div class="section"><div class="section-header"><h4>Приготовление</h4></div><div class="list rc-panel">'+(steps.length>1?'<ol class="route'+(L?" "+L.cls:"")+'">'+steps.map(s=>'<li class="route-stop"><span class="station"></span><div class="route-body">'+esc(s)+'</div></li>').join("")+'</ol>':'<p class="rc-text">'+esc(steps[0])+'</p>')+'</div></div>';
+  const serve=[];String(c.glass||"").split(/\n+/).map(s=>s.trim()).filter(Boolean).forEach(t=>serve.push(["",t]));
+  if(String(c.ice||"").trim())serve.push(["Лёд",String(c.ice).trim()]);
+  if(String(c.garnish||"").trim())serve.push(["Украшение",String(c.garnish).trim()]);
+  if(serve.length)h+='<div class="section"><div class="section-header"><h4>Инвентарь и подача</h4></div><div class="list">'+serve.map(([k,v])=>'<div class="cell"><span class="cell-body"><span class="cell-title">'+esc(v)+'</span>'+(k?'<span class="cell-sub">'+esc(k)+'</span>':"")+'</span></div>').join("")+'</div></div>';
+  return h;
 }
-function closeOrderRecipe(){const m=document.querySelector("#orderRecipeModal");m.hidden=true;m.style.display="none";document.body.style.overflow="";}
-document.querySelector("#closeOrderRecipe").onclick=closeOrderRecipe;
-document.querySelector("#orderRecipeModal").onclick=e=>{if(e.target.id==="orderRecipeModal")closeOrderRecipe()};
-document.addEventListener("keydown",e=>{if(e.key==="Escape")closeOrderRecipe()});
-async function loadOrder(){
- const r=await fetch("/api/bar/order");const d=await r.json();const box=document.querySelector("#order");
- if(!d.items||!d.items.length){box.innerHTML="<div class=\\"empty\\">Текущий заказ пуст.<br><a href=\\"/bar/recipes\\">← Вернуться в книгу рецептов</a></div>";return;}
- box.innerHTML="<h2>Смена №"+(d.shift?.id||"—")+"</h2>"+d.items.map(i=>"<div class=\\"row\\" style=\\"justify-content:space-between;padding:12px 0;border-bottom:1px solid #292929;gap:12px\\"><button type=\\"button\\" class=\\"order-recipe-link\\" data-recipe-id=\\""+Number(i.cocktail_id)+"\\" style=\\"padding:4px 0;border:0;background:none;color:#f0c766;text-decoration:underline;text-decoration-color:#80642f;text-underline-offset:4px;text-align:left;font:inherit;font-weight:700;cursor:pointer;flex:1;min-width:0\\">"+orderEsc(i.cocktail_name)+"</button><span class=\\"row\\" style=\\"flex-shrink:0\\"><button type=\\"button\\" class=\\"secondary minus\\" data-id=\\""+Number(i.cocktail_id)+"\\">−</button><b>"+Number(i.quantity)+"</b><button type=\\"button\\" class=\\"plus\\" data-id=\\""+Number(i.cocktail_id)+"\\">＋</button></span></div>").join("")+"<p style=\\"margin-top:14px\\">Коктейлей: <b>"+Number(d.total_cocktails||0)+"</b> · Сумма: <b>"+Number(d.total_price||0).toFixed(0)+" ₽</b></p><div class=\\"row\\"><button id=\\"accept\\">✅ Принять заказ</button><button id=\\"clear\\" class=\\"secondary\\">Очистить</button></div>";
- document.querySelectorAll(".order-recipe-link").forEach(b=>b.onclick=()=>openOrderRecipe(Number(b.dataset.recipeId)));
- document.querySelectorAll(".minus").forEach(b=>b.onclick=()=>changeOrder(Number(b.dataset.id),-1));
- document.querySelectorAll(".plus").forEach(b=>b.onclick=()=>changeOrder(Number(b.dataset.id),1));
- document.querySelector("#accept").onclick=async()=>{const r=await fetch("/api/bar/order/accept",{method:"POST"});const d=await r.json();if(!r.ok){alert(d.error||"Ошибка");return;}alert("Заказ №"+d.order_id+" принят ✅");loadOrder()};
- document.querySelector("#clear").onclick=async()=>{if(!confirm("Очистить текущий заказ?"))return;await fetch("/api/bar/order",{method:"DELETE"});loadOrder()};
+async function openRecipe(id){
+  id=Number(id);let c=cocktails.get(id);
+  if(!c){await loadCocktails();c=cocktails.get(id)}
+  if(!c){VIA.toast(cocktailsOk?"Рецепт не найден — возможно, коктейль убрали из книги.":"Не удалось загрузить рецепт. Проверьте интернет и попробуйте ещё раз.",true);return}
+  const b=$("#recipeBody");b.innerHTML=recipeHtml(c);b.scrollTop=0;openSheet("recipeSheet");
 }
-async function changeOrder(id,delta){const r=await fetch("/api/bar/order",{method:"POST",headers:{"content-type":"application/json"},body:JSON.stringify({cocktail_id:id,delta})});const d=await r.json();if(!r.ok){alert(d.error||"Ошибка");return;}loadOrder()}
-Promise.all([loadOrderRecipes(),loadOrder()]);
-</script>`, "Заказы");
+
+/* ——— Переключатель «Гости / Стойка» ——— */
+let tabTouched=/^#(bar|guests)$/.test(location.hash);
+function setTab(t,focus){
+  const g=t!=="bar",sg=$("#segGuests"),sb=$("#segBar");
+  sg.setAttribute("aria-selected",String(g));sb.setAttribute("aria-selected",String(!g));
+  sg.tabIndex=g?0:-1;sb.tabIndex=g?-1:0;
+  $("#panelGuests").hidden=!g;$("#panelBar").hidden=g;
+  try{history.replaceState(null,"",location.pathname+(g?"":"#bar"))}catch(e){}
+  if(focus)(g?sg:sb).focus();
+}
+$("#segGuests").onclick=()=>{tabTouched=true;setTab("guests")};
+$("#segBar").onclick=()=>{tabTouched=true;setTab("bar")};
+$(".q-seg").addEventListener("keydown",e=>{if(e.key!=="ArrowLeft"&&e.key!=="ArrowRight"&&e.key!=="Home"&&e.key!=="End")return;e.preventDefault();tabTouched=true;setTab($("#segGuests").getAttribute("aria-selected")==="true"?"bar":"guests",true)});
+if(location.hash==="#bar")setTab("bar");
+
+function setNum(sel,n,hot){const el=$(sel);el.textContent=n>0?String(n):"";el.classList.toggle("hot",!!hot)}
+function updateCounts(){
+  const p=guestOrders.filter(o=>o.status==="pending").length;
+  setNum("#segGuestsNum",guestsLoaded?guestOrders.length:0,p>0);
+  setNum("#segBarNum",draftLoaded?Number(draft.total_cocktails||0):0,false);
+  const b=document.getElementById("ordersBadge");if(b&&guestsLoaded){b.textContent=p;b.hidden=!p}
+}
+
+/* ——— Гостевые заказы ——— */
+let guestOrders=[],guestsLoaded=false,guestGen=0,firstGuestLoad=true;const seen=new Set();
+const orderSig=o=>JSON.stringify([o.status,o.total_rub,o.guest_name,o.guest_phone,(o.items||[]).map(i=>[i.cocktail_id,i.cocktail_name,i.quantity])]);
+const whenLine=o=>"Заказ №"+Number(o.id)+" · "+whenText(o.created_at);
+const stopHtml=(label,state)=>'<li class="tracker-stop'+(state?" "+state:"")+'"'+(state==="current"?' aria-current="step"':"")+'><span class="station"></span>'+label+(state==="done"?'<span class="vh"> — готово</span>':"")+'</li>';
+const trackerHtml=st=>'<ol class="tracker" aria-label="Статус заказа">'+stopHtml("Заказан",st==="pending"?"current":"done")+stopHtml("Принят",st==="pending"?"":st==="accepted"?"current":"done")+stopHtml("Выдан",st==="served"?"done":"")+'</ol>';
+function orderHtml(o){
+  const id=Number(o.id),pending=o.status==="pending",name=String(o.guest_name||"").trim()||"Гость",items=o.items||[];
+  const count=items.reduce((s,i)=>s+Number(i.quantity||0),0);
+  return '<div class="list q-card'+(pending?" is-pending":"")+'">'+
+    '<div class="cell has-icon q-head"><span class="cell-icon q-initial" aria-hidden="true">'+esc(name.charAt(0).toLocaleUpperCase("ru"))+'</span><div class="cell-body"><h3 class="cell-title" id="q'+id+'t">'+esc(name)+'</h3><span class="cell-sub"><span class="q-when">'+esc(whenLine(o))+'</span>'+(o.guest_phone?'<span class="q-phone">'+esc(fmtPhone(o.guest_phone))+'</span>':"")+'</span></div>'+(pending?'<span class="badge">Новый</span>':"")+'</div>'+
+    '<div class="cell q-track">'+trackerHtml(o.status)+'</div>'+
+    items.map(i=>'<button type="button" class="cell q-item" data-recipe="'+Number(i.cocktail_id)+'" data-fk="i'+Number(i.cocktail_id)+'">'+dotHtml(i.cocktail_id)+'<span class="cell-body"><span class="vh">Рецепт: </span><span class="cell-title">'+esc(i.cocktail_name||"Коктейль")+'</span></span><span class="cell-value">× '+Number(i.quantity||0)+'</span>'+ic("chevronRight","cell-chevron")+'</button>').join("")+
+    '<div class="cell q-act"><span class="cell-body"><span class="cell-title price">'+fmtRub(o.total_rub)+'</span><span class="cell-sub">'+drinks(count)+'</span></span>'+
+    '<button type="button" class="btn btn-primary q-go" data-act="'+(pending?"accept":"serve")+'" data-fk="act">'+(pending?ic("check")+"Принять":ic("glass")+"Выдать")+'</button></div>'+
+  '</div>';
+}
+function renderGuests(){
+  const box=$("#guestList"),ids=new Set(guestOrders.map(o=>Number(o.id)));
+  box.querySelectorAll(".q-skel").forEach(n=>n.remove());
+  box.querySelectorAll(".q-order").forEach(n=>{if(!ids.has(Number(n.dataset.oid))&&!n.dataset.busy&&!n.classList.contains("is-leaving"))leave(n)});
+  let prev=null;
+  for(const o of guestOrders){
+    const id=Number(o.id),sig=orderSig(o);
+    let n=box.querySelector('.q-order[data-oid="'+id+'"]');
+    if(n&&(n.dataset.busy||n.classList.contains("is-leaving"))){prev=n;continue}
+    if(!n){
+      n=document.createElement("article");n.className="section q-order";n.dataset.oid=id;n.setAttribute("aria-labelledby","q"+id+"t");
+      n.innerHTML=orderHtml(o);n.dataset.sig=sig;
+      if(!firstGuestLoad&&!seen.has(id)){n.classList.add("is-fresh");setTimeout(()=>n.classList.remove("is-fresh"),3000)}
+    }else if(n.dataset.sig!==sig){
+      const a=document.activeElement,key=n.contains(a)&&a.dataset?a.dataset.fk:"";
+      n.innerHTML=orderHtml(o);n.dataset.sig=sig;
+      if(key){const t=n.querySelector('[data-fk="'+key+'"]');if(t)t.focus({preventScroll:true})}
+    }else{const w=n.querySelector(".q-when");if(w)w.textContent=whenLine(o)}
+    let want=prev?prev.nextElementSibling:box.firstElementChild;
+    while(want&&want!==n&&!ids.has(Number(want.dataset.oid)))want=want.nextElementSibling;
+    if(n!==want)box.insertBefore(n,want);
+    prev=n;
+  }
+  const live=box.querySelectorAll(".q-order:not(.is-leaving)").length;
+  $("#guestEmpty").hidden=live>0||!guestsLoaded;
+  $("#guestError").hidden=true;
+  updateCounts();
+}
+function leave(n){
+  if(n.contains(document.activeElement)){const next=[...$("#guestList").querySelectorAll(".q-order:not(.is-leaving)")].find(x=>x!==n);const t=next?next.querySelector(".q-go"):null;(t||$("#panelGuests")).focus({preventScroll:true})}
+  n.classList.add("is-leaving");n.style.maxHeight=n.offsetHeight+"px";
+  requestAnimationFrame(()=>requestAnimationFrame(()=>n.classList.add("is-gone")));
+  setTimeout(()=>{n.remove();if(guestsLoaded&&!$("#guestList .q-order"))$("#guestEmpty").hidden=false},380);
+}
+async function loadGuests(){
+  const g=++guestGen;
+  try{
+    const d=await api("/api/bar/guest-orders");
+    if(g!==guestGen)return;
+    const list=Array.isArray(d.orders)?d.orders:[];
+    const fresh=firstGuestLoad?[]:list.filter(o=>o.status==="pending"&&!seen.has(Number(o.id)));
+    guestOrders=list;guestsLoaded=true;renderGuests();
+    list.forEach(o=>seen.add(Number(o.id)));firstGuestLoad=false;
+    $("#guestNote").hidden=true;
+    if(fresh.length)VIA.toast(fresh.length===1?"Новый заказ: "+(String(fresh[0].guest_name||"").trim()||"гость"):"Новых заказов: "+fresh.length);
+    return true;
+  }catch(e){
+    if(g!==guestGen)return;
+    if(!guestsLoaded){$("#guestList").querySelectorAll(".q-skel").forEach(n=>n.remove());$("#guestError").hidden=false}
+    else{const n=$("#guestNote");n.innerHTML=ic("warning")+"<span>Нет связи — показываем последние данные. Обновим, как только сеть вернётся.</span>";n.hidden=false}
+    return false;
+  }
+}
+async function guestAction(btn){
+  const card=btn.closest(".q-order");if(!card||card.dataset.busy)return;
+  const id=Number(card.dataset.oid),serve=btn.dataset.act==="serve",hadFocus=document.activeElement===btn,html=btn.innerHTML;
+  card.dataset.busy="1";btn.disabled=true;btn.textContent=serve?"Выдаём…":"Принимаем…";
+  try{
+    await post(serve?"/api/bar/guest-order/serve":"/api/bar/guest-order/accept",{order_id:id});
+    guestGen++;
+    if(serve){
+      guestOrders=guestOrders.filter(o=>Number(o.id)!==id);
+      const tr=card.querySelector(".q-track");if(tr)tr.innerHTML=trackerHtml("served");
+      const act=btn.parentNode;btn.remove();act.insertAdjacentHTML("beforeend",'<span class="q-done">'+ic("check")+'Выдан</span>');
+      if(hadFocus)$("#panelGuests").focus({preventScroll:true});
+      VIA.toast("Заказ №"+id+" выдан");
+      setTimeout(()=>{delete card.dataset.busy;leave(card);updateCounts()},1200);
+      updateCounts();
+    }else{
+      const o=guestOrders.find(x=>Number(x.id)===id);if(o)o.status="accepted";
+      delete card.dataset.busy;renderGuests();
+      if(hadFocus){const t=card.querySelector(".q-go");if(t)t.focus({preventScroll:true})}
+      VIA.toast("Заказ №"+id+" принят");
+    }
+  }catch(e){
+    delete card.dataset.busy;btn.disabled=false;btn.innerHTML=html;
+    VIA.toast(e.message||netErr,true);
+  }
+  loadGuests();
+}
+$("#guestList").addEventListener("click",e=>{const r=e.target.closest("[data-recipe]");if(r){openRecipe(r.dataset.recipe);return}const b=e.target.closest(".q-go");if(b)guestAction(b)});
+
+/* ——— Заказ за стойкой (черновик) ——— */
+let draft={shift:null,order:null,items:[]},draftLoaded=false,draftGen=0,draftOps=0,draftFailed=false,chain=Promise.resolve();
+const recalc=()=>{const it=draft.items||[];draft.total_cocktails=it.reduce((s,i)=>s+Number(i.quantity||0),0);draft.total_price=it.reduce((s,i)=>s+Number(i.quantity||0)*Number(i.price_rub||0),0)};
+const lineSub=i=>Number(i.price_rub||0)>0?fmtRub(Number(i.quantity||0)*Number(i.price_rub||0)):"";
+function draftRowHtml(i){
+  const cid=Number(i.cocktail_id),name=esc(i.cocktail_name||"Коктейль");
+  return '<button type="button" class="q-dname" data-recipe="'+cid+'">'+dotHtml(cid)+'<span class="cell-body"><span class="vh">Рецепт: </span><span class="cell-title q-dn">'+name+'</span><span class="cell-sub q-ds">'+lineSub(i)+'</span></span></button>'+
+    '<div class="stepper q-stepper"><button type="button" data-d="-1" aria-label="Убрать «'+name+'»">'+ic("minus")+'</button><output aria-live="polite" aria-atomic="true"><span class="vh">'+name+', порций: </span><span class="q-n">'+Number(i.quantity||0)+'</span></output><button type="button" data-d="1" aria-label="Добавить «'+name+'»">'+ic("plus")+'</button></div>';
+}
+function renderDraft(){
+  const items=draft.items||[],has=items.length>0,box=$("#draftRows"),a=document.activeElement;
+  const hadFocus=$("#panelBar").contains(a)&&a!==$("#panelBar");
+  $("#draftSkel").hidden=true;$("#draftError").hidden=true;
+  const ids=new Set(items.map(i=>Number(i.cocktail_id)));let lostAt=-1;
+  [...box.children].forEach((n,ix)=>{if(!ids.has(Number(n.dataset.cid))){if(n.contains(a))lostAt=ix;n.remove()}});
+  let prev=null;
+  for(const i of items){
+    const cid=Number(i.cocktail_id);let n=box.querySelector('.q-drow[data-cid="'+cid+'"]');
+    if(!n){n=document.createElement("div");n.className="cell q-drow";n.dataset.cid=cid;n.innerHTML=draftRowHtml(i)}
+    else{n.querySelector(".q-n").textContent=Number(i.quantity||0);n.querySelector(".q-ds").textContent=lineSub(i)}
+    const want=prev?prev.nextElementSibling:box.firstElementChild;if(n!==want)box.insertBefore(n,want);prev=n;
+  }
+  $("#draftEmpty").hidden=has;$("#draftFull").hidden=!has;
+  const sh=draft.shift;
+  $("#shiftInfo").textContent=sh?"Смена №"+Number(sh.id):"";
+  const st=sh?parseTs(sh.started_at):null;
+  $("#shiftNote").textContent=sh?"Смена №"+Number(sh.id)+" открыта"+(st?" в "+hhmm(st):"")+".":"Смена откроется сама, когда вы добавите первый коктейль.";
+  $("#draftCount").textContent=drinks(Number(draft.total_cocktails||0));
+  $("#draftTotal").textContent=fmtRub(draft.total_price);
+  const cur=document.activeElement;
+  if(lostAt>=0||(hadFocus&&(!$("#panelBar").contains(cur)||!cur.offsetParent||cur.disabled))){
+    const rows=box.children,t=has?(rows[Math.min(Math.max(lostAt,0),rows.length-1)]||null):null;
+    (t?t.querySelector(".q-dname"):has?$("#draftAddRow"):$("#draftEmpty [data-open-pick]")).focus({preventScroll:true});
+  }
+  updateCounts();syncPickCounts();
+}
+async function loadDraft(){
+  const g=++draftGen;
+  try{
+    const d=await api("/api/bar/order");
+    if(g!==draftGen||draftOps)return;
+    draft=d;recalc();draftLoaded=true;renderDraft();return true;
+  }catch(e){
+    if(g!==draftGen)return;
+    if(!draftLoaded){$("#draftSkel").hidden=true;$("#draftError").hidden=false}
+    return false;
+  }
+}
+const keepFocus=(had,b)=>{if(!had)return;const t=b.offsetParent?b:$("#draftEmpty [data-open-pick]");if(t)t.focus({preventScroll:true})};
+const setMsg=t=>{$("#draftMsg").textContent=t||""};
+function changeQty(cid,delta){
+  cid=Number(cid);setMsg("");
+  const items=draft.items||[],item=items.find(i=>Number(i.cocktail_id)===cid);
+  if(item){item.quantity=Number(item.quantity||0)+delta;if(item.quantity<=0)draft.items=items.filter(i=>i!==item)}
+  else if(delta>0){const c=cocktails.get(cid);draft.items=items.concat([{cocktail_id:cid,cocktail_name:c?c.name:"Коктейль",quantity:1,price_rub:c?Number(c.price_rub||0):0}])}
+  else return Promise.resolve(false);
+  recalc();renderDraft();
+  draftOps++;draftGen++;
+  const p=chain.then(async()=>{
+    try{const d=await post("/api/bar/order",{cocktail_id:cid,delta});if(draftOps===1){draft=d;recalc();draftLoaded=true;renderDraft()}return true}
+    catch(e){draftFailed=true;const m=e.message||netErr;setMsg(m);VIA.toast(m,true);return false}
+    finally{draftOps--;if(!draftOps&&draftFailed){draftFailed=false;loadDraft()}}
+  });
+  chain=p.catch(()=>{});
+  return p;
+}
+$("#draftRows").addEventListener("click",e=>{
+  const s=e.target.closest("[data-d]");if(s){changeQty(s.closest(".q-drow").dataset.cid,Number(s.dataset.d));return}
+  const r=e.target.closest("[data-recipe]");if(r)openRecipe(r.dataset.recipe);
+});
+$("#draftAccept").onclick=async()=>{
+  const b=$("#draftAccept"),html=b.innerHTML,hadFocus=document.activeElement===b;b.disabled=true;b.textContent="Принимаем…";setMsg("");
+  await chain;
+  try{
+    const d=await post("/api/bar/order/accept",{});
+    draftGen++;draft={shift:draft.shift,order:null,items:[]};recalc();renderDraft();
+    VIA.toast("Заказ №"+Number(d.order_id)+" принят");
+  }catch(e){const m=e.message||netErr;setMsg(m);VIA.toast(e.status===409?"Не хватает ингредиентов — подробности под заказом":m,true)}
+  finally{b.disabled=false;b.innerHTML=html;keepFocus(hadFocus,b);loadDraft()}
+};
+$("#draftClear").onclick=async()=>{
+  if(!confirm("Очистить текущий заказ? Резерв ингредиентов снимется."))return;
+  const b=$("#draftClear"),hadFocus=document.activeElement===b;b.disabled=true;setMsg("");
+  await chain;
+  try{await api("/api/bar/order",{method:"DELETE"});draftGen++;draft={shift:draft.shift,order:draft.order,items:[]};recalc();renderDraft();VIA.toast("Заказ очищен")}
+  catch(e){VIA.toast(e.message||netErr,true)}
+  finally{b.disabled=false;keepFocus(hadFocus,b);loadDraft()}
+};
+
+/* ——— Шторка «Добавить в заказ» ——— */
+const norm=s=>String(s??"").trim().toLocaleLowerCase("ru").replace(/ё/g,"е");
+const inDraft=cid=>{const i=(draft.items||[]).find(x=>Number(x.cocktail_id)===Number(cid));return i?Number(i.quantity||0):0};
+function renderPick(){
+  const q=norm($("#pickSearch").value),list=[...cocktails.values()].filter(c=>!q||norm(c.name).includes(q)).sort((a,b)=>String(a.name).localeCompare(String(b.name),"ru"));
+  $("#pickList").innerHTML=list.map(c=>{const L=lineOf(c),n=inDraft(c.id),sub=[L?L.label:"",Number(c.price_rub||0)>0?fmtRub(c.price_rub):""].filter(Boolean).join(" · ");
+    return '<button type="button" class="cell q-pick" data-add="'+Number(c.id)+'">'+dotHtml(c.id)+'<span class="cell-body"><span class="vh">Добавить: </span><span class="cell-title">'+esc(c.name)+'</span>'+(sub?'<span class="cell-sub">'+esc(sub)+'</span>':"")+'</span><span class="badge" data-in="'+Number(c.id)+'"'+(n?"":" hidden")+'><span class="vh">в заказе </span>× '+n+'</span>'+ic("plus","q-plus")+'</button>'}).join("");
+  const e=$("#pickEmpty");
+  e.hidden=list.length>0;
+  e.innerHTML=!cocktailsOk?ic("warning")+"<h3>Не удалось загрузить коктейли</h3><p>Проверьте интернет и откройте список ещё раз.</p>":q?"<h3>Ничего не нашлось</h3><p>Попробуйте другое название.</p>":"<h3>В книге пока нет коктейлей</h3><p>Добавьте рецепт в разделе «Рецепты».</p>";
+}
+function syncPickCounts(){document.querySelectorAll("#pickList [data-in]").forEach(b=>{const n=inDraft(b.dataset.in);b.hidden=!n;b.innerHTML='<span class="vh">в заказе </span>× '+n})}
+async function openPick(){
+  $("#pickSearch").value="";
+  if(!cocktailsOk){$("#pickList").innerHTML='<div class="skeleton"></div><div class="skeleton"></div>';$("#pickEmpty").hidden=true}else renderPick();
+  openSheet("pickSheet");
+  if(!cocktailsOk){await loadCocktails();renderPick()}
+}
+document.addEventListener("click",e=>{if(e.target.closest("[data-open-pick]"))openPick()});
+$("#pickSearch").addEventListener("input",renderPick);
+$("#pickList").addEventListener("click",async e=>{
+  const b=e.target.closest("[data-add]");if(!b)return;
+  const c=cocktails.get(Number(b.dataset.add));
+  if(await changeQty(b.dataset.add,1))VIA.toast("Добавлено: "+(c?c.name:"коктейль"));
+});
+
+/* ——— Загрузка, опрос каждые 10 секунд (только пока страница на экране) ——— */
+const POLL=10000;let pollT=0;
+function schedule(){clearTimeout(pollT);pollT=setTimeout(async()=>{if(!document.hidden)await Promise.all([loadGuests(),draftOps?null:loadDraft()]);schedule()},POLL)}
+async function refreshAll(){return Promise.all([loadGuests(),draftOps?true:loadDraft()])}
+document.addEventListener("visibilitychange",()=>{if(document.hidden)clearTimeout(pollT);else{refreshAll();schedule()}});
+addEventListener("pageshow",e=>{if(e.persisted){refreshAll();schedule()}});
+document.addEventListener("click",e=>{if(e.target.closest("[data-retry]"))refreshAll()});
+$("#refreshBtn").onclick=async()=>{const b=$("#refreshBtn");b.disabled=true;const r=await refreshAll();b.disabled=false;VIA.toast(r.every(x=>x!==false)?"Обновлено":netErr,r.some(x=>x===false))};
+loadCocktails();
+refreshAll().then(()=>{if(!tabTouched&&guestsLoaded&&!guestOrders.length&&(draft.items||[]).length)setTab("bar")});
+schedule();
+})();
+</script>`));
 
       // ═══════ end of route blocks ═══════
 
