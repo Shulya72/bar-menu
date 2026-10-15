@@ -2,6 +2,10 @@ name = "bar-menu"
 main = "src/worker.js"
 compatibility_date = "2026-10-04"
 
+# Статика (шрифты, иконки, манифесты) раздаётся напрямую, остальное — Worker.
+[assets]
+directory = "./public"
+
 [[routes]]
 pattern = "shulya.party"
 custom_domain = true

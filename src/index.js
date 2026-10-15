@@ -1,4 +1,4 @@
-
+import { renderDocument, htmlResponse, icon, monogram } from "./design.js";
 // Схема базы. Раньше каждая таблица/колонка «досоздавалась» на КАЖДОМ запросе
 // (30–40 последовательных обращений к D1 ≈ 3–5 с). Теперь всё это выполняется
 // один раз: результат отмечается в app_migrations, а внутри экземпляра Worker'а
@@ -794,31 +794,26 @@ export default {
         return json({...cocktail,recipe_items:results});
       }
 
-      if (url.pathname === "/") return page(`
-<header><h1>🍸 Карты Бара</h1><div class="sub">Cloudflare + D1</div></header>
-<div class="wrap">
-  <div class="card">
-    <h2>Система запущена</h2>
-    <p class="muted">База данных подключена. Теперь приложение можно наполнять реальными данными.</p>
-    <div class="row">
-      <a href="/bar">👨‍🍳 Меню бармена</a>
-      <a href="/menu">🥂 Карта бара</a>
-    </div>
-  </div>
-</div>`);
+      if (url.pathname === "/") return htmlResponse(renderDocument({
+        title:"VIA Bar", navbar:false,
+        docTitle:"VIA Bar — семейный бар",
+        extraCss:".landing{min-height:calc(100dvh - 140px);display:flex;flex-direction:column;align-items:center;justify-content:center;text-align:center;gap:6px}.landing .monogram{filter:drop-shadow(0 12px 30px rgba(214,168,78,.18));margin-bottom:6px}.landing h2{font-family:var(--serif);font-weight:400;font-size:2.6rem;margin:6px 0 0;letter-spacing:.04em}.landing .tagline{color:var(--label-2);margin:0 0 26px}.landing .tracker{width:min(100%,320px);margin:0 auto 30px}.landing .button-row{width:min(100%,360px);flex-direction:column}.large-title{display:none}",
+        body:`<section class="landing">${monogram(132,"lm")}<h2>VIA Bar</h2><p class="tagline">Семейный бар у нас дома</p>
+<div class="tracker" aria-label="VIA — от имён Владимир и Анастасия"><div class="tracker-stop done"><span class="station"></span>Владимир</div><div class="tracker-stop done"><span class="station"></span>VIA</div><div class="tracker-stop done"><span class="station"></span>Анастасия</div></div>
+<div class="button-row"><a class="btn btn-primary btn-block" href="/menu">${icon("glass")}Открыть меню</a><a class="btn btn-tinted btn-block" href="/bar/orders">${icon("bell")}Я за стойкой</a></div></section>`,
+      }));
 
-      if (url.pathname === "/bar") return page(`
-<header><h1>👨‍🍳 Меню бармена</h1><div class="sub">Рабочая часть</div></header>
-<div class="wrap">
-<div class="row" style="margin-bottom:14px"><a href="/" style="display:inline-block;padding:10px 14px;border:1px solid #333;border-radius:12px;background:#151515">🏠 Главное меню</a></div>
-<div class="grid">
-<a class="card" href="/bar/recipes"><h2>🍸 Книга рецептов</h2><p class="muted">Создание коктейлей и рецептур</p></a>
-<a class="card" href="/bar/ingredients"><h2>🧾 Ингредиенты</h2><p class="muted">Ваш справочник ингредиентов</p></a>
-<a class="card" href="/bar/stock"><h2>📦 Склад</h2><p class="muted">Товары и остатки</p></a>
-<a class="card" href="/bar/shop"><h2>🛒 Магазин</h2><p class="muted">Закупки и партии</p></a>
-<a class="card" href="/bar/orders"><h2>📋 Заказы</h2><p class="muted">Текущий заказ бармена</p></a>
-<a class="card" href="/bar/statistics"><h2>📊 Статистика</h2><p class="muted">Смены, заказы и коктейли</p></a>
-</div></div>`);
+      if (url.pathname === "/bar") return htmlResponse(renderDocument({
+        title:"Ещё", app:"bar", tab:"more", docTitle:"Ещё · VIA Бар",
+        body:`<div class="section"><div class="section-header"><h2>Бар</h2></div><div class="list">
+<a class="cell has-icon" href="/bar/ingredients"><span class="cell-icon">${icon("leaf")}</span><span class="cell-body"><span class="cell-title">Ингредиенты</span><span class="cell-sub">Справочник для рецептов и склада</span></span>${icon("chevronRight","cell-chevron")}</a>
+<a class="cell has-icon" href="/bar/statistics"><span class="cell-icon">${icon("chart")}</span><span class="cell-body"><span class="cell-title">Статистика</span><span class="cell-sub">Смены, заказы и выручка</span></span>${icon("chevronRight","cell-chevron")}</a>
+</div></div>
+<div class="section"><div class="section-header"><h2>Для гостей</h2></div><div class="list">
+<a class="cell has-icon" href="/menu"><span class="cell-icon">${icon("glass")}</span><span class="cell-body"><span class="cell-title">Гостевое меню</span><span class="cell-sub">Так видят бар гости</span></span>${icon("chevronRight","cell-chevron")}</a>
+<a class="cell has-icon" href="/"><span class="cell-icon">${icon("home")}</span><span class="cell-body"><span class="cell-title">Главная</span></span>${icon("chevronRight","cell-chevron")}</a>
+</div></div>`,
+      }));
 
       if (url.pathname === "/bar/recipes") return page(`
 <header><h1>🍸 Книга рецептов</h1><div class="sub">Рецепт здесь — источник для гостевой «Карты бара»</div></header>
@@ -1187,28 +1182,48 @@ loadOrderBar();
 </script>`, "Книга рецептов");
 
 
-      if (url.pathname === "/bar/ingredients") return page(`
-<header><h1>🧾 Ингредиенты</h1><div class="sub">Системные ингредиенты для рецептов и склада</div></header>
-<div class="wrap">
-<div class="row" style="margin-bottom:14px"><a href="/" style="display:inline-block;padding:10px 14px;border:1px solid #333;border-radius:12px;background:#151515">🏠 Главное меню</a><a href="/bar/recipes" style="display:inline-block;padding:10px 14px;border:1px solid #333;border-radius:12px;background:#151515">🍸 Книга рецептов</a></div>
-<div class="card">
-<h2>Добавить ингредиент</h2>
-<p class="muted">Название здесь — это стабильное имя ингредиента. Бренд, магазин и конкретная упаковка сюда не записываются.</p>
-<form id="ingredientForm">
-<label>Название *</label><input name="name" required placeholder="Например, Тоник апельсиновый">
-<label>Единица</label><select name="unit"><option value="ml">мл</option><option value="g">г</option><option value="pcs">шт.</option></select>
-<label>Крепость алкоголя, %</label><input name="strength_percent" type="number" min="0" max="100" step="0.1" value="0" placeholder="Например, 40"><p class="muted">Для водки 40%, ликёра 20%, сока/газировки — 0%.</p>
-<div style="margin-top:16px"><button>＋ Добавить</button></div><p id="msg" class="muted"></p>
-</form>
-</div><div style="height:16px"></div>
-<div class="card"><h2>Справочник</h2><div id="list">Загрузка...</div></div>
-</div>
+      if (url.pathname === "/bar/ingredients") return htmlResponse(renderDocument({
+        title:"Ингредиенты", app:"bar", tab:"more", back:{href:"/bar",label:"Ещё"}, docTitle:"Ингредиенты · VIA Бар",
+        right:`<button class="icon-btn" type="button" data-open-sheet="ingredientSheet" aria-label="Добавить ингредиент">${icon("plus")}</button>`,
+        sub:"Постоянные названия для рецептов и склада. Бренд и магазин указываются в закупках.",
+        body:`<label class="search">${icon("search")}<input type="search" id="ingSearch" placeholder="Поиск ингредиента" autocomplete="off" aria-label="Поиск ингредиента"></label>
+<div class="section"><div class="list" id="list"><div class="skeleton"></div><div class="skeleton"></div><div class="skeleton"></div></div><p class="section-footer" id="listFooter"></p></div>
+<div class="sheet" id="ingredientSheet" hidden><div class="sheet-panel" role="dialog" aria-modal="true" aria-labelledby="ingSheetTitle">
+<div class="sheet-grabber"></div>
+<div class="sheet-head"><button class="btn btn-plain left" type="button" data-close-sheet>Отмена</button><h2 id="ingSheetTitle">Новый ингредиент</h2><button class="btn btn-plain right" type="submit" form="ingredientForm" style="font-weight:700">Готово</button></div>
+<div class="sheet-body"><form id="ingredientForm" autocomplete="off"><input type="hidden" name="id">
+<div class="list"><label class="field"><span>Название</span><input name="name" required placeholder="Например, тоник апельсиновый" autofocus></label>
+<div class="field"><span>Единица</span><div class="segmented" role="group" aria-label="Единица"><button type="button" data-unit="ml" aria-pressed="true">мл</button><button type="button" data-unit="g" aria-pressed="false">граммы</button><button type="button" data-unit="pcs" aria-pressed="false">штуки</button></div><input type="hidden" name="unit" value="ml"></div>
+<label class="field"><span>Крепость, %</span><input name="strength_percent" type="number" inputmode="decimal" min="0" max="100" step="0.1" value="0"></label></div>
+<p class="section-footer">Водка — 40%, ликёр — около 20%, сок и газировка — 0%. По крепости ингредиентов считается крепость коктейля.</p>
+<p class="footnote" id="ingMsg" role="alert"></p>
+<button class="btn btn-danger btn-block" type="button" id="ingDelete" hidden>${icon("trash")}Удалить ингредиент</button>
+</form></div></div></div>`,
+      }).replace("</main>",String.raw`</main>
 <script>
 const esc=s=>String(s??"").replace(/[&<>"']/g,c=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[c]));
-async function load(){const r=await fetch("/api/ingredients");const x=await r.json();document.querySelector("#list").innerHTML=x.map(i=>'<div class="ingredient-item" data-id="'+i.id+'" style="padding:12px 0;border-bottom:1px solid #292929"><div class="ingredient-view"><b>#'+i.id+' · '+esc(i.name)+'</b><span class="muted"> · '+i.unit+' · <strong>🍸 '+Number(i.strength_percent||0).toFixed(1)+'%</strong></span> <button type="button" class="secondary edit">Изменить</button></div></div>').join("")||'<div class="empty">Нет ингредиентов</div>';
-document.querySelectorAll(".ingredient-item .edit").forEach(b=>b.onclick=()=>{const item=b.closest(".ingredient-item"), id=Number(item.dataset.id), current=x.find(v=>Number(v.id)===id);if(!current)return;item.innerHTML='<div class="grid" style="grid-template-columns:1fr 140px 140px;align-items:end"><div><label>Название</label><input class="edit-name" value="'+esc(current.name)+'"></div><div><label>Единица</label><select class="edit-unit"><option value="ml"'+(current.unit==="ml"?" selected":"")+'>мл</option><option value="g"'+(current.unit==="g"?" selected":"")+'>г</option><option value="pcs"'+(current.unit==="pcs"?" selected":"")+'>шт.</option></select></div><div><label>Крепость, %</label><input class="edit-strength" type="number" min="0" max="100" step="0.1" value="'+Number(current.strength_percent||0)+'"></div></div><div class="row" style="margin-top:10px"><button type="button" class="save-edit">💾 Сохранить</button><button type="button" class="secondary cancel-edit">Отмена</button><span class="edit-msg muted"></span></div>';item.querySelector(".cancel-edit").onclick=()=>load();item.querySelector(".save-edit").onclick=async()=>{const name=item.querySelector(".edit-name").value.trim(),unit=item.querySelector(".edit-unit").value,strength=Number(item.querySelector(".edit-strength").value||0),msg=item.querySelector(".edit-msg");if(!name||!Number.isFinite(strength)||strength<0||strength>100){msg.textContent="Проверьте название и крепость 0–100%";return}const r=await fetch("/api/ingredients",{method:"PUT",headers:{"content-type":"application/json"},body:JSON.stringify({id,name,unit,strength_percent:strength})});const d=await r.json();if(!r.ok){msg.textContent=d.error||"Ошибка"}else load()}})}
-document.querySelector("#ingredientForm").onsubmit=async e=>{e.preventDefault();const body=Object.fromEntries(new FormData(e.target));const r=await fetch("/api/ingredients",{method:"POST",headers:{"content-type":"application/json"},body:JSON.stringify(body)});const d=await r.json();document.querySelector("#msg").textContent=r.ok?"Ингредиент добавлен ✅":"Ошибка: "+(d.error||"");if(r.ok){e.target.reset();load()}};load();
-</script>`, "Ингредиенты");
+const UNIT={ml:"мл",g:"граммы",pcs:"штуки"};
+let all=[];
+const form=document.querySelector("#ingredientForm"),msg=document.querySelector("#ingMsg"),del=document.querySelector("#ingDelete");
+const setUnit=u=>{form.unit.value=u;form.querySelectorAll("[data-unit]").forEach(b=>b.setAttribute("aria-pressed",String(b.dataset.unit===u)))};
+form.querySelectorAll("[data-unit]").forEach(b=>b.onclick=()=>setUnit(b.dataset.unit));
+const openForm=item=>{form.reset();msg.textContent="";form.id.value=item?item.id:"";form.name.value=item?item.name:"";form.strength_percent.value=item?Number(item.strength_percent||0):0;setUnit(item?item.unit:"ml");document.querySelector("#ingSheetTitle").textContent=item?"Ингредиент":"Новый ингредиент";del.hidden=!item;VIA.openSheet("ingredientSheet")};
+document.querySelector("[data-open-sheet=ingredientSheet]").addEventListener("click",e=>{e.stopPropagation();openForm(null)});
+const render=()=>{const q=document.querySelector("#ingSearch").value.trim().toLocaleLowerCase("ru").replace(/ё/g,"е");const rows=all.filter(i=>!q||String(i.name).toLocaleLowerCase("ru").replace(/ё/g,"е").includes(q));
+document.querySelector("#list").innerHTML=rows.map(i=>'<button type="button" class="cell" data-id="'+i.id+'"><span class="cell-body"><span class="cell-title">'+esc(i.name)+'</span><span class="cell-sub">'+UNIT[i.unit]+(Number(i.strength_percent)>0?' · '+Number(i.strength_percent).toLocaleString("ru-RU")+'% алк.':' · без алкоголя')+'</span></span><svg class="ic cell-chevron" aria-hidden="true"><use href="#i-chevronRight"/></svg></button>').join("")||'<div class="empty-state"><h3>'+(q?"Ничего не нашлось":"Пока пусто")+'</h3>'+(q?"Попробуйте другое название.":"Добавьте первый ингредиент кнопкой «+» вверху.")+'</div>';
+document.querySelector("#listFooter").textContent=all.length?("Всего: "+all.length):"";
+document.querySelectorAll("#list .cell").forEach(b=>b.onclick=()=>openForm(all.find(v=>Number(v.id)===Number(b.dataset.id))))};
+async function load(){try{const r=await fetch("/api/ingredients");if(!r.ok)throw 0;all=await r.json();render()}catch(e){document.querySelector("#list").innerHTML='<div class="empty-state"><h3>Не удалось загрузить</h3>Проверьте интернет и обновите страницу.</div>'}}
+document.querySelector("#ingSearch").addEventListener("input",render);
+form.onsubmit=async e=>{e.preventDefault();const body=Object.fromEntries(new FormData(form));const id=Number(body.id);const strength=Number(body.strength_percent||0);
+if(!String(body.name).trim()){msg.textContent="Введите название.";return}
+if(!Number.isFinite(strength)||strength<0||strength>100){msg.textContent="Крепость — число от 0 до 100.";return}
+msg.textContent="Сохраняем…";
+try{const r=await fetch("/api/ingredients",{method:id?"PUT":"POST",headers:{"content-type":"application/json"},body:JSON.stringify(id?{id,name:body.name,unit:body.unit,strength_percent:strength}:{name:body.name,unit:body.unit,strength_percent:strength})});const d=await r.json().catch(()=>({}));if(!r.ok)throw new Error(d.error||"Не удалось сохранить");VIA.closeSheet("ingredientSheet");VIA.toast(id?"Сохранено":d.exists?"Такой ингредиент уже есть":"Ингредиент добавлен");load()}catch(err){msg.textContent=err.message||"Ошибка сети. Попробуйте ещё раз."}};
+del.onclick=async()=>{const id=Number(form.id.value);if(!id||!confirm("Удалить ингредиент «"+form.name.value+"»?"))return;try{const r=await fetch("/api/ingredients?id="+id,{method:"DELETE"});const d=await r.json().catch(()=>({}));if(!r.ok)throw new Error(d.error||"Не удалось удалить");VIA.closeSheet("ingredientSheet");VIA.toast("Ингредиент удалён");load()}catch(err){msg.textContent=err.message}};
+load();
+</script>`));
+
       if (url.pathname === "/bar/stock") {
         // Первичная загрузка склада выполняется на сервере. Это исключает
         // зависимость открытия страницы от отдельного AJAX-запроса и старого
