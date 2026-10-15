@@ -1,110 +1,93 @@
 
-const resetLegacyDataOnce=async env=>{
-  await env.DB.prepare("CREATE TABLE IF NOT EXISTS app_migrations (name TEXT PRIMARY KEY, applied_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP)").run();
-  const done=await env.DB.prepare("SELECT name FROM app_migrations WHERE name=?").bind("reset-to-empty-2026-10-04").first();
-  if(done) return;
-  const wipe=async sql=>{try{await env.DB.prepare(sql).run()}catch(e){}};
-  await wipe("DELETE FROM reviews");
-  await wipe("DELETE FROM favorites");
-  await wipe("DELETE FROM order_items");
-  await wipe("DELETE FROM orders");
-  await wipe("DELETE FROM stock_movements");
-  await wipe("DELETE FROM purchase_batches");
-  await wipe("DELETE FROM recipe_ingredients");
-  await wipe("DELETE FROM recipe_items");
-  await wipe("DELETE FROM products");
-  await wipe("DELETE FROM cocktails");
-  await wipe("DELETE FROM ingredients");
-  await wipe("DELETE FROM guests");
-  await wipe("DELETE FROM shifts");
-  await env.DB.prepare("INSERT INTO app_migrations(name) VALUES(?)").bind("reset-to-empty-2026-10-04").run();
-};
-
-const resetAutoIncrementSequencesOnce=async env=>{
-  await env.DB.prepare("CREATE TABLE IF NOT EXISTS app_migrations (name TEXT PRIMARY KEY, applied_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP)").run();
-  const name="reset-autoincrement-sequences-2026-10-04";
-  const done=await env.DB.prepare("SELECT name FROM app_migrations WHERE name=?").bind(name).first();
-  if(done) return;
-  for(const table of ["ingredients","products","cocktails","recipe_ingredients","recipe_items","purchase_batches","stock_movements","guests","orders","order_items","reviews","shifts","favorites"]){
-    try{await env.DB.prepare("DELETE FROM sqlite_sequence WHERE name=?").bind(table).run()}catch(e){}
-  }
-  await env.DB.prepare("INSERT INTO app_migrations(name) VALUES(?)").bind(name).run();
-};
-
-const ensureIngredientSystem=async env=>{
-  // This migration must be safe against the older D1 schema. In particular,
+// Схема базы. Раньше каждая таблица/колонка «досоздавалась» на КАЖДОМ запросе
+// (30–40 последовательных обращений к D1 ≈ 3–5 с). Теперь всё это выполняется
+// один раз: результат отмечается в app_migrations, а внутри экземпляра Worker'а
+// запоминается промисом. Чтобы изменить схему — добавь команду в SCHEMA_SQL и
+// поменяй SCHEMA_VERSION: новая версия применится один раз при следующем запросе.
+const SCHEMA_VERSION="schema-2026-10-15";
+const SCHEMA_SQL=[
+  "CREATE TABLE IF NOT EXISTS app_migrations (name TEXT PRIMARY KEY, applied_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP)",
+  "CREATE TABLE IF NOT EXISTS ingredients (id INTEGER PRIMARY KEY AUTOINCREMENT, name TEXT NOT NULL UNIQUE, unit TEXT NOT NULL DEFAULT 'ml' CHECK(unit IN ('ml','g','pcs')), is_active INTEGER NOT NULL DEFAULT 1, created_at TEXT DEFAULT NULL, updated_at TEXT DEFAULT NULL)",
   // SQLite/D1 does not allow ADD COLUMN with a non-constant DEFAULT.
-  await env.DB.prepare("CREATE TABLE IF NOT EXISTS ingredients (id INTEGER PRIMARY KEY AUTOINCREMENT, name TEXT NOT NULL UNIQUE, unit TEXT NOT NULL DEFAULT 'ml' CHECK(unit IN ('ml','g','pcs')), is_active INTEGER NOT NULL DEFAULT 1, created_at TEXT DEFAULT NULL, updated_at TEXT DEFAULT NULL)").run();
-  try{ await env.DB.prepare("ALTER TABLE ingredients ADD COLUMN unit TEXT NOT NULL DEFAULT 'ml'").run(); }catch(e){}
-  try{ await env.DB.prepare("ALTER TABLE ingredients ADD COLUMN strength_percent REAL NOT NULL DEFAULT 0").run(); }catch(e){}
-  try{ await env.DB.prepare("ALTER TABLE ingredients ADD COLUMN is_active INTEGER NOT NULL DEFAULT 1").run(); }catch(e){}
-  try{ await env.DB.prepare("ALTER TABLE ingredients ADD COLUMN created_at TEXT DEFAULT NULL").run(); }catch(e){}
-  try{ await env.DB.prepare("ALTER TABLE ingredients ADD COLUMN updated_at TEXT DEFAULT NULL").run(); }catch(e){}
-  try{ await env.DB.prepare("UPDATE ingredients SET created_at=COALESCE(created_at,CURRENT_TIMESTAMP), updated_at=COALESCE(updated_at,CURRENT_TIMESTAMP)").run(); }catch(e){}
-
-  // Recipe migration is deliberately isolated: a broken/old recipe table
-  // must never prevent the ingredient list from loading.
+  "ALTER TABLE ingredients ADD COLUMN unit TEXT NOT NULL DEFAULT 'ml'",
+  "ALTER TABLE ingredients ADD COLUMN strength_percent REAL NOT NULL DEFAULT 0",
+  "ALTER TABLE ingredients ADD COLUMN is_active INTEGER NOT NULL DEFAULT 1",
+  "ALTER TABLE ingredients ADD COLUMN created_at TEXT DEFAULT NULL",
+  "ALTER TABLE ingredients ADD COLUMN updated_at TEXT DEFAULT NULL",
+  "CREATE TABLE IF NOT EXISTS recipe_ingredients (id INTEGER PRIMARY KEY AUTOINCREMENT, cocktail_id INTEGER NOT NULL REFERENCES cocktails(id) ON DELETE CASCADE, ingredient_id INTEGER NOT NULL REFERENCES ingredients(id), quantity REAL NOT NULL CHECK(quantity > 0), UNIQUE(cocktail_id, ingredient_id))",
+  "ALTER TABLE products ADD COLUMN ingredient_id INTEGER",
+  "ALTER TABLE products ADD COLUMN store TEXT DEFAULT ''",
+  "ALTER TABLE purchase_batches ADD COLUMN receipt_deleted INTEGER NOT NULL DEFAULT 0",
+  "ALTER TABLE cocktails ADD COLUMN avatar_url TEXT DEFAULT ''",
+  "CREATE TABLE IF NOT EXISTS stock_adjustments (id INTEGER PRIMARY KEY AUTOINCREMENT, ingredient_id INTEGER NOT NULL REFERENCES ingredients(id), quantity REAL NOT NULL, unit_price REAL NOT NULL DEFAULT 0, brand TEXT DEFAULT '', store TEXT DEFAULT '', created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP)",
+  "ALTER TABLE stock_adjustments ADD COLUMN brand TEXT DEFAULT ''",
+  "ALTER TABLE stock_adjustments ADD COLUMN store TEXT DEFAULT ''",
+  "CREATE TABLE IF NOT EXISTS current_stock_lots (id INTEGER PRIMARY KEY AUTOINCREMENT,ingredient_id INTEGER NOT NULL,brand TEXT DEFAULT '',store TEXT DEFAULT '',quantity REAL NOT NULL DEFAULT 0,unit_price REAL NOT NULL DEFAULT 0,source_type TEXT NOT NULL DEFAULT 'manual',source_id TEXT,created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP)",
+  "CREATE UNIQUE INDEX IF NOT EXISTS idx_current_stock_source ON current_stock_lots(source_type,source_id)",
+  "CREATE INDEX IF NOT EXISTS idx_current_stock_ingredient ON current_stock_lots(ingredient_id)",
+  "CREATE TABLE IF NOT EXISTS bar_shifts (id INTEGER PRIMARY KEY AUTOINCREMENT,status TEXT NOT NULL DEFAULT 'open',started_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,closed_at TEXT)",
+  "CREATE TABLE IF NOT EXISTS bar_orders (id INTEGER PRIMARY KEY AUTOINCREMENT,shift_id INTEGER NOT NULL REFERENCES bar_shifts(id),status TEXT NOT NULL DEFAULT 'draft',created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,accepted_at TEXT,price_total REAL NOT NULL DEFAULT 0)",
+  "CREATE TABLE IF NOT EXISTS bar_order_items (id INTEGER PRIMARY KEY AUTOINCREMENT,order_id INTEGER NOT NULL REFERENCES bar_orders(id) ON DELETE CASCADE,cocktail_id INTEGER NOT NULL REFERENCES cocktails(id),quantity INTEGER NOT NULL CHECK(quantity>0),price_rub REAL NOT NULL DEFAULT 0,UNIQUE(order_id,cocktail_id))",
+  "CREATE TABLE IF NOT EXISTS bar_stock_movements (id INTEGER PRIMARY KEY AUTOINCREMENT,order_id INTEGER NOT NULL REFERENCES bar_orders(id),ingredient_id INTEGER NOT NULL REFERENCES ingredients(id),quantity REAL NOT NULL,unit TEXT NOT NULL,created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP)",
+  // Гостевая часть (src/worker.js)
+  "CREATE TABLE IF NOT EXISTS guests (id INTEGER PRIMARY KEY AUTOINCREMENT,name TEXT NOT NULL,phone TEXT UNIQUE,pin_salt TEXT NOT NULL,pin_hash TEXT NOT NULL,created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP)",
+  "CREATE TABLE IF NOT EXISTS guest_sessions (token TEXT PRIMARY KEY,guest_id INTEGER NOT NULL,created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,expires_at TEXT NOT NULL)",
+  "CREATE TABLE IF NOT EXISTS orders (id INTEGER PRIMARY KEY AUTOINCREMENT,guest_id INTEGER,status TEXT NOT NULL DEFAULT 'pending',total_rub INTEGER NOT NULL DEFAULT 0,created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,accepted_at TEXT,served_at TEXT)",
+  "CREATE TABLE IF NOT EXISTS order_items (id INTEGER PRIMARY KEY AUTOINCREMENT,order_id INTEGER NOT NULL,cocktail_id INTEGER NOT NULL,quantity INTEGER NOT NULL,unit_price_rub INTEGER NOT NULL DEFAULT 0)",
+  "CREATE TABLE IF NOT EXISTS guest_reviews (id INTEGER PRIMARY KEY AUTOINCREMENT,guest_id INTEGER NOT NULL,order_item_id INTEGER NOT NULL UNIQUE,order_id INTEGER NOT NULL,cocktail_id INTEGER NOT NULL,rating INTEGER NOT NULL CHECK(rating BETWEEN 1 AND 5),comment TEXT NOT NULL DEFAULT '',created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP)",
+];
+const migrateSchema=async env=>{
   try{
-    await env.DB.prepare("CREATE TABLE IF NOT EXISTS recipe_ingredients (id INTEGER PRIMARY KEY AUTOINCREMENT, cocktail_id INTEGER NOT NULL REFERENCES cocktails(id) ON DELETE CASCADE, ingredient_id INTEGER NOT NULL REFERENCES ingredients(id), quantity REAL NOT NULL CHECK(quantity > 0), UNIQUE(cocktail_id, ingredient_id))").run();
-  }catch(e){}
-
-  // Product links are also migrated independently from the ingredient API.
-  try{ await env.DB.prepare("ALTER TABLE products ADD COLUMN ingredient_id INTEGER").run(); }catch(e){}
-  try{ await env.DB.prepare("ALTER TABLE products ADD COLUMN store TEXT DEFAULT ''").run(); }catch(e){}
-  try{
-    const {results: ps}=await env.DB.prepare("SELECT id,name,ingredient_id FROM products").all();
-    for(const p of ps){
-      if(p.ingredient_id) continue;
-      const ing=await env.DB.prepare("SELECT id FROM ingredients WHERE lower(replace(name,'ё','е'))=lower(replace(?,'ё','е')) LIMIT 1").bind(p.name).first();
-      if(ing) await env.DB.prepare("UPDATE products SET ingredient_id=? WHERE id=?").bind(ing.id,p.id).run();
-    }
-  }catch(e){}
-
-  try{
-    await env.DB.prepare("INSERT OR IGNORE INTO recipe_ingredients(cocktail_id,ingredient_id,quantity) SELECT ri.cocktail_id,p.ingredient_id,ri.quantity FROM recipe_items ri JOIN products p ON p.id=ri.product_id WHERE p.ingredient_id IS NOT NULL").run();
-  }catch(e){}
+    if(await env.DB.prepare("SELECT name FROM app_migrations WHERE name=?").bind(SCHEMA_VERSION).first())return;
+  }catch(e){/* app_migrations ещё нет — создадим ниже */}
+  let ok=true;
+  for(const sql of SCHEMA_SQL){
+    // ALTER ... ADD COLUMN падает, если колонка уже есть, — это нормально.
+    try{await env.DB.prepare(sql).run()}catch(e){if(!sql.startsWith("ALTER TABLE")){ok=false;console.error("schema:",sql.slice(0,80),e?.message)}}
+  }
+  if(!ok)throw new Error("schema migration incomplete");
+  await env.DB.prepare("INSERT OR IGNORE INTO app_migrations(name) VALUES(?)").bind(SCHEMA_VERSION).run();
 };
+let schemaReady=null;
+export const ensureSchema=env=>schemaReady||(schemaReady=migrateSchema(env).catch(e=>{schemaReady=null;console.error("schema migration failed:",e?.message)}));
 
-const ensureStockAdjustmentSystem=async env=>{ await ensureShopSystem(env); try{await env.DB.prepare("CREATE TABLE IF NOT EXISTS stock_adjustments (id INTEGER PRIMARY KEY AUTOINCREMENT, ingredient_id INTEGER NOT NULL REFERENCES ingredients(id), quantity REAL NOT NULL, unit_price REAL NOT NULL DEFAULT 0, brand TEXT DEFAULT '', store TEXT DEFAULT '', created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP)").run()}catch(e){} try{await env.DB.prepare("ALTER TABLE stock_adjustments ADD COLUMN brand TEXT DEFAULT ''").run()}catch(e){} try{await env.DB.prepare("ALTER TABLE stock_adjustments ADD COLUMN store TEXT DEFAULT ''").run()}catch(e){}
-  try{await env.DB.prepare("DELETE FROM stock_adjustments WHERE brand='Ручная корректировка'").run()}catch(e){} };
-
-const ensureShopSystem=async env=>{
-  await ensureIngredientSystem(env);
-  // Kept as a separate guarded migration for old installations.
-  try{await env.DB.prepare("ALTER TABLE products ADD COLUMN store TEXT DEFAULT ''").run()}catch(e){}
-  try{await env.DB.prepare("ALTER TABLE purchase_batches ADD COLUMN receipt_deleted INTEGER NOT NULL DEFAULT 0").run()}catch(e){}
-};
-
-const ensureBarOrderSystem=async env=>{
-  await env.DB.prepare("CREATE TABLE IF NOT EXISTS bar_shifts (id INTEGER PRIMARY KEY AUTOINCREMENT,status TEXT NOT NULL DEFAULT 'open',started_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,closed_at TEXT)").run();
-  await env.DB.prepare("CREATE TABLE IF NOT EXISTS bar_orders (id INTEGER PRIMARY KEY AUTOINCREMENT,shift_id INTEGER NOT NULL REFERENCES bar_shifts(id),status TEXT NOT NULL DEFAULT 'draft',created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,accepted_at TEXT,price_total REAL NOT NULL DEFAULT 0)").run();
-  await env.DB.prepare("CREATE TABLE IF NOT EXISTS bar_order_items (id INTEGER PRIMARY KEY AUTOINCREMENT,order_id INTEGER NOT NULL REFERENCES bar_orders(id) ON DELETE CASCADE,cocktail_id INTEGER NOT NULL REFERENCES cocktails(id),quantity INTEGER NOT NULL CHECK(quantity>0),price_rub REAL NOT NULL DEFAULT 0,UNIQUE(order_id,cocktail_id))").run();
-  await env.DB.prepare("CREATE TABLE IF NOT EXISTS bar_stock_movements (id INTEGER PRIMARY KEY AUTOINCREMENT,order_id INTEGER NOT NULL REFERENCES bar_orders(id),ingredient_id INTEGER NOT NULL REFERENCES ingredients(id),quantity REAL NOT NULL,unit TEXT NOT NULL,created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP)").run();
-};
-const getOpenBarShift=async env=>{await ensureBarOrderSystem(env);return await env.DB.prepare("SELECT id,status,started_at,closed_at FROM bar_shifts WHERE status='open' ORDER BY id DESC LIMIT 1").first();};
-const ensureOpenBarShift=async env=>{await ensureBarOrderSystem(env);let shift=await getOpenBarShift(env);if(shift)return shift;const r=await env.DB.prepare("INSERT INTO bar_shifts(status) VALUES('open')").run();return await env.DB.prepare("SELECT id,status,started_at,closed_at FROM bar_shifts WHERE id=?").bind(Number(r.meta.last_row_id)).first();};
-const getReservedIngredients=async env=>{await ensureBarOrderSystem(env);const {results}=await env.DB.prepare("SELECT ri.ingredient_id,COALESCE(SUM(ri.quantity*oi.quantity),0) reserved FROM bar_orders o JOIN bar_order_items oi ON oi.order_id=o.id JOIN recipe_ingredients ri ON ri.cocktail_id=oi.cocktail_id WHERE o.status='draft' GROUP BY ri.ingredient_id").all();return new Map((results||[]).map(x=>[Number(x.ingredient_id),Number(x.reserved||0)]));};
+const getOpenBarShift=async env=>{return await env.DB.prepare("SELECT id,status,started_at,closed_at FROM bar_shifts WHERE status='open' ORDER BY id DESC LIMIT 1").first();};
+const ensureOpenBarShift=async env=>{let shift=await getOpenBarShift(env);if(shift)return shift;const r=await env.DB.prepare("INSERT INTO bar_shifts(status) VALUES('open')").run();return await env.DB.prepare("SELECT id,status,started_at,closed_at FROM bar_shifts WHERE id=?").bind(Number(r.meta.last_row_id)).first();};
+// Сколько ингредиентов зарезервировано черновиками заказов (кроме заказа excludeOrderId).
+const RESERVED_SQL="SELECT ri.ingredient_id,COALESCE(SUM(ri.quantity*oi.quantity),0) reserved FROM bar_orders o JOIN bar_order_items oi ON oi.order_id=o.id JOIN recipe_ingredients ri ON ri.cocktail_id=oi.cocktail_id WHERE o.status='draft' AND o.id<>? GROUP BY ri.ingredient_id";
+const OPEN_SHIFT_ID_SQL="SELECT id FROM bar_shifts WHERE status='open' ORDER BY id DESC LIMIT 1";
+const DRAFT_ORDER_ID_SQL=`SELECT id FROM bar_orders WHERE shift_id=(${OPEN_SHIFT_ID_SQL}) AND status='draft' ORDER BY id DESC LIMIT 1`;
 const getDraftBarOrder=async(env,create=false)=>{
-  await ensureBarOrderSystem(env);let shift=await getOpenBarShift(env);if(!shift&&create)shift=await ensureOpenBarShift(env);if(!shift)return {shift:null,order:null,items:[]};
-  let order=await env.DB.prepare("SELECT id,shift_id,status,created_at,accepted_at,price_total FROM bar_orders WHERE shift_id=? AND status='draft' ORDER BY id DESC LIMIT 1").bind(shift.id).first();
-  if(!order&&create){const r=await env.DB.prepare("INSERT INTO bar_orders(shift_id,status) VALUES(?,'draft')").bind(shift.id).run();order=await env.DB.prepare("SELECT id,shift_id,status,created_at,accepted_at,price_total FROM bar_orders WHERE id=?").bind(Number(r.meta.last_row_id)).first();}
+  // Смена, черновик заказа и его позиции — одним обращением к D1.
+  const [shiftRes,orderRes,itemsRes]=await env.DB.batch([
+    env.DB.prepare("SELECT id,status,started_at,closed_at FROM bar_shifts WHERE status='open' ORDER BY id DESC LIMIT 1"),
+    env.DB.prepare(`SELECT id,shift_id,status,created_at,accepted_at,price_total FROM bar_orders WHERE id=(${DRAFT_ORDER_ID_SQL})`),
+    env.DB.prepare(`SELECT oi.id,oi.cocktail_id,oi.quantity,oi.price_rub,c.name cocktail_name FROM bar_order_items oi JOIN cocktails c ON c.id=oi.cocktail_id WHERE oi.order_id=(${DRAFT_ORDER_ID_SQL}) ORDER BY oi.id`),
+  ]);
+  let shift=shiftRes.results?.[0]||null,order=orderRes.results?.[0]||null,items=itemsRes.results||[];
+  if(!shift&&create){shift=await ensureOpenBarShift(env);order=null;items=[];}
+  if(!shift)return {shift:null,order:null,items:[]};
+  if(!order&&create){const r=await env.DB.prepare("INSERT INTO bar_orders(shift_id,status) VALUES(?,'draft')").bind(shift.id).run();order=await env.DB.prepare("SELECT id,shift_id,status,created_at,accepted_at,price_total FROM bar_orders WHERE id=?").bind(Number(r.meta.last_row_id)).first();items=[];}
   if(!order)return {shift,order:null,items:[]};
-  const {results}=await env.DB.prepare("SELECT oi.id,oi.cocktail_id,oi.quantity,oi.price_rub,c.name cocktail_name FROM bar_order_items oi JOIN cocktails c ON c.id=oi.cocktail_id WHERE oi.order_id=? ORDER BY oi.id").bind(order.id).all();
-  const items=results||[];return {shift,order,items,total_cocktails:items.reduce((n,x)=>n+Number(x.quantity||0),0),total_price:items.reduce((n,x)=>n+Number(x.quantity||0)*Number(x.price_rub||0),0)};
+  return {shift,order,items,total_cocktails:items.reduce((n,x)=>n+Number(x.quantity||0),0),total_price:items.reduce((n,x)=>n+Number(x.quantity||0)*Number(x.price_rub||0),0)};
 };
-const consumeIngredientForBarOrder=async(env,orderId,ingredientId,quantity)=>{
-  await ensureCurrentStockSystem(env);
-  let left=Number(quantity||0);
-  const {results}=await env.DB.prepare("SELECT id,quantity FROM current_stock_lots WHERE ingredient_id=? AND quantity>0 ORDER BY created_at ASC,id ASC").bind(ingredientId).all();
-  for(const lot of (results||[])){if(left<=0)break;const take=Math.min(left,Number(lot.quantity||0));if(take>0){await env.DB.prepare("UPDATE current_stock_lots SET quantity=quantity-? WHERE id=?").bind(take,lot.id).run();left-=take;}}
-  if(left>0)await env.DB.prepare("INSERT INTO current_stock_lots(ingredient_id,brand,store,quantity,unit_price,source_type,source_id) VALUES(?,?,?,?,?,'adjustment',?)").bind(ingredientId,"Заказ #"+orderId,"Списание",-left,0,"order-"+orderId+"-"+ingredientId).run();
-  const ing=await env.DB.prepare("SELECT unit FROM ingredients WHERE id=?").bind(ingredientId).first();await env.DB.prepare("INSERT INTO bar_stock_movements(order_id,ingredient_id,quantity,unit) VALUES(?,?,?,?)").bind(orderId,ingredientId,quantity,ing?.unit||"ml").run();
+// Списание ингредиентов принятого заказа со склада: по партиям, старые — первыми.
+// Ничего не пишет сам — возвращает команды, которые выполняются одной транзакцией
+// вместе со сменой статуса заказа (либо всё, либо ничего).
+const planBarOrderConsumption=(env,orderId,required,lots)=>{
+  const statements=[];
+  for(const [ingredientId,{quantity,unit}] of required){
+    let left=Number(quantity||0);
+    for(const lot of lots){if(left<=0)break;if(Number(lot.ingredient_id)!==ingredientId)continue;const take=Math.min(left,Number(lot.quantity||0));if(take>0){statements.push(env.DB.prepare("UPDATE current_stock_lots SET quantity=quantity-? WHERE id=?").bind(take,lot.id));left-=take;}}
+    if(left>0)statements.push(env.DB.prepare("INSERT INTO current_stock_lots(ingredient_id,brand,store,quantity,unit_price,source_type,source_id) VALUES(?,?,?,?,?,'adjustment',?)").bind(ingredientId,"Заказ #"+orderId,"Списание",-left,0,"order-"+orderId+"-"+ingredientId));
+    statements.push(env.DB.prepare("INSERT INTO bar_stock_movements(order_id,ingredient_id,quantity,unit) VALUES(?,?,?,?)").bind(orderId,ingredientId,quantity,unit||"ml"));
+  }
+  return statements;
 };
 const formatUnitLabelServer=u=>u==="g"?"гр":u==="ml"?"мл":u==="pcs"?"шт.":String(u||"");
 
 
 const resolveIngredient=async(env,name)=>{
-  await ensureIngredientSystem(env);
   const n=String(name||"").trim();
   if(!n) return null;
   const hit=await env.DB.prepare("SELECT id FROM ingredients WHERE lower(replace(name,'ё','е'))=lower(replace(?,'ё','е')) AND is_active=1 LIMIT 1").bind(n).first();
@@ -279,7 +262,6 @@ label,.cocktail-section-title{color:#bdb5a4}
 </head><body>${body}</body></html>`, {headers:{"content-type":"text/html;charset=UTF-8","cache-control":"no-store"}});
 
 const refreshCocktailPrice = async (env, cocktailId) => {
-  await ensureIngredientSystem(env);
   const { results } = await env.DB.prepare(`
     SELECT ri.quantity,
       COALESCE((SELECT pb.price_rub / NULLIF(pb.purchased_qty,0)
@@ -294,7 +276,7 @@ const refreshCocktailPrice = async (env, cocktailId) => {
   return {cost,price};
 };
 
-const BUILD_VERSION = "2026-10-05-russian-ui-inventory-strength-v2";
+const BUILD_VERSION = "2026-10-15-fast-db-v1";
 
 const calculateCocktailStrength = (recipeItems) => {
   let alcoholMl = 0;
@@ -321,7 +303,6 @@ const calculateCocktailStrength = (recipeItems) => {
 };
 
 const refreshCocktailStrength = async (env, cocktailId) => {
-  await ensureIngredientSystem(env);
   const {results} = await env.DB.prepare(
     "SELECT ri.quantity,i.unit,i.strength_percent FROM recipe_ingredients ri JOIN ingredients i ON i.id=ri.ingredient_id WHERE ri.cocktail_id=?"
   ).bind(cocktailId).all();
@@ -330,17 +311,17 @@ const refreshCocktailStrength = async (env, cocktailId) => {
   return calculated;
 };
 
-const ensureCocktailAvatarSystem=async env=>{try{await env.DB.prepare("ALTER TABLE cocktails ADD COLUMN avatar_url TEXT DEFAULT ''").run()}catch(e){}};
-
 const getCocktails = async (env, includeStock = true) => {
-  await ensureCocktailAvatarSystem(env);
-  const { results } = await env.DB.prepare(
-    "SELECT id,name,description,category,strength,price_rub,photo_url,avatar_url,glass,ice,method,garnish,is_active,created_at,updated_at FROM cocktails WHERE is_active=1 ORDER BY name"
-  ).all();
+  // Коктейли, рецепты и остатки читаются параллельно, а не по очереди.
+  const [[cocktailRows,recipeRows],stockRows]=await Promise.all([
+    env.DB.batch([
+      env.DB.prepare("SELECT id,name,description,category,strength,price_rub,photo_url,avatar_url,glass,ice,method,garnish,is_active,created_at,updated_at FROM cocktails WHERE is_active=1 ORDER BY name"),
+      env.DB.prepare("SELECT ri.cocktail_id,ri.ingredient_id,ri.quantity,i.name ingredient_name,i.unit,i.strength_percent FROM recipe_ingredients ri JOIN ingredients i ON i.id=ri.ingredient_id ORDER BY ri.cocktail_id,ri.id"),
+    ]),
+    includeStock?getProducts(env,false):null,
+  ]);
+  const results=cocktailRows.results||[];
   if(!results.length)return results;
-  const recipeRows=await env.DB.prepare(
-    "SELECT ri.cocktail_id,ri.ingredient_id,ri.quantity,i.name ingredient_name,i.unit,i.strength_percent FROM recipe_ingredients ri JOIN ingredients i ON i.id=ri.ingredient_id ORDER BY ri.cocktail_id,ri.id"
-  ).all();
   const recipesByCocktail=new Map();
   for(const item of (recipeRows.results||[])){
     const id=Number(item.cocktail_id);
@@ -350,7 +331,6 @@ const getCocktails = async (env, includeStock = true) => {
   }
   let stockMap=new Map();
   if(includeStock){
-    const stockRows=await getProducts(env,false);
     stockMap=new Map((stockRows||[]).map(x=>[Number(x.ingredient_id),Number(x.stock||0)]));
   }
   for(const c of results){
@@ -368,27 +348,25 @@ const getCocktails = async (env, includeStock = true) => {
   return results;
 };
 
-const ensureCurrentStockSystem=async env=>{
-  await ensureStockAdjustmentSystem(env);
-  await env.DB.prepare("CREATE TABLE IF NOT EXISTS current_stock_lots (id INTEGER PRIMARY KEY AUTOINCREMENT,ingredient_id INTEGER NOT NULL,brand TEXT DEFAULT '',store TEXT DEFAULT '',quantity REAL NOT NULL DEFAULT 0,unit_price REAL NOT NULL DEFAULT 0,source_type TEXT NOT NULL DEFAULT 'manual',source_id TEXT,created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP)").run();
-  await env.DB.prepare("CREATE UNIQUE INDEX IF NOT EXISTS idx_current_stock_source ON current_stock_lots(source_type,source_id)").run();
-  // Import legacy purchase balances and manual adjustments once. Source IDs make this safe on every request.
-  await env.DB.prepare("INSERT OR IGNORE INTO current_stock_lots(ingredient_id,brand,store,quantity,unit_price,source_type,source_id,created_at) SELECT p.ingredient_id,COALESCE(p.brand,''),COALESCE(p.store,''),pb.remaining_qty,CASE WHEN pb.purchased_qty>0 THEN pb.price_rub/pb.purchased_qty ELSE 0 END,'purchase',CAST(pb.id AS TEXT),COALESCE(pb.purchased_at,CURRENT_TIMESTAMP) FROM purchase_batches pb JOIN products p ON p.id=pb.product_id WHERE p.ingredient_id IS NOT NULL").run();
-  await env.DB.prepare("INSERT OR IGNORE INTO current_stock_lots(ingredient_id,brand,store,quantity,unit_price,source_type,source_id,created_at) SELECT ingredient_id,COALESCE(brand,''),COALESCE(store,'Ручной ввод'),quantity,unit_price,'adjustment',CAST(id AS TEXT),created_at FROM stock_adjustments").run();
-};
-
-const getProducts = async (env, includeDetails = true) => {
-  await ensureCurrentStockSystem(env);
-  const {results}=await env.DB.prepare(`SELECT i.id ingredient_id,i.name ingredient_name,i.unit,
+// excludeOrderId: не вычитать резерв этого черновика (нужно при принятии заказа,
+// иначе его ингредиенты учитываются дважды — как резерв и как требуемое количество).
+const getProducts = async (env, includeDetails = true, excludeOrderId = 0) => {
+  const statements=[
+    env.DB.prepare(`SELECT i.id ingredient_id,i.name ingredient_name,i.unit,
     COALESCE((SELECT SUM(cs.quantity) FROM current_stock_lots cs WHERE cs.ingredient_id=i.id),0) stock,
     COALESCE((SELECT SUM(cs.quantity*cs.unit_price) FROM current_stock_lots cs WHERE cs.ingredient_id=i.id),0) stock_value
-    FROM ingredients i WHERE i.is_active=1 ORDER BY i.name`).all();
-  const reservedMap=await getReservedIngredients(env);
-  if(includeDetails){
-    const rows=await env.DB.prepare(`SELECT ingredient_id,COALESCE(NULLIF(brand,''),'Без бренда') brand,COALESCE(NULLIF(store,''),'') store,
+    FROM ingredients i WHERE i.is_active=1 ORDER BY i.name`),
+    env.DB.prepare(RESERVED_SQL).bind(Number(excludeOrderId)||0),
+  ];
+  if(includeDetails)statements.push(env.DB.prepare(`SELECT ingredient_id,COALESCE(NULLIF(brand,''),'Без бренда') brand,COALESCE(NULLIF(store,''),'') store,
       SUM(quantity) stock,SUM(quantity*unit_price) stock_value,
       CASE WHEN SUM(CASE WHEN source_type='purchase' THEN 1 ELSE 0 END)>0 THEN 'purchase' ELSE 'manual' END source_type
-      FROM current_stock_lots GROUP BY ingredient_id,brand,store HAVING SUM(quantity)>0 ORDER BY ingredient_id,brand,store`).all();
+      FROM current_stock_lots GROUP BY ingredient_id,brand,store HAVING SUM(quantity)>0 ORDER BY ingredient_id,brand,store`));
+  // Все чтения склада — одним обращением к D1.
+  const [stockRes,reservedRes,rows]=await env.DB.batch(statements);
+  const results=stockRes.results||[];
+  const reservedMap=new Map((reservedRes.results||[]).map(x=>[Number(x.ingredient_id),Number(x.reserved||0)]));
+  if(includeDetails){
     const byIngredient=new Map();
     for(const row of rows.results||[]){
       const id=Number(row.ingredient_id),stock=Number(row.stock||0),value=Number(row.stock_value||0);
@@ -447,7 +425,9 @@ export default {
         const headers=new Headers();
         object.writeHttpMetadata(headers);
         headers.set("etag",object.httpEtag);
-        headers.set("cache-control","no-store");
+        // Ключ фото — случайный UUID, содержимое по нему никогда не меняется,
+        // поэтому браузер может хранить фото у себя хоть год.
+        headers.set("cache-control","public, max-age=31536000, immutable");
         if(!headers.get("content-type")){const ext=key.split(".").pop().toLowerCase();const ct={jpg:"image/jpeg",jpeg:"image/jpeg",png:"image/png",webp:"image/webp",gif:"image/gif"}[ext];if(ct)headers.set("content-type",ct);}
         headers.set("x-content-type-options","nosniff");
         return new Response(object.body,{headers});
@@ -458,7 +438,6 @@ export default {
       }
 
       if (url.pathname === "/api/cocktails" && request.method === "PUT") {
-        await ensureCocktailAvatarSystem(env);
         const data=await request.json();
         const id=Number(data.id);
         const name=String(data.name||"").trim();
@@ -478,7 +457,6 @@ export default {
             try{const u=new URL(oldUrl,"https://bar-menu.invalid"),key=u.searchParams.get("key")||(u.pathname.startsWith("/api/cocktail-photo/")?decodeURIComponent(u.pathname.slice("/api/cocktail-photo/".length)):"");if(key&&key.startsWith("cocktails/"))await env.PHOTOS.delete(key)}catch(e){}
           }
         }
-        await ensureIngredientSystem(env);
         await env.DB.prepare("DELETE FROM recipe_ingredients WHERE cocktail_id=?").bind(id).run();
         for(const item of (Array.isArray(data.recipe_items)?data.recipe_items:[])){
           const iid=Number(item.ingredient_id), q=Number(item.quantity);
@@ -489,7 +467,6 @@ export default {
       }
 
       if (url.pathname === "/api/cocktails" && request.method === "DELETE") {
-        await ensureCocktailAvatarSystem(env);
         const data=await request.json();
         const id=Number(data.id);
         if(!Number.isInteger(id)||id<1)return json({error:"Некорректный коктейль"},400);
@@ -523,14 +500,12 @@ export default {
       }
 
       if (url.pathname === "/api/cocktails" && request.method === "POST") {
-        await ensureCocktailAvatarSystem(env);
         const data=await request.json(), name=String(data.name||"").trim(), strength=String(data.strength||"Лёгкий").trim();
         const allowedStrengths=["Безалкогольный","Лёгкий","Средний","Крепкий"];
         if(!name)return json({error:"Название коктейля обязательно"},400);
         if(!allowedStrengths.includes(strength))return json({error:"Выберите крепость коктейля"},400);
         const r=await env.DB.prepare(`INSERT INTO cocktails(name,description,category,strength,price_rub,photo_url,avatar_url,glass,ice,method,garnish) VALUES(?,?,?,?,0,?,?,?,?,?,?)`).bind(name,String(data.description||""),String(data.category||""),strength,String(data.photo_url||""),String(data.avatar_url||""),String(data.inventory??data.glass??""),"",String(data.method||""),String(data.garnish||"")).run();
         const id=r.meta.last_row_id;
-        await ensureIngredientSystem(env);
         for(const item of (Array.isArray(data.recipe_items)?data.recipe_items:[])){let iid=Number(item.ingredient_id);if(!Number.isInteger(iid)&&item.name)iid=await resolveIngredient(env,item.name);const q=Number(item.quantity);if(Number.isInteger(iid)&&q>0)await env.DB.prepare("INSERT OR REPLACE INTO recipe_ingredients(cocktail_id,ingredient_id,quantity) VALUES(?,?,?)").bind(id,iid,q).run();}
         const pricing=await refreshCocktailPrice(env,id);
         return json({ok:true,id,pricing,strength},201);
@@ -563,7 +538,6 @@ export default {
       }
       if (url.pathname === "/api/bar/order" && request.method === "DELETE") {const draft=await getDraftBarOrder(env,false);if(draft.order)await env.DB.prepare("DELETE FROM bar_order_items WHERE order_id=?").bind(draft.order.id).run();return json({ok:true});}
       if (url.pathname === "/api/bar/order/accept" && request.method === "POST") {
-        await ensureBarOrderSystem(env);
         const payload=await request.json().catch(()=>({}));
         const clientItems=Array.isArray(payload.items)?payload.items:null;
         let shift=await getOpenBarShift(env);if(!shift)shift=await ensureOpenBarShift(env);
@@ -573,24 +547,44 @@ export default {
           order=await env.DB.prepare("SELECT id,shift_id,status,created_at,accepted_at,price_total FROM bar_orders WHERE id=?").bind(Number(r.meta.last_row_id)).first();
         }
         if(clientItems){
-          await env.DB.prepare("DELETE FROM bar_order_items WHERE order_id=?").bind(order.id).run();
+          const wanted=[];
           for(const raw of clientItems){
             const cocktailId=Number(raw.cocktail_id),quantity=Math.floor(Number(raw.quantity||0));
             if(!Number.isInteger(cocktailId)||cocktailId<1||quantity<=0)continue;
-            const cocktail=await env.DB.prepare("SELECT id,price_rub FROM cocktails WHERE id=?").bind(cocktailId).first();
-            if(!cocktail)return json({error:"Коктейль не найден"},400);
-            await env.DB.prepare("INSERT INTO bar_order_items(order_id,cocktail_id,quantity,price_rub) VALUES(?,?,?,?)").bind(order.id,cocktailId,quantity,Number(cocktail.price_rub||0)).run();
+            wanted.push({cocktailId,quantity});
           }
+          const prices=new Map();
+          if(wanted.length){
+            const ids=[...new Set(wanted.map(x=>x.cocktailId))];
+            const {results}=await env.DB.prepare(`SELECT id,price_rub FROM cocktails WHERE id IN (${ids.map(()=>"?").join(",")})`).bind(...ids).all();
+            for(const c of results||[])prices.set(Number(c.id),Number(c.price_rub||0));
+          }
+          if(wanted.some(x=>!prices.has(x.cocktailId)))return json({error:"Коктейль не найден"},400);
+          await env.DB.batch([
+            env.DB.prepare("DELETE FROM bar_order_items WHERE order_id=?").bind(order.id),
+            ...wanted.map(x=>env.DB.prepare("INSERT INTO bar_order_items(order_id,cocktail_id,quantity,price_rub) VALUES(?,?,?,?)").bind(order.id,x.cocktailId,x.quantity,prices.get(x.cocktailId))),
+          ]);
         }
         const draft=await getDraftBarOrder(env,false);
         if(!draft.order||!(draft.items||[]).length)return json({error:"В заказе пока ничего нет"},400);
+        // Состав заказа, партии склада и доступные остатки читаются параллельно.
+        const [[recipeRes,lotsRes],effective]=await Promise.all([
+          env.DB.batch([
+            env.DB.prepare("SELECT oi.quantity item_qty,ri.ingredient_id,ri.quantity,i.name,i.unit FROM bar_order_items oi JOIN cocktails c ON c.id=oi.cocktail_id JOIN recipe_ingredients ri ON ri.cocktail_id=oi.cocktail_id LEFT JOIN ingredients i ON i.id=ri.ingredient_id WHERE oi.order_id=? ORDER BY oi.id,ri.ingredient_id").bind(draft.order.id),
+            env.DB.prepare("SELECT id,ingredient_id,quantity FROM current_stock_lots WHERE quantity>0 AND ingredient_id IN (SELECT ri.ingredient_id FROM bar_order_items oi JOIN recipe_ingredients ri ON ri.cocktail_id=oi.cocktail_id WHERE oi.order_id=?) ORDER BY created_at ASC,id ASC").bind(draft.order.id),
+          ]),
+          getProducts(env,false,order.id),
+        ]);
         const required=new Map();
-        for(const oi of draft.items){const r=await env.DB.prepare("SELECT ingredient_id,quantity FROM recipe_ingredients WHERE cocktail_id=?").bind(oi.cocktail_id).all();for(const row of (r.results||[])){const id=Number(row.ingredient_id);required.set(id,Number(required.get(id)||0)+Number(row.quantity||0)*Number(oi.quantity||0));}}
-        const effective=await getProducts(env),effectiveMap=new Map((effective||[]).map(x=>[Number(x.ingredient_id),Number(x.stock||0)])),shortages=[];
-        for(const [id,qty] of required){const available=Number(effectiveMap.get(id)||0);if(available+0.000001<qty){const ing=await env.DB.prepare("SELECT name,unit FROM ingredients WHERE id=?").bind(id).first();shortages.push((ing?.name||("Ингредиент #"+id))+" — доступно "+Number(available).toLocaleString("ru-RU")+" "+formatUnitLabelServer(ing?.unit)+", нужно "+Number(qty).toLocaleString("ru-RU")+" "+formatUnitLabelServer(ing?.unit));}}
+        for(const row of recipeRes.results||[]){const id=Number(row.ingredient_id);const cur=required.get(id)||{quantity:0,name:row.name,unit:row.unit};cur.quantity=Number(cur.quantity||0)+Number(row.quantity||0)*Number(row.item_qty||0);required.set(id,cur);}
+        const effectiveMap=new Map((effective||[]).map(x=>[Number(x.ingredient_id),Number(x.stock||0)])),shortages=[];
+        for(const [id,{quantity:qty,name,unit}] of required){const available=Number(effectiveMap.get(id)||0);if(available+0.000001<qty)shortages.push((name||("Ингредиент #"+id))+" — доступно "+Number(available).toLocaleString("ru-RU")+" "+formatUnitLabelServer(unit)+", нужно "+Number(qty).toLocaleString("ru-RU")+" "+formatUnitLabelServer(unit));}
         if(shortages.length)return json({error:"Недостаточно ингредиентов для принятия заказа: "+shortages.join(", ")},409);
-        for(const [id,qty] of required)await consumeIngredientForBarOrder(env,order.id,id,qty);
-        const totalPrice=Number(draft.total_price||0);await env.DB.prepare("UPDATE bar_orders SET status='accepted',accepted_at=CURRENT_TIMESTAMP,price_total=? WHERE id=?").bind(totalPrice,order.id).run();
+        const totalPrice=Number(draft.total_price||0);
+        await env.DB.batch([
+          ...planBarOrderConsumption(env,order.id,required,lotsRes.results||[]),
+          env.DB.prepare("UPDATE bar_orders SET status='accepted',accepted_at=CURRENT_TIMESTAMP,price_total=? WHERE id=?").bind(totalPrice,order.id),
+        ]);
         return json({ok:true,order_id:order.id,total_cocktails:draft.total_cocktails,total_price:totalPrice});
       }
       if (url.pathname === "/api/bar/statistics" && request.method === "GET") {
@@ -602,7 +596,6 @@ export default {
       }
 
       if (url.pathname === "/api/products" && request.method === "PUT") {
-        await ensureStockAdjustmentSystem(env);
         const data=await request.json();
         if(data.source_edit){
           const ingredientId=Number(data.ingredient_id);
@@ -611,7 +604,6 @@ export default {
           const brand=String(data.brand||"").trim();
           const quantity=Number(data.quantity), unitPrice=Number(data.unit_price);
           if(!Number.isInteger(ingredientId)||ingredientId<1||!oldBrand||!brand||!Number.isFinite(quantity)||quantity<=0||!Number.isFinite(unitPrice)||unitPrice<0)return json({error:"Некорректные данные товара"},400);
-          await ensureCurrentStockSystem(env);
           await env.DB.prepare("UPDATE current_stock_lots SET quantity=0 WHERE ingredient_id=? AND COALESCE(brand,'')=? AND COALESCE(store,'')=?").bind(ingredientId,oldBrand,oldStore).run();
           await env.DB.prepare("INSERT INTO current_stock_lots(ingredient_id,brand,store,quantity,unit_price,source_type,source_id) VALUES(?,?,?,?,?,'manual',?)").bind(ingredientId,brand,"Ручной ввод",quantity,unitPrice,"edit-"+crypto.randomUUID()).run();
           return json({ok:true});
@@ -619,7 +611,6 @@ export default {
 
         const ingredientId=Number(data.ingredient_id), target=Number(data.stock);
         if(!Number.isInteger(ingredientId)||ingredientId<1||!Number.isFinite(target)||target<0)return json({error:"Некорректный остаток"},400);
-        await ensureCurrentStockSystem(env);
         const items=await getProducts(env); const item=items.find(x=>Number(x.ingredient_id)===ingredientId);
         if(!item)return json({error:"Ингредиент не найден на складе"},404);
         let delta=target-Number(item.stock); if(Math.abs(delta)<0.000001)return json({ok:true});
@@ -634,19 +625,16 @@ export default {
       }
 
       if (url.pathname === "/api/products" && request.method === "DELETE") {
-        await ensureStockAdjustmentSystem(env);
         const data=await request.json();
         const ingredientId=Number(data.ingredient_id);
         const brand=String(data.brand||"").trim();
         const store=String(data.store||"").trim();
         if(!Number.isInteger(ingredientId)||ingredientId<1||!brand)return json({error:"Не указан товар"},400);
-        await ensureCurrentStockSystem(env);
         const r=await env.DB.prepare("UPDATE current_stock_lots SET quantity=0 WHERE ingredient_id=? AND COALESCE(brand,'')=? AND COALESCE(store,'')=? AND quantity<>0").bind(ingredientId,brand,store).run();
         return json({ok:true,deleted:Number(r.meta.changes||0)});
       }
 
       if (url.pathname === "/api/products" && request.method === "POST") {
-        await ensureIngredientSystem(env);
         const data=await request.json();
         const ingredientId=Number(data.ingredient_id);
         const brand=String(data.brand||"").trim();
@@ -680,7 +668,6 @@ export default {
         }
 
         if(quantity>0){
-          await ensureCurrentStockSystem(env);
           await env.DB.prepare("INSERT INTO current_stock_lots(ingredient_id,brand,store,quantity,unit_price,source_type,source_id) VALUES(?,?,?,?,?,'manual',?)")
             .bind(ingredientId,brand,"Ручной ввод",quantity,unitPrice,"manual-"+crypto.randomUUID()).run();
         }
@@ -689,7 +676,6 @@ export default {
       }
 
       if (url.pathname === "/api/shop/purchases" && request.method === "GET") {
-        await ensureShopSystem(env);
         const from=url.searchParams.get("date_from")||"";
         const to=url.searchParams.get("date_to")||"";
         const ingredientId=Number(url.searchParams.get("ingredient_id")||0);
@@ -706,7 +692,6 @@ export default {
         return json(results);
       }
       if (url.pathname === "/api/shop/purchase" && request.method === "PUT") {
-        await ensureShopSystem(env);
         const data=await request.json();
         const id=Number(data.id), ingredientId=Number(data.ingredient_id);
         const qty=Number(data.quantity), price=Number(data.price_rub);
@@ -733,7 +718,6 @@ export default {
       }
 
       if (url.pathname === "/api/shop/purchase" && request.method === "DELETE") {
-        await ensureShopSystem(env);
         const id=Number(url.searchParams.get("id"));
         if(!Number.isInteger(id)||id<1)return json({error:"Некорректная закупка"},400);
         const batch=await env.DB.prepare("SELECT id FROM purchase_batches WHERE id=? AND COALESCE(receipt_deleted,0)=0").bind(id).first();
@@ -743,7 +727,6 @@ export default {
       }
 
       if (url.pathname === "/api/shop/purchase" && request.method === "POST") {
-        await ensureShopSystem(env);
         const data=await request.json();
         const ingredientId=Number(data.ingredient_id), qty=Number(data.quantity), price=Number(data.price_rub);
         const store=String(data.store||"").trim(), brand=String(data.brand||"").trim();
@@ -754,29 +737,29 @@ export default {
         if(!/^\d{4}-\d{2}-\d{2}$/.test(purchaseDate)) return json({error:"Укажите дату покупки"},400);
         const ing=await env.DB.prepare("SELECT id,name,unit FROM ingredients WHERE id=? AND is_active=1").bind(ingredientId).first();
         if(!ing)return json({error:"Ингредиент не найден"},404);
-        await ensureCurrentStockSystem(env);
         let product=await env.DB.prepare("SELECT id FROM products WHERE ingredient_id=? AND brand=? AND store=? AND is_active=1 LIMIT 1").bind(ingredientId,brand,store).first();
         let productId;
         if(product){productId=Number(product.id)}else{
           const pr=await env.DB.prepare("INSERT INTO products(name,brand,category,unit,min_stock,ingredient_id,store) VALUES(?,?,?,?,0,?,?)").bind(ing.name,brand,"",ing.unit,ingredientId,store).run();
           productId=Number(pr.meta.last_row_id);
         }
-        const batch=await env.DB.prepare("INSERT INTO purchase_batches(product_id,purchased_qty,remaining_qty,price_rub,purchased_at) VALUES(?,?,?,?,?)").bind(productId,qty,qty,price,purchaseDate+" 00:00:00").run();
-        const batchId=Number(batch.meta.last_row_id);
         // Новая закупка задаёт актуальную цену ингредиента для текущего склада;
         // запись в магазине остаётся отдельным историческим чеком.
-        await env.DB.prepare("UPDATE current_stock_lots SET unit_price=? WHERE ingredient_id=? AND quantity>0").bind(price/qty,ingredientId).run();
-        await env.DB.prepare("INSERT INTO current_stock_lots(ingredient_id,brand,store,quantity,unit_price,source_type,source_id,created_at) VALUES(?,?,?,?,?,'purchase',?,?)").bind(ingredientId,brand,store,qty,price/qty,String(batchId),purchaseDate+" 00:00:00").run();
+        // Чек и партия на складе пишутся одной транзакцией: либо оба, либо ничего.
+        const [,batch]=await env.DB.batch([
+          env.DB.prepare("UPDATE current_stock_lots SET unit_price=? WHERE ingredient_id=? AND quantity>0").bind(price/qty,ingredientId),
+          env.DB.prepare("INSERT INTO purchase_batches(product_id,purchased_qty,remaining_qty,price_rub,purchased_at) VALUES(?,?,?,?,?)").bind(productId,qty,qty,price,purchaseDate+" 00:00:00"),
+          env.DB.prepare("INSERT INTO current_stock_lots(ingredient_id,brand,store,quantity,unit_price,source_type,source_id,created_at) VALUES(?,?,?,?,?,'purchase',CAST(last_insert_rowid() AS TEXT),?)").bind(ingredientId,brand,store,qty,price/qty,purchaseDate+" 00:00:00"),
+        ]);
+        const batchId=Number(batch.meta.last_row_id);
         return json({ok:true,id:batchId,product_id:productId},201);
       }
 
       if (url.pathname === "/api/ingredients" && request.method === "GET") {
-        await ensureIngredientSystem(env);
         const {results}=await env.DB.prepare("SELECT id,name,unit,strength_percent FROM ingredients WHERE is_active=1 ORDER BY name").all();
         return json(results);
       }
       if (url.pathname === "/api/ingredients" && request.method === "POST") {
-        await ensureIngredientSystem(env);
         const data=await request.json(), name=String(data.name||"").trim(), unit=String(data.unit||"ml"), strength=Number(data.strength_percent||0);
         if(!name||!["ml","g","pcs"].includes(unit)||!Number.isFinite(strength)||strength<0||strength>100) return json({error:"Укажите название, единицу и крепость от 0 до 100%"},400);
         const existing=await env.DB.prepare("SELECT id FROM ingredients WHERE is_active=1 AND lower(trim(name))=lower(trim(?)) AND unit=? LIMIT 1").bind(name,unit).first();
@@ -785,14 +768,12 @@ export default {
         return json({ok:true,id:r.meta.last_row_id},201);
       }
       if (url.pathname === "/api/ingredients" && request.method === "PUT") {
-        await ensureIngredientSystem(env);
         const data=await request.json(), id=Number(data.id), name=String(data.name||"").trim(), unit=String(data.unit||"ml"), strength=Number(data.strength_percent||0);
         if(!id||!name||!["ml","g","pcs"].includes(unit)||!Number.isFinite(strength)||strength<0||strength>100) return json({error:"Некорректные данные: крепость должна быть от 0 до 100%"},400);
         await env.DB.prepare("UPDATE ingredients SET name=?,unit=?,strength_percent=?,updated_at=CURRENT_TIMESTAMP WHERE id=?").bind(name,unit,strength,id).run();
         return json({ok:true});
       }
       if (url.pathname === "/api/ingredients" && request.method === "DELETE") {
-        await ensureIngredientSystem(env);
         const id=Number(url.searchParams.get("id"));
         const used=await env.DB.prepare("SELECT COUNT(*) n FROM recipe_ingredients WHERE ingredient_id=?").bind(id).first();
         if(Number(used?.n)>0)return json({error:"Ингредиент уже используется в рецептах"},409);
@@ -981,7 +962,8 @@ function enhanceOrderControls(){
     plus.setAttribute("aria-label","Добавить коктейль");
     plus.onclick=()=>changeOrder(id,1);
     box.append(minus,count,plus);
-    card.querySelector(".cocktail-card-body").appendChild(box);
+    const summary=card.querySelector(".recipe-card-summary");
+    if(summary){box.style.margin="0 12px 12px";summary.after(box)}else card.appendChild(box);
   });
   refreshOrderAvailability();
 }
@@ -1234,10 +1216,12 @@ document.querySelector("#ingredientForm").onsubmit=async e=>{e.preventDefault();
         let stockIngredients=[], stockItems=[];
         let stockLoadError="";
         try{
-          await ensureIngredientSystem(env);
-          const ir=await env.DB.prepare("SELECT id,name,unit FROM ingredients WHERE is_active=1 ORDER BY name").all();
+          const [ir,products]=await Promise.all([
+            env.DB.prepare("SELECT id,name,unit FROM ingredients WHERE is_active=1 ORDER BY name").all(),
+            getProducts(env),
+          ]);
           stockIngredients=ir.results||[];
-          stockItems=await getProducts(env);
+          stockItems=products;
         }catch(e){
           stockLoadError=String(e?.message||e);
         }
@@ -1516,7 +1500,7 @@ const esc=s=>String(s??"").replace(/[&<>"']/g,c=>({"&":"&amp;","<":"&lt;",">":"&
 let cocktails=[],viaFilter="all";
 const norm=s=>String(s||"").toLowerCase().replace(/ё/g,"е");
 const curatorOf=c=>{const n=norm(c.name);if(/virgin|безалк|mocktail|garden/.test(n)||norm(c.strength).includes("безалк"))return "mocktail";if(/anastasia|анастас|passion sour|clover club/.test(n))return "anastasia";if(/via royal|royal heritage/.test(n))return "duo";return "vladimir"};
-const render=()=>{const q=norm(document.querySelector("#ingredientSearch").value.trim());const list=cocktails.filter(c=>{if(viaFilter!=="all"&&curatorOf(c)!==viaFilter)return false;if(q){const ing=(c.recipe_items||[]).map(i=>i.ingredient_name||i.name||"").join(" ");if(!norm(c.name+" "+ing+" "+(c.strength||"")).includes(q))return false}return true});const box=document.querySelector("#menu");if(!list.length){box.innerHTML='<div class="guest-card guest-empty">По вашему запросу коктейлей не найдено.</div>';return}box.innerHTML=list.map(c=>{const names=(c.recipe_items||[]).map(i=>String(i.ingredient_name||i.name||"").trim()).filter(Boolean);const unique=[...new Map(names.map(n=>[norm(n),n])).values()];const st=norm(c.strength);const strength=st.includes("безалк")?"Без алкоголя":st.includes("лег")?"Лёгкий":st.includes("сред")?"Средний":st.includes("креп")?"Крепкий":c.strength||"Не указана";return '<article class="guest-card" id="cocktail-'+Number(c.id)+'">'+((c.photo_url||c.avatar_url)?'<img class="guest-photo" src="'+esc(c.photo_url||c.avatar_url)+'" alt="'+esc(c.name)+'">':'<div class="guest-photo-placeholder">🍸</div>')+'<h2>'+esc(c.name)+'</h2>'+(c.description&&String(c.description).trim()?'<div class="guest-description is-collapsed" id="guest-description-'+Number(c.id)+'">'+esc(c.description)+'</div>'+(String(c.description).trim().length>145?'<button type="button" class="guest-description-toggle" aria-expanded="false" data-description="'+Number(c.id)+'">Читать полностью ↓</button>':''): '')+'<div class="guest-strength">Крепость · '+esc(strength)+'</div><div class="guest-price">'+Number(c.price_rub||0).toLocaleString("ru-RU")+' ₽</div>'+(unique.length?'<div class="guest-ingredients"><span style="display:block;color:var(--via-gold);font-size:10px;letter-spacing:1.4px;text-transform:uppercase;margin-bottom:5px">Состав</span>'+unique.map(esc).join(", ")+'</div>':'')+'</article>'}).join("")};
+const render=()=>{const q=norm(document.querySelector("#ingredientSearch").value.trim());const list=cocktails.filter(c=>{if(viaFilter!=="all"&&curatorOf(c)!==viaFilter)return false;if(q){const ing=(c.recipe_items||[]).map(i=>i.ingredient_name||i.name||"").join(" ");if(!norm(c.name+" "+ing+" "+(c.strength||"")).includes(q))return false}return true});const box=document.querySelector("#menu");if(!list.length){box.innerHTML='<div class="guest-card guest-empty">По вашему запросу коктейлей не найдено.</div>';return}box.innerHTML=list.map(c=>{const names=(c.recipe_items||[]).map(i=>String(i.ingredient_name||i.name||"").trim()).filter(Boolean);const unique=[...new Map(names.map(n=>[norm(n),n])).values()];const st=norm(c.strength);const strength=st.includes("безалк")?"Без алкоголя":st.includes("лег")?"Лёгкий":st.includes("сред")?"Средний":st.includes("креп")?"Крепкий":c.strength||"Не указана";return '<article class="guest-card" id="cocktail-'+Number(c.id)+'">'+((c.photo_url||c.avatar_url)?'<img class="guest-photo" loading="lazy" decoding="async" src="'+esc(c.photo_url||c.avatar_url)+'" alt="'+esc(c.name)+'">':'<div class="guest-photo-placeholder">🍸</div>')+'<h2>'+esc(c.name)+'</h2>'+(c.description&&String(c.description).trim()?'<div class="guest-description is-collapsed" id="guest-description-'+Number(c.id)+'">'+esc(c.description)+'</div>'+(String(c.description).trim().length>145?'<button type="button" class="guest-description-toggle" aria-expanded="false" data-description="'+Number(c.id)+'">Читать полностью ↓</button>':''): '')+'<div class="guest-strength">Крепость · '+esc(strength)+'</div><div class="guest-price">'+Number(c.price_rub||0).toLocaleString("ru-RU")+' ₽</div>'+(unique.length?'<div class="guest-ingredients"><span style="display:block;color:var(--via-gold);font-size:10px;letter-spacing:1.4px;text-transform:uppercase;margin-bottom:5px">Состав</span>'+unique.map(esc).join(", ")+'</div>':'')+'</article>'}).join("")};
 document.querySelector("#ingredientSearch").addEventListener("input",render);document.querySelector("#menu").addEventListener("click",e=>{const b=e.target.closest(".guest-description-toggle");if(!b)return;const d=document.querySelector("#guest-description-"+Number(b.dataset.description));if(!d)return;const expanded=b.getAttribute("aria-expanded")==="true";d.classList.toggle("is-collapsed",expanded);b.setAttribute("aria-expanded",String(!expanded));b.textContent=expanded?"Читать полностью ↓":"Свернуть ↑";});
 document.querySelectorAll(".via-filter").forEach(b=>b.addEventListener("click",()=>{viaFilter=b.dataset.filter;document.querySelectorAll(".via-filter").forEach(x=>x.classList.toggle("active",x===b));render()}));
 const guestRegisterButton=document.querySelector("#guestRegisterButton"),guestRegisterModal=document.querySelector("#guestRegisterModal"),guestRegisterClose=document.querySelector("#guestRegisterClose"),guestRegisterForm=document.querySelector("#guestRegisterForm"),guestRegisterMessage=document.querySelector("#guestRegisterMessage");
@@ -1658,10 +1642,10 @@ async function loadStats(){
  if(!r.ok){document.querySelector("#stats").textContent=d.error||"Ошибка";return;}
  const open=(d.shifts||[]).find(x=>x.status==="open");
  const box=document.querySelector("#shiftBox");
- box.innerHTML=open?"<h2>Смена №"+open.id+" 🟢</h2><p class=\"muted\">Начало: "+open.started_at+"</p><button id=\"closeShift\" class=\"secondary\">Закрыть смену</button>":"<h2>Смена не открыта</h2><p class=\"muted\">Нажми «＋» у коктейля — смена откроется автоматически.</p><button id=\"openShift\">▶ Открыть смену</button>";
+ box.innerHTML=open?"<h2>Смена №"+open.id+" 🟢</h2><p class=\\"muted\\">Начало: "+open.started_at+"</p><button id=\\"closeShift\\" class=\\"secondary\\">Закрыть смену</button>":"<h2>Смена не открыта</h2><p class=\\"muted\\">Нажми «＋» у коктейля — смена откроется автоматически.</p><button id=\\"openShift\\">▶ Открыть смену</button>";
  if(open){document.querySelector("#closeShift").onclick=async()=>{const x=await fetch("/api/bar/shift",{method:"PUT"});const j=await x.json();if(!x.ok){alert(j.error||"Не удалось закрыть смену");return;}loadStats()};}
  else{document.querySelector("#openShift").onclick=async()=>{const x=await fetch("/api/bar/shift",{method:"POST"});if(!x.ok){alert("Не удалось открыть смену");return;}loadStats()};}
- document.querySelector("#stats").innerHTML=(d.shifts||[]).map(x=>"<div style=\"padding:14px 0;border-bottom:1px solid #292929\"><b>Смена №"+x.id+"</b> · "+(x.status==="open"?"🟢 открыта":"закрыта")+"<div class=\"muted\">"+x.started_at+" → "+(x.closed_at||"сейчас")+"</div><div style=\"margin-top:6px\"><b>"+Number(x.orders_count||0)+"</b> заказов · <b>"+Number(x.cocktails_count||0)+"</b> коктейлей · <b>"+Number(x.revenue_rub||0).toFixed(0)+" ₽</b></div></div>").join("")||"<div class=\"empty\">Смен ещё нет.</div>";
+ document.querySelector("#stats").innerHTML=(d.shifts||[]).map(x=>"<div style=\\"padding:14px 0;border-bottom:1px solid #292929\\"><b>Смена №"+x.id+"</b> · "+(x.status==="open"?"🟢 открыта":"закрыта")+"<div class=\\"muted\\">"+x.started_at+" → "+(x.closed_at||"сейчас")+"</div><div style=\\"margin-top:6px\\"><b>"+Number(x.orders_count||0)+"</b> заказов · <b>"+Number(x.cocktails_count||0)+"</b> коктейлей · <b>"+Number(x.revenue_rub||0).toFixed(0)+" ₽</b></div></div>").join("")||"<div class=\\"empty\\">Смен ещё нет.</div>";
 }
 loadStats();
 </script>`, "Статистика");
@@ -1704,8 +1688,8 @@ document.querySelector("#orderRecipeModal").onclick=e=>{if(e.target.id==="orderR
 document.addEventListener("keydown",e=>{if(e.key==="Escape")closeOrderRecipe()});
 async function loadOrder(){
  const r=await fetch("/api/bar/order");const d=await r.json();const box=document.querySelector("#order");
- if(!d.items||!d.items.length){box.innerHTML="<div class=\"empty\">Текущий заказ пуст.<br><a href=\"/bar/recipes\">← Вернуться в книгу рецептов</a></div>";return;}
- box.innerHTML="<h2>Смена №"+(d.shift?.id||"—")+"</h2>"+d.items.map(i=>"<div class=\"row\" style=\"justify-content:space-between;padding:12px 0;border-bottom:1px solid #292929;gap:12px\"><button type=\"button\" class=\"order-recipe-link\" data-recipe-id=\""+Number(i.cocktail_id)+"\" style=\"padding:4px 0;border:0;background:none;color:#f0c766;text-decoration:underline;text-decoration-color:#80642f;text-underline-offset:4px;text-align:left;font:inherit;font-weight:700;cursor:pointer;flex:1;min-width:0\">"+orderEsc(i.cocktail_name)+"</button><span class=\"row\" style=\"flex-shrink:0\"><button type=\"button\" class=\"secondary minus\" data-id=\""+Number(i.cocktail_id)+"\">−</button><b>"+Number(i.quantity)+"</b><button type=\"button\" class=\"plus\" data-id=\""+Number(i.cocktail_id)+"\">＋</button></span></div>").join("")+"<p style=\"margin-top:14px\">Коктейлей: <b>"+Number(d.total_cocktails||0)+"</b> · Сумма: <b>"+Number(d.total_price||0).toFixed(0)+" ₽</b></p><div class=\"row\"><button id=\"accept\">✅ Принять заказ</button><button id=\"clear\" class=\"secondary\">Очистить</button></div>";
+ if(!d.items||!d.items.length){box.innerHTML="<div class=\\"empty\\">Текущий заказ пуст.<br><a href=\\"/bar/recipes\\">← Вернуться в книгу рецептов</a></div>";return;}
+ box.innerHTML="<h2>Смена №"+(d.shift?.id||"—")+"</h2>"+d.items.map(i=>"<div class=\\"row\\" style=\\"justify-content:space-between;padding:12px 0;border-bottom:1px solid #292929;gap:12px\\"><button type=\\"button\\" class=\\"order-recipe-link\\" data-recipe-id=\\""+Number(i.cocktail_id)+"\\" style=\\"padding:4px 0;border:0;background:none;color:#f0c766;text-decoration:underline;text-decoration-color:#80642f;text-underline-offset:4px;text-align:left;font:inherit;font-weight:700;cursor:pointer;flex:1;min-width:0\\">"+orderEsc(i.cocktail_name)+"</button><span class=\\"row\\" style=\\"flex-shrink:0\\"><button type=\\"button\\" class=\\"secondary minus\\" data-id=\\""+Number(i.cocktail_id)+"\\">−</button><b>"+Number(i.quantity)+"</b><button type=\\"button\\" class=\\"plus\\" data-id=\\""+Number(i.cocktail_id)+"\\">＋</button></span></div>").join("")+"<p style=\\"margin-top:14px\\">Коктейлей: <b>"+Number(d.total_cocktails||0)+"</b> · Сумма: <b>"+Number(d.total_price||0).toFixed(0)+" ₽</b></p><div class=\\"row\\"><button id=\\"accept\\">✅ Принять заказ</button><button id=\\"clear\\" class=\\"secondary\\">Очистить</button></div>";
  document.querySelectorAll(".order-recipe-link").forEach(b=>b.onclick=()=>openOrderRecipe(Number(b.dataset.recipeId)));
  document.querySelectorAll(".minus").forEach(b=>b.onclick=()=>changeOrder(Number(b.dataset.id),-1));
  document.querySelectorAll(".plus").forEach(b=>b.onclick=()=>changeOrder(Number(b.dataset.id),1));
