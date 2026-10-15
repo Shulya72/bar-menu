@@ -26,3 +26,5 @@ jobs:
           apiToken: ${{ secrets.CLOUDFLARE_API_TOKEN }}
           accountId: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
           command: deploy
+          # [assets] (fonts, icons, manifests) needs a current wrangler
+          wranglerVersion: "4.151.0"

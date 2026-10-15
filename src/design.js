@@ -168,6 +168,9 @@ a.cell:active,button.cell:active,.cell.tappable:active{background:var(--bg-press
 .stepper{display:inline-flex;align-items:center;border-radius:999px;background:var(--bg-raised-2);box-shadow:inset 0 0 0 .5px var(--sep-strong);height:36px}
 .stepper button{width:44px;height:36px;border:0;background:none;color:var(--gold);display:grid;place-items:center;cursor:pointer;padding:0;border-radius:999px}
 .stepper button:disabled{color:var(--label-3)}
+/* Зона касания 44pt при визуальной высоте 36 */
+.stepper button,.chip{position:relative}
+.stepper button::after,.chip::after{content:"";position:absolute;left:0;right:0;top:-4px;bottom:-4px}
 .stepper button:active{background:var(--bg-pressed)}
 .stepper output,.stepper span{min-width:26px;text-align:center;font-weight:700;font-variant-numeric:tabular-nums}
 
@@ -259,12 +262,7 @@ a.cell:active,button.cell:active,.cell.tappable:active{background:var(--bg-press
 .thumb-ph .ic{width:24px;height:24px}
 .price{font-variant-numeric:tabular-nums;font-weight:600}
 
-/* ——— Совместимость со старой разметкой (пока страница не перенесена) ——— */
-:where(header:not(.navbar)){display:block;padding:calc(10px + var(--safe-t)) 16px 6px;max-width:720px;margin:0 auto}
-:where(header:not(.navbar)) h1{font-family:var(--serif);font-weight:400;font-size:2.1rem;margin:0}
-.wrap{max-width:720px;margin:0 auto;padding:12px 16px calc(var(--tabbar-h) + 40px + var(--safe-b))}
-.card{background:var(--bg-raised);border-radius:var(--r-lg);padding:16px;box-shadow:inset 0 0 0 .5px var(--sep)}
-.grid{display:grid;gap:12px}
+/* ——— Базовые стили элементов без класса (нулевая специфичность) ——— */
 .row{display:flex;gap:10px;align-items:center;flex-wrap:wrap}
 :where(h2){font-size:1.25rem;margin:0 0 8px}:where(h3){font-size:1.0625rem;margin:0 0 6px}
 :where(label){display:block;color:var(--label-2);font-size:.8125rem;margin:12px 0 6px}
@@ -272,8 +270,6 @@ a.cell:active,button.cell:active,.cell.tappable:active{background:var(--bg-press
 .list input,.field input,.list select,.field select,.list textarea,.field textarea,.search input{box-shadow:none!important;border-radius:0!important;background:transparent!important;padding-left:0!important;padding-right:0!important}
 :where(button:not([class])){min-height:44px;padding:0 18px;border:0;border-radius:999px;background:var(--gold-fill);color:var(--gold-ink);font:inherit;font-weight:600;cursor:pointer}
 :where(button.secondary){min-height:44px;padding:0 18px;border:0;border-radius:999px;background:var(--bg-raised-2);color:var(--label);font:inherit;font-weight:600;cursor:pointer;box-shadow:inset 0 0 0 .5px var(--sep-strong)}
-.pill{display:inline-flex;align-items:center;height:24px;padding:0 9px;border-radius:999px;background:var(--gold-soft);color:var(--gold);font-size:.75rem;font-weight:600}
-.empty{padding:28px 16px;text-align:center;color:var(--label-2)}
 @media (prefers-reduced-motion:reduce){*,*::before,*::after{transition-duration:.01ms!important;animation-duration:.01ms!important}.sheet-panel{transition:none}}
 `;
 
