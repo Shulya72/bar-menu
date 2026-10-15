@@ -2502,27 +2502,54 @@ document.addEventListener("DOMContentLoaded",()=>{
 
       // ═══════ route-block: /bar/statistics ═══════ (agents: edit only inside your own block)
 
-      if (url.pathname === "/bar/statistics") return page(`<header><h1>📊 Статистика</h1><div class="sub">Смены, заказы и приготовленные коктейли</div></header>
-<div class="wrap">
-<div class="row" style="margin-bottom:14px"><a href="/" style="display:inline-block;padding:10px 14px;border:1px solid #333;border-radius:12px;background:#151515">🏠 Главное меню</a><a href="/bar/recipes" style="display:inline-block;padding:10px 14px;border:1px solid #333;border-radius:12px;background:#151515">🍸 Книга рецептов</a></div>
-<div class="card" id="shiftBox">Загрузка…</div>
-<div style="height:16px"></div>
-<div class="card"><h2>История смен</h2><div id="stats">Загрузка…</div></div>
-</div>
+      if (url.pathname === "/bar/statistics") return htmlResponse(renderDocument({
+        title:"Статистика", app:"bar", tab:"more", back:{href:"/bar",label:"Ещё"}, docTitle:"Статистика · VIA Бар",
+        sub:"Смены за стойкой: сколько заказов, коктейлей и на какую сумму.",
+        extraCss:".stat-actions{margin-top:12px}",
+        body:`<div class="section"><div class="section-header"><h2>Текущая смена</h2></div><div id="current"><div class="list"><div class="skeleton"></div><div class="skeleton"></div></div></div></div>
+<div class="section"><div class="section-header"><h2>Все смены</h2><span id="shiftCount" class="num"></span></div><div class="list" id="shifts"><div class="skeleton"></div><div class="skeleton"></div></div>
+<p class="section-footer">Учитываются принятые заказы со стойки и принятые или выданные заказы гостей за время смены.</p></div>`,
+      }).replace("</main>",String.raw`</main>
 <script>
-async function loadStats(){
- const r=await fetch("/api/bar/statistics");
- const d=await r.json();
- if(!r.ok){document.querySelector("#stats").textContent=d.error||"Ошибка";return;}
- const open=(d.shifts||[]).find(x=>x.status==="open");
- const box=document.querySelector("#shiftBox");
- box.innerHTML=open?"<h2>Смена №"+open.id+" 🟢</h2><p class=\\"muted\\">Начало: "+open.started_at+"</p><button id=\\"closeShift\\" class=\\"secondary\\">Закрыть смену</button>":"<h2>Смена не открыта</h2><p class=\\"muted\\">Нажми «＋» у коктейля — смена откроется автоматически.</p><button id=\\"openShift\\">▶ Открыть смену</button>";
- if(open){document.querySelector("#closeShift").onclick=async()=>{const x=await fetch("/api/bar/shift",{method:"PUT"});const j=await x.json();if(!x.ok){alert(j.error||"Не удалось закрыть смену");return;}loadStats()};}
- else{document.querySelector("#openShift").onclick=async()=>{const x=await fetch("/api/bar/shift",{method:"POST"});if(!x.ok){alert("Не удалось открыть смену");return;}loadStats()};}
- document.querySelector("#stats").innerHTML=(d.shifts||[]).map(x=>"<div style=\\"padding:14px 0;border-bottom:1px solid #292929\\"><b>Смена №"+x.id+"</b> · "+(x.status==="open"?"🟢 открыта":"закрыта")+"<div class=\\"muted\\">"+x.started_at+" → "+(x.closed_at||"сейчас")+"</div><div style=\\"margin-top:6px\\"><b>"+Number(x.orders_count||0)+"</b> заказов · <b>"+Number(x.cocktails_count||0)+"</b> коктейлей · <b>"+Number(x.revenue_rub||0).toFixed(0)+" ₽</b></div></div>").join("")||"<div class=\\"empty\\">Смен ещё нет.</div>";
+const $=s=>document.querySelector(s);
+const esc=s=>String(s??"").replace(/[&<>"']/g,c=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[c]));
+const plural=(n,f)=>{const a=Math.abs(n)%100,b=a%10;return f[a>10&&a<20?2:b===1?0:b>=2&&b<=4?1:2]};
+const toDate=s=>s?new Date(String(s).replace(" ","T")+(/[zZ]|[+-]\d\d:?\d\d$/.test(s)?"":"Z")):null;
+const fmt=s=>{const d=toDate(s);return d&&!isNaN(d)?d.toLocaleString("ru-RU",{day:"numeric",month:"short",hour:"2-digit",minute:"2-digit"}).replace(" г.",""):"—"};
+const fmtTime=s=>{const d=toDate(s);return d&&!isNaN(d)?d.toLocaleTimeString("ru-RU",{hour:"2-digit",minute:"2-digit"}):""};
+const dur=(a,b)=>{const x=toDate(a),y=b?toDate(b):new Date();if(!x||isNaN(x))return"—";let m=Math.max(0,Math.round((y-x)/60000));const h=Math.floor(m/60);m%=60;return(h?h+" ч ":"")+m+" мин"};
+const rub=n=>Number(n||0).toLocaleString("ru-RU",{maximumFractionDigits:0})+" ₽";
+const row=(title,value)=>'<div class="cell"><span class="cell-body"><span class="cell-title">'+title+'</span></span><span class="cell-value num">'+value+'</span></div>';
+let busy=false;
+async function act(method){
+  if(busy)return;
+  if(method==="PUT"&&!confirm("Закрыть текущую смену?"))return;
+  busy=true;document.querySelectorAll("#current .btn").forEach(b=>b.disabled=true);
+  try{const r=await fetch("/api/bar/shift",{method});const d=await r.json().catch(()=>({}));if(!r.ok)throw new Error(d.error||(method==="PUT"?"Не удалось закрыть смену":"Не удалось открыть смену"));VIA.toast(method==="PUT"?"Смена закрыта":"Смена открыта");await load()}
+  catch(e){VIA.toast(e.message||"Ошибка сети. Попробуйте ещё раз.",true);document.querySelectorAll("#current .btn").forEach(b=>b.disabled=false)}
+  finally{busy=false}
 }
-loadStats();
-</script>`, "Статистика");
+async function load(){
+  try{
+    const r=await fetch("/api/bar/statistics");const d=await r.json();if(!r.ok)throw new Error(d.error||"Не удалось загрузить");
+    const shifts=d.shifts||[];const open=shifts.find(x=>x.status==="open");
+    $("#current").innerHTML=open
+      ?'<div class="list">'+'<div class="cell"><span class="cell-body"><span class="cell-title">Смена №'+Number(open.id)+'</span><span class="cell-sub">с '+esc(fmt(open.started_at))+'</span></span><span class="badge ok">Идёт</span></div>'
+        +row("Длительность",esc(dur(open.started_at)))+row("Заказов",Number(open.orders_count||0))+row("Коктейлей",Number(open.cocktails_count||0))+row("Выручка",rub(open.revenue_rub))+'</div>'
+        +'<div class="stat-actions"><button class="btn btn-gray btn-block" type="button" id="closeShift">Закрыть смену</button></div>'
+      :'<div class="list"><div class="empty-state"><svg class="ic" aria-hidden="true"><use href="#i-clock"/></svg><h3>Смена не открыта</h3>Она откроется сама с первым заказом за стойкой — или откройте её сейчас.</div></div>'
+        +'<div class="stat-actions"><button class="btn btn-primary btn-block" type="button" id="openShift">Открыть смену</button></div>';
+    const c=$("#closeShift"),o=$("#openShift");if(c)c.onclick=()=>act("PUT");if(o)o.onclick=()=>act("POST");
+    $("#shiftCount").textContent=shifts.length?shifts.length+" "+plural(shifts.length,["смена","смены","смен"]):"";
+    $("#shifts").innerHTML=shifts.map(x=>{const oc=Number(x.orders_count||0),cc=Number(x.cocktails_count||0);
+      const when=esc(fmt(x.started_at))+(x.closed_at?" – "+esc(fmtTime(x.closed_at)):" · идёт");
+      return '<div class="cell"><span class="cell-body"><span class="cell-title">Смена №'+Number(x.id)+'</span><span class="cell-sub">'+when+' · '+oc+' '+plural(oc,["заказ","заказа","заказов"])+' · '+cc+' '+plural(cc,["коктейль","коктейля","коктейлей"])+'</span></span><span class="cell-value num">'+rub(x.revenue_rub)+'</span></div>'}).join("")
+      ||'<div class="empty-state"><h3>Смен ещё не было</h3>Первая появится с первым заказом.</div>';
+  }catch(e){$("#shifts").innerHTML='<div class="empty-state"><h3>Не удалось загрузить</h3>'+esc(e.message)+'</div>';$("#current").innerHTML=""}
+}
+load();
+document.addEventListener("visibilitychange",()=>{if(!document.hidden)load()});
+</script>`));
 
 
       // ═══════ route-block: /bar/orders ═══════ (agents: edit only inside your own block)
