@@ -3,7 +3,7 @@
 // свежая версия (а копия на телефоне обновляется), без интернета — последняя
 // сохранённая. Заказы, закупки и правки склада без интернета не отправляются:
 // страница покажет «нет связи», как и раньше.
-const STATIC = "via-static-2"; // шрифты, иконки, логотип — меняются только с версией
+const STATIC = "via-static-3"; // шрифты, иконки, логотип — меняются только с версией
 const PAGES = "via-pages";
 const DATA = "via-data";
 const PHOTOS = "via-photos";
@@ -12,9 +12,9 @@ const KEEP = [STATIC, PAGES, DATA, PHOTOS];
 const STATIC_FILES = [
   "/fonts/prata-cyrillic-400.woff2",
   "/fonts/prata-latin-400.woff2",
-  "/brand/via-logo.webp",
-  "/icons/favicon-64.png",
-  "/icons/apple-touch-icon.png",
+  "/brand/via-logo.webp?v=2",
+  "/icons/favicon-64.png?v=2",
+  "/icons/apple-touch-icon.png?v=2",
 ];
 // Файлы приложения (*.webmanifest) не кэшируются: iPhone при добавлении на экран
 // «Домой» должен получить их свежими.
@@ -154,10 +154,11 @@ async function photo(e, req) {
 
 async function staticFile(req, url) {
   const c = await caches.open(STATIC);
-  const hit = await c.match(url.pathname, { ignoreVary: true });
+  const key = url.pathname + url.search; // ?v=N — новая версия картинки
+  const hit = await c.match(key, { ignoreVary: true });
   if (hit) return hit;
   const res = await fetch(req);
-  if (cacheable(res)) c.put(url.pathname, res.clone()).catch(() => {});
+  if (cacheable(res)) c.put(key, res.clone()).catch(() => {});
   return res;
 }
 
@@ -223,7 +224,7 @@ h1{font-family:Prata,Georgia,serif;font-weight:400;font-size:2rem;line-height:1.
 nav{display:flex;flex-direction:column;gap:10px}a{display:flex;align-items:center;justify-content:center;min-height:50px;border-radius:999px;background:rgba(230,193,115,.14);color:#E6C173;font-weight:600;text-decoration:none;box-shadow:inset 0 0 0 .75px rgba(230,193,115,.35)}
 button{margin-top:14px;min-height:50px;width:100%;border:0;border-radius:999px;background:linear-gradient(180deg,#F0CF86,#C99A4B);color:#1A1307;font:inherit;font-weight:700}
 </style></head><body><main>
-<img src="/brand/via-logo.webp" alt="VIA Bar" width="112" height="112">
+<img src="/brand/via-logo.webp?v=2" alt="VIA Bar" width="112" height="112">
 <h1>Нет интернета</h1>
 <p>Эта страница ещё не сохранена на телефоне — откройте её один раз с интернетом, и дальше она будет открываться и без него.${links ? " Без интернета доступно:" : ""}</p>
 ${links ? `<nav aria-label="Сохранённые страницы">${links}</nav>` : ""}

@@ -51,7 +51,7 @@ const ICONS = {
 
 // Логотип VIA Bar (авторский знак хозяев: кольцо, «VIA BAR» / «SHULYA.PARTY», сплетённые VA).
 // Растровый файл вырезан из их макета: public/brand/via-logo.webp (512×512, прозрачный фон вокруг круга).
-export const monogram = (size = 96) => `<img class="monogram" src="/brand/via-logo.webp" width="${size}" height="${size}" alt="VIA Bar" decoding="async">`;
+export const monogram = (size = 96) => `<img class="monogram" src="/brand/via-logo.webp?v=2" width="${size}" height="${size}" alt="VIA Bar" decoding="async">`;
 
 export const icon = (name, cls = "") => `<svg class="ic ${cls}" aria-hidden="true"><use href="#i-${name}"/></svg>`;
 
@@ -329,8 +329,8 @@ const headTags = (title, app) => `<meta charset="utf-8">
 <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
 <meta name="apple-mobile-web-app-title" content="${app === "bar" ? "VIA Бар" : "VIA Bar"}">
 <link rel="manifest" href="${app === "bar" ? "/manifest-bar.webmanifest" : "/manifest.webmanifest"}">
-<link rel="apple-touch-icon" href="/icons/${app === "bar" ? "bar/" : ""}apple-touch-icon.png">
-<link rel="icon" href="/icons/${app === "bar" ? "bar/" : ""}favicon-64.png" type="image/png" sizes="64x64">
+<link rel="apple-touch-icon" href="/icons/${app === "bar" ? "bar/" : ""}apple-touch-icon.png?v=2">
+<link rel="icon" href="/icons/${app === "bar" ? "bar/" : ""}favicon-64.png?v=2" type="image/png" sizes="64x64">
 <link rel="preload" href="/fonts/prata-cyrillic-400.woff2" as="font" type="font/woff2" crossorigin>
 <title>${title}</title>`;
 
