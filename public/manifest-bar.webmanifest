@@ -1,7 +1,7 @@
 {
   "name": "VIA Bar — панель бармена",
   "short_name": "VIA Bar",
-  "description": "Рабочее место хозяев VIA Bar: заказы, рецепты, склад и закупки.",
+  "description": "Панель бармена VIA Bar: заказы, рецепты, склад и закупки.",
   "lang": "ru",
   "id": "/bar",
   "start_url": "/bar/orders",

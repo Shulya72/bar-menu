@@ -49,7 +49,7 @@ const ICONS = {
   info: '<circle cx="12" cy="12" r="8.5"/><path d="M12 11v5.5"/><circle cx="12" cy="8" r=".6" fill="currentColor"/>',
 };
 
-// Логотип VIA Bar (авторский знак хозяев: кольцо, «VIA BAR» / «SHULYA.PARTY», сплетённые VA).
+// Логотип VIA Bar (авторский знак Владимира и Анастасии: кольцо, «VIA BAR» / «VLADIMIR & ANASTASIA», сплетённые VA).
 // Растровый файл вырезан из их макета: public/brand/via-logo.webp (512×512, прозрачный фон вокруг круга).
 export const monogram = (size = 96) => `<img class="monogram" src="/brand/via-logo.webp?v=2" width="${size}" height="${size}" alt="VIA Bar" decoding="async">`;
 

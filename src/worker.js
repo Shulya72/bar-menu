@@ -19,7 +19,7 @@ const orderInfo = async (e, id) => {
   const rows = results || [];
   return { guest_id: rows[0]?.guest_id, items: rows.map((x) => ({ name: x.name || "Коктейль", qty: Number(x.qty) || 1 })) };
 };
-// Тексты гостю — от лица хозяев, по-человечески и без номеров заказов.
+// Тексты гостю — от лица бара («мы»), по-человечески и без номеров заказов.
 // Название коктейля после двоеточия: не нужно согласовывать «готов/готова/готово».
 const itemLabel = (x) => "«" + x.name + "»" + (x.qty > 1 ? " × " + x.qty : "");
 const guestText = (kind, items) => {
