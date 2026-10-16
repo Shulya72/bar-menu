@@ -4,7 +4,7 @@ import { renderDocument, htmlResponse, icon, monogram } from "./design.js";
 // один раз: результат отмечается в app_migrations, а внутри экземпляра Worker'а
 // запоминается промисом. Чтобы изменить схему — добавь команду в SCHEMA_SQL и
 // поменяй SCHEMA_VERSION: новая версия применится один раз при следующем запросе.
-const SCHEMA_VERSION="schema-2026-10-17b";
+const SCHEMA_VERSION="schema-2026-10-18-bar-auth";
 const SCHEMA_SQL=[
   "CREATE TABLE IF NOT EXISTS app_migrations (name TEXT PRIMARY KEY, applied_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP)",
   "CREATE TABLE IF NOT EXISTS ingredients (id INTEGER PRIMARY KEY AUTOINCREMENT, name TEXT NOT NULL UNIQUE, unit TEXT NOT NULL DEFAULT 'ml' CHECK(unit IN ('ml','g','pcs')), is_active INTEGER NOT NULL DEFAULT 1, created_at TEXT DEFAULT NULL, updated_at TEXT DEFAULT NULL)",
@@ -44,6 +44,13 @@ const SCHEMA_SQL=[
   "CREATE TABLE IF NOT EXISTS push_subscriptions (id INTEGER PRIMARY KEY AUTOINCREMENT,endpoint TEXT NOT NULL,p256dh TEXT NOT NULL,auth TEXT NOT NULL,role TEXT NOT NULL,guest_id INTEGER,created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP)",
   "CREATE UNIQUE INDEX IF NOT EXISTS idx_push_endpoint_role ON push_subscriptions(endpoint,role)",
   "CREATE TABLE IF NOT EXISTS app_kv (key TEXT PRIMARY KEY,value TEXT NOT NULL)",
+  // Вход в панель бармена: сессии устройств (только SHA-256 токена) и неудачные попытки.
+  "CREATE TABLE IF NOT EXISTS bar_sessions (id INTEGER PRIMARY KEY AUTOINCREMENT,token_hash TEXT NOT NULL UNIQUE,label TEXT,created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,last_seen_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP)",
+  "CREATE TABLE IF NOT EXISTS bar_login_failures (id INTEGER PRIMARY KEY AUTOINCREMENT,ip TEXT NOT NULL,at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP)",
+  "CREATE INDEX IF NOT EXISTS idx_bar_login_failures_at ON bar_login_failures(at)",
+  // До защиты панели подписаться «как бармен» мог кто угодно — такие подписки сбрасываются
+  // (один раз, при этой миграции); хозяева включат уведомления заново после входа.
+  "DELETE FROM push_subscriptions WHERE role='bar' AND NOT EXISTS (SELECT 1 FROM app_migrations WHERE name='schema-2026-10-18-bar-auth')",
   "CREATE TABLE IF NOT EXISTS guest_reviews (id INTEGER PRIMARY KEY AUTOINCREMENT,guest_id INTEGER NOT NULL,order_item_id INTEGER NOT NULL UNIQUE,order_id INTEGER NOT NULL,cocktail_id INTEGER NOT NULL,rating INTEGER NOT NULL CHECK(rating BETWEEN 1 AND 5),comment TEXT NOT NULL DEFAULT '',created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP)",
 ];
 const migrateSchema=async env=>{
@@ -151,7 +158,7 @@ const refreshCocktailPrice = async (env, cocktailId) => {
   return {cost:price,price};
 };
 
-const BUILD_VERSION = "2026-10-17-visit-v1";
+const BUILD_VERSION = "2026-10-18-bar-auth-v1";
 
 const calculateCocktailStrength = (recipeItems) => {
   let alcoholMl = 0;
@@ -782,10 +789,12 @@ export default {
         // Сводка отзывов для строки «Отзывы гостей»; «новые» считает телефон (что уже открывали).
         let rv={n:0,avg:0,ids:""};
         try{const r=await env.DB.prepare("SELECT COUNT(*) n,AVG(rating) avg,(SELECT GROUP_CONCAT(id) FROM (SELECT id FROM guest_reviews ORDER BY id DESC LIMIT 100)) ids FROM guest_reviews").first();rv={n:Number(r?.n||0),avg:Number(r?.avg||0),ids:String(r?.ids||"")}}catch(e){}
+        let devices=0;try{devices=Number((await env.DB.prepare("SELECT COUNT(*) n FROM bar_sessions").first())?.n||0)}catch(e){}
+        const devSub="Панель открыта на "+devices+" "+(devices%10===1&&devices%100!==11?"устройстве":"устройствах");
         const rvSub=rv.n?rv.n+" "+(rv.n%10===1&&rv.n%100!==11?"отзыв":[2,3,4].includes(rv.n%10)&&![12,13,14].includes(rv.n%100)?"отзыва":"отзывов")+" · ★ "+rv.avg.toFixed(1).replace(".",","):"Пока нет — гости оценивают выданные коктейли";
         return htmlResponse(renderDocument({
         title:"Ещё", app:"bar", tab:"more", docTitle:"Ещё · VIA Бар",
-        extraCss:`.cell .badge{flex:none}`,
+        extraCss:`.cell .badge{flex:none}.cell .danger-text{color:var(--danger)}.form-msg{margin:12px 4px 0;color:var(--danger)}.form-msg:empty{display:none}.sr-only{position:absolute;width:1px;height:1px;overflow:hidden;clip:rect(0 0 0 0);white-space:nowrap}`,
         body:`<div class="section"><div class="section-header"><h2>Бар</h2></div><div class="list">
 <a class="cell has-icon" href="/bar/ingredients"><span class="cell-icon">${icon("leaf")}</span><span class="cell-body"><span class="cell-title">Ингредиенты</span><span class="cell-sub">Справочник для рецептов и склада</span></span>${icon("chevronRight","cell-chevron")}</a>
 <a class="cell has-icon" href="/bar/statistics"><span class="cell-icon">${icon("chart")}</span><span class="cell-body"><span class="cell-title">Статистика</span><span class="cell-sub">Смены, заказы и выручка</span></span>${icon("chevronRight","cell-chevron")}</a>
@@ -797,7 +806,20 @@ export default {
 </div></div>
 <div class="section"><div class="section-header"><h2>Уведомления</h2></div><div class="list">
 <div class="cell has-icon"><span class="cell-icon">${icon("bell")}</span><span class="cell-body"><span class="cell-title">Новые заказы и отзывы</span><span class="cell-sub" id="pushSub" aria-live="polite">Проверяем…</span></span><button class="btn btn-tinted btn-sm" type="button" id="pushBtn" hidden>Включить</button></div>
-</div><p class="section-footer">Придут на этот телефон, даже когда приложение закрыто: «Новый заказ от: Анна», «Новый отзыв от: Анна». Включите на каждом телефоне, где стоит барменская панель.</p></div>`,
+</div><p class="section-footer">Придут на этот телефон, даже когда приложение закрыто: «Новый заказ от: Анна», «Новый отзыв от: Анна». Включите на каждом телефоне, где стоит барменская панель.</p></div>
+<div class="section"><div class="section-header"><h2>Безопасность</h2></div><div class="list">
+<button class="cell has-icon" type="button" data-open-sheet="pinSheet"><span class="cell-icon">${icon("lock")}</span><span class="cell-body"><span class="cell-title">Сменить код</span><span class="cell-sub">${devSub}</span></span>${icon("chevronRight","cell-chevron")}</button>
+<button class="cell has-icon" type="button" id="logoutHere"><span class="cell-icon">${icon("logout")}</span><span class="cell-body"><span class="cell-title">Выйти на этом телефоне</span></span></button>
+<button class="cell has-icon" type="button" id="logoutAll"><span class="cell-icon">${icon("close")}</span><span class="cell-body"><span class="cell-title danger-text">Выйти на всех устройствах</span><span class="cell-sub">Если телефон потерялся: везде понадобится код, уведомления бармена отключатся</span></span></button>
+</div><p class="section-footer">Панель открывается только по коду, гостям доступно лишь меню. Забыли код — «Забыли код?» на экране входа и ключ восстановления.</p></div>
+<div class="sheet" id="pinSheet" hidden><div class="sheet-panel" role="dialog" aria-modal="true" aria-labelledby="pinTitle">
+<div class="sheet-grabber"></div>
+<div class="sheet-head"><button class="btn btn-plain left" type="button" data-close-sheet>Отмена</button><h2 id="pinTitle" tabindex="-1">Новый код</h2><button class="btn btn-plain right strong" type="submit" form="pinForm" id="pinSave">Готово</button></div>
+<div class="sheet-body"><form id="pinForm" novalidate><input class="sr-only" name="username" autocomplete="username" value="VIA Bar" tabindex="-1" aria-hidden="true" readonly>
+<div class="list"><label class="field"><span>Текущий код</span><input name="current" type="password" inputmode="numeric" pattern="[0-9]*" maxlength="12" autocomplete="current-password" required placeholder="6–12 цифр"></label></div>
+<div class="list" style="margin-top:14px"><label class="field"><span>Новый код</span><input name="pin" type="password" inputmode="numeric" pattern="[0-9]*" maxlength="12" autocomplete="new-password" required placeholder="6–12 цифр"></label><label class="field"><span>Повторите новый код</span><input name="pin2" type="password" inputmode="numeric" pattern="[0-9]*" maxlength="12" autocomplete="new-password" required placeholder="6–12 цифр"></label></div>
+<p class="form-msg" id="pinMsg" role="alert"></p>
+<p class="section-footer">Устройства, где уже выполнен вход, останутся в панели. Новый код понадобится при следующем входе.</p></form></div></div></div>`,
       }).replace("</main>",()=>`</main><script>
 document.addEventListener("DOMContentLoaded",function(){var sub=document.getElementById("pushSub"),btn=document.getElementById("pushBtn"),cur="";
 function paint(st){cur=st;sub.textContent=VIA.push.text[st]||"";btn.hidden=!(st==="on"||st==="off");btn.textContent=st==="on"?"Выключить":"Включить"}
@@ -805,6 +827,20 @@ VIA.push.state("bar").then(paint);
 btn.addEventListener("click",function(){btn.disabled=true;var p=cur==="on"?VIA.push.disable("bar"):VIA.push.enable("bar");
 p.then(function(){VIA.toast(cur==="on"?"Уведомления выключены":"Готово — новые заказы придут на этот телефон")}).catch(function(e){VIA.toast(e.message||"Не получилось",true,4000)})
 .then(function(){return VIA.push.state("bar")}).then(paint).then(function(){btn.disabled=false})})});
+(function(){
+var post=function(u,b){return fetch(u,{method:"POST",headers:{"content-type":"application/json"},body:JSON.stringify(b||{})}).then(function(r){return r.json().catch(function(){return {}}).then(function(d){if(!r.ok)throw new Error(d.error||"Не получилось — проверьте интернет");return d})})};
+// Выход: стираем сохранённые копии страниц панели, чтобы без входа их не было видно и офлайн.
+var forget=function(){if(!window.caches)return Promise.resolve();return caches.keys().then(function(ks){return Promise.all(ks.map(function(k){
+if(/^via-(pages|data)/.test(k))return caches.delete(k);if(/^via-static/.test(k))return caches.open(k).then(function(c){return c.delete("/__via-warm-bar")})}))}).catch(function(){})};
+var out=function(all){return (all?Promise.resolve():VIA.push.state("bar").then(function(st){if(st==="on")return VIA.push.disable("bar")}).catch(function(){}))
+.then(function(){return post("/api/bar/auth/logout",{all:!!all})}).then(forget).then(function(){location.replace("/bar")}).catch(function(e){VIA.toast(e.message,true,4000)})};
+document.getElementById("logoutHere").addEventListener("click",function(){if(confirm("Выйти из панели на этом телефоне? Чтобы вернуться, понадобится код."))out(false)});
+document.getElementById("logoutAll").addEventListener("click",function(){if(confirm("Выйти на всех устройствах, включая этот? Везде понадобится код, уведомления бармена отключатся."))out(true)});
+var f=document.getElementById("pinForm"),msg=document.getElementById("pinMsg"),save=document.getElementById("pinSave");
+f.addEventListener("submit",function(e){e.preventDefault();msg.textContent="";var cur=f.current.value.trim(),pin=f.pin.value.trim();
+if(!/^\\d{6,12}$/.test(pin)){msg.textContent="Новый код — от 6 до 12 цифр";return}if(pin!==f.pin2.value.trim()){msg.textContent="Новые коды не совпадают";return}
+save.disabled=true;post("/api/bar/auth/change",{current:cur,pin:pin}).then(function(){f.reset();VIA.closeSheet("pinSheet");VIA.toast("Код изменён")}).catch(function(e){msg.textContent=e.message}).then(function(){save.disabled=false})});
+})();
 (function(){var c=document.getElementById("reviewsCell"),b=document.getElementById("reviewsNew");if(!c||!b)return;
 var seen=0;try{seen=Number(localStorage.getItem("via.reviews.seen")||0)}catch(e){}
 var n=String(c.dataset.ids||"").split(",").filter(function(x){return Number(x)>seen}).length;

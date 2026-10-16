@@ -37,6 +37,7 @@ const ICONS = {
   receipt: '<path d="M6 3h12v18l-2.5-1.5L13 21l-2.5-1.5L8 21 6 19.5z"/><path d="M9 8h6"/><path d="M9 12h6"/>',
   trash: '<path d="M4.5 7h15"/><path d="M9.5 7V4.5h5V7"/><path d="M6.5 7l1 13h9l1-13"/>',
   pencil: '<path d="M4 20l1-4.5L15.5 5a2 2 0 0 1 3 3L8 18.5z"/><path d="m13.5 7 3 3"/>',
+  lock: '<rect x="5" y="10.5" width="14" height="10" rx="2.5"/><path d="M8.5 10.5V7.8a3.5 3.5 0 0 1 7 0v2.7"/>',
   logout: '<path d="M14 4.5H6v15h8"/><path d="M10.5 12H20"/><path d="m16.5 8.5 3.5 3.5-3.5 3.5"/>',
   refresh: '<path d="M19.5 12a7.5 7.5 0 0 1-13.4 4.6"/><path d="M4.5 12a7.5 7.5 0 0 1 13.4-4.6"/><path d="M18 3.5v4h-4"/><path d="M6 20.5v-4h4"/>',
   camera: '<path d="M4 8h3.5l1.5-2.5h6L16.5 8H20v11H4z"/><circle cx="12" cy="13" r="3.5"/>',
@@ -294,7 +295,7 @@ export const SHELL_JS = `<script>
   addEventListener("offline",function(){VIA.setOffline(true)});addEventListener("online",function(){VIA.setOffline(false)});
   if("serviceWorker" in navigator){
     navigator.serviceWorker.addEventListener("message",function(e){var d=e.data||{};if(d.type==="via-net")VIA.setOffline(!!d.offline||navigator.onLine===false)});
-    addEventListener("load",function(){navigator.serviceWorker.register("/sw.js").then(function(){return navigator.serviceWorker.ready}).then(function(r){if(navigator.onLine!==false&&r.active)r.active.postMessage({type:"via-warm",app:document.body.classList.contains("app-bar")?"bar":"guest"})}).catch(function(){})});
+    addEventListener("load",function(){navigator.serviceWorker.register("/sw.js").then(function(){return navigator.serviceWorker.ready}).then(function(r){var bar=document.body.classList.contains("app-bar"),app=bar?(document.querySelector(".tabbar")?"bar":""):"guest";if(app&&navigator.onLine!==false&&r.active)r.active.postMessage({type:"via-warm",app:app})}).catch(function(){})});
   }
   // Уведомления на телефон (Web Push). role: "bar" | "guest".
   // state(): "on" | "off" | "denied" | "install" (iPhone: открыть с экрана «Домой») | "unsupported".
@@ -345,6 +346,11 @@ const tabbar = (tabs, current) => `<nav class="tabbar" aria-label="Раздел�
   .map((t) => `<a class="tab" href="${t.href}" data-tab="${t.id}"${t.id === current ? ' aria-current="page"' : ""}>${icon(t.icon)}<span>${t.label}</span>${t.id === "orders" ? '<b class="tab-badge" id="ordersBadge" hidden></b>' : ""}</a>`)
   .join("")}</nav>`;
 
+// Вход закрыли (другой телефон нажал «Выйти на всех устройствах») — перезагрузка покажет экран входа.
+const BAR_GUARD_JS = `<script>
+(function(){var f=window.fetch,once=false;window.fetch=function(){return f.apply(this,arguments).then(function(r){if(r.status===401&&r.headers.get("x-bar-auth")==="required"&&!once){once=true;location.reload()}return r})}})();
+</script>`;
+
 // Значок «новые гостевые заказы» на вкладке «Заказы» (обновляется, пока вкладка видима).
 const BAR_BADGE_JS = `<script>
 (function(){var b=document.getElementById("ordersBadge");if(!b)return;
@@ -369,7 +375,7 @@ const headTags = (title, app) => `<meta charset="utf-8">
 
 // Полный HTML-документ приложения.
 // app: "bar" | "guest" | null; tab: активная вкладка бармена; back: {href,label}.
-export const renderDocument = ({ title, docTitle, app = null, tab = null, back = null, right = "", body, extraCss = "", sub = "", navbar = true }) => {
+export const renderDocument = ({ title, docTitle, app = null, tab = null, back = null, right = "", body, extraCss = "", sub = "", navbar = true, tabs = true }) => {
   const nav = !navbar ? "" : `<header class="navbar">${back ? `<div class="nav-left"><a class="nav-back" href="${back.href}">${icon("chevronLeft")}<span>${back.label}</span></a></div>` : ""}<div class="nav-title">${title}</div><div class="nav-right">${right}</div></header>`;
   return `<!doctype html>
 <html lang="ru">
@@ -378,6 +384,7 @@ ${headTags(docTitle || `${title} · VIA Bar`, app)}
 <style>${DESIGN_CSS}${extraCss}</style>
 </head>
 <body class="${app ? "app app-" + app : ""}">
+${app === "bar" && tabs ? BAR_GUARD_JS : ""}
 ${ICON_SPRITE}
 ${nav}
 <main class="screen">
@@ -385,7 +392,7 @@ ${nav}
 ${sub ? `<p class="screen-sub">${sub}</p>` : ""}
 ${body}
 </main>
-${app === "bar" ? tabbar(BAR_TABS, tab) + BAR_BADGE_JS : ""}
+${app === "bar" && tabs ? tabbar(BAR_TABS, tab) + BAR_BADGE_JS : ""}
 ${SHELL_JS}
 </body>
 </html>`;
