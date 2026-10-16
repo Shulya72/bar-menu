@@ -151,7 +151,7 @@ const refreshCocktailPrice = async (env, cocktailId) => {
   return {cost:price,price};
 };
 
-const BUILD_VERSION = "2026-10-17-push-text-v1";
+const BUILD_VERSION = "2026-10-17-no-hosts-v1";
 
 const calculateCocktailStrength = (recipeItems) => {
   let alcoholMl = 0;
@@ -2079,12 +2079,12 @@ $("#bottleDel").addEventListener("click",async()=>{if(!editing)return;
 <label class="field"><span>Как вас зовут</span><input name="name" autocomplete="name" required minlength="2" maxlength="80" placeholder="Имя"></label>
 <label class="field"><span>Телефон</span><input name="phone" type="tel" inputmode="tel" autocomplete="tel" required placeholder="+7 900 123-45-67"></label>
 <label class="field"><span>Придумайте PIN-код</span><input name="pin" type="password" inputmode="numeric" autocomplete="new-password" pattern="[0-9]{4,12}" required placeholder="4–12 цифр"></label>
-</div><p class="section-footer">Телефон и PIN нужны, чтобы хозяева знали, кому нести коктейль, и чтобы ваша история сохранилась.</p><p class="footnote" id="regMsg" role="alert" style="margin:10px 4px 0"></p><button class="btn btn-primary btn-block" type="submit" style="margin-top:14px">Зарегистрироваться</button></form>
+</div><p class="section-footer">Телефон и PIN нужны, чтобы мы знали, кому нести коктейль, и чтобы ваша история сохранилась.</p><p class="footnote" id="regMsg" role="alert" style="margin:10px 4px 0"></p><button class="btn btn-primary btn-block" type="submit" style="margin-top:14px">Зарегистрироваться</button></form>
 </div></div></div>
 
 <div class="sheet" id="reviewsSheet" hidden><div class="sheet-panel" role="dialog" aria-modal="true" aria-labelledby="revTitle">
 <div class="sheet-grabber"></div><div class="sheet-head"><span class="left"></span><h2 id="revTitle">Оценки</h2><button class="btn btn-plain right" type="button" data-close-sheet>Готово</button></div>
-<div class="sheet-body"><p class="footnote" style="margin:0 4px 12px">Оцените выпитые коктейли — хозяевам важно знать, что понравилось.</p><div class="list" id="revList"><div class="skeleton"></div></div></div></div></div>`;
+<div class="sheet-body"><p class="footnote" style="margin:0 4px 12px">Оцените выпитые коктейли — нам важно знать, что понравилось.</p><div class="list" id="revList"><div class="skeleton"></div></div></div></div></div>`;
         const guestBody = `
 <section class="pane" data-pane="menu" aria-label="Меню">
 <div class="brand-row"><p class="brand-sub">Семейный бар Владимира и Анастасии</p>${monogram(52)}</div>
@@ -2170,7 +2170,7 @@ function openCocktail(id){const c=byId.get(id);if(!c)return;const l=lineOf(c),in
 $("#csHead").textContent=c.name;
 $("#csBody").innerHTML=(c.photo_url||c.avatar_url?'<img class="sheet-photo'+(out?" is-out":"")+'" src="'+esc(c.photo_url||c.avatar_url)+'" alt="'+esc(c.name)+'">':"")+'<h3 class="sheet-title" id="csTitle">'+esc(c.name)+'</h3><div class="row" style="gap:8px">'+(l?'<span class="badge line '+l.cls+'">'+scale(l)+' '+l.title.replace(/ие$/,"ий")+'</span>':"")+(price&&!out?'<span class="badge num">'+rub(price)+'</span>':"")+(out?'<span class="badge danger">Нет в наличии</span>':"")+'</div>'+(c.description?'<p class="sheet-desc">'+esc(c.description)+'</p>':"")
 +(ings.length?'<div class="section"><div class="section-header"><h2>Состав</h2></div><div class="route '+(l?l.cls:"")+'" style="padding:4px 4px 0">'+ings.map(i=>'<div class="route-stop done"><span class="station"></span><div class="route-body"><span class="cell-title">'+esc(i.ingredient_name||i.name||"Ингредиент")+'</span></div></div>').join("")+'</div></div>':"")
-+'<div class="sheet-actions"><span class="footnote">'+(out?"Закончился один из ингредиентов. Хозяева докупят — и коктейль вернётся в меню.":guest?"Добавьте в заказ — хозяева приготовят.":"Чтобы заказать, войдите в профиль.")+'</span><span data-sheet-stepper="'+id+'">'+stepperHtml(id,Number(cart[id]||0),true)+'</span></div>';
++'<div class="sheet-actions"><span class="footnote">'+(out?"Закончился один из ингредиентов. Докупим — и коктейль вернётся в меню.":guest?"Добавьте в заказ — мы приготовим.":"Чтобы заказать, войдите в профиль.")+'</span><span data-sheet-stepper="'+id+'">'+stepperHtml(id,Number(cart[id]||0),true)+'</span></div>';
 VIA.openSheet("cocktailSheet")}
 
 /* ——— заказ ——— */
@@ -2181,7 +2181,7 @@ function tracker(status){const s=STEP[status]??0;return '<div class="tracker" ar
 function renderCart(){const items=cartItems();
 $("#cartBox").innerHTML=items.length?'<div class="section"><div class="section-header"><h2>Новый заказ</h2><span class="num">'+cartCount()+'</span></div><div class="list">'+items.map(x=>{const id=Number(x.c.id),p=photo(x.c);return '<div class="cell" data-row="'+id+'">'+(p?'<img class="thumb" src="'+esc(p)+'" alt="" style="width:44px;height:44px">':'<span class="thumb thumb-ph" style="width:44px;height:44px">'+ic("glass")+'</span>')+'<span class="cell-body"><span class="cell-title">'+esc(x.c.name)+'</span>'+(Number(x.c.price_rub)?'<span class="cell-sub num">'+rub(x.c.price_rub)+'</span>':"")+'</span><span class="menu-side">'+stepperHtml(id,x.q)+'</span></div>'}).join("")
 +(cartTotal()?'<div class="cell"><span class="cell-body"><span class="cell-title">Итого</span></span><span class="cell-value num" style="color:var(--label);font-weight:600">'+rub(cartTotal())+'</span></div>':"")+'</div>'
-+'<button class="btn btn-primary btn-block" type="button" id="sendOrder" style="margin-top:14px"'+(sending?" disabled":"")+'>'+(sending?"Отправляем…":guest?"Отправить хозяевам":"Войти и отправить")+'</button><p class="section-footer">Заказ увидят Владимир и Анастасия — статус обновится здесь.</p></div>'
++'<button class="btn btn-primary btn-block" type="button" id="sendOrder" style="margin-top:14px"'+(sending?" disabled":"")+'>'+(sending?"Отправляем…":guest?"Отправить заказ":"Войти и отправить")+'</button><p class="section-footer">Заказ увидят Владимир и Анастасия — статус обновится здесь.</p></div>'
 :'<div class="section"><div class="list"><div class="empty-state">'+ic("glass")+'<h3>Пока ничего не выбрано</h3>Загляните в меню и нажмите «+» у коктейля.</div></div><button class="btn btn-tinted btn-block" type="button" data-goto="menu" style="margin-top:12px">Открыть меню</button></div>';
 const sb=$("#sendOrder");if(sb)sb.onclick=sendOrder;renderOrders()}
 function renderOrders(){const box=$("#ordersBox");if(!guest){box.innerHTML="";return}const h=(stats&&stats.history)||[];
@@ -2189,16 +2189,16 @@ if(!h.length){box.innerHTML=stats?'<div class="section"><div class="section-head
 // Есть незавершённый заказ, а уведомления выключены — предлагаем сообщить, когда будет готов.
 const ask=pushState==="off"&&h.some(o=>o.status==="pending"||o.status==="accepted")?'<div class="section"><div class="list"><div class="cell has-icon"><span class="cell-icon">'+ic("bell")+'</span><span class="cell-body"><span class="cell-title">Написать, когда заказ будет готов?</span><span class="cell-sub">Пришлём уведомление на этот телефон</span></span><button class="btn btn-primary btn-sm" type="button" id="pushAsk">Включить</button></div></div></div>':"";
 // Сколько всего потрачено за всё время — здесь, в списке всех заказов
-box.innerHTML=ask+'<div class="section"><div class="section-header"><h2>Мои заказы</h2><span class="num">всего '+rub(stats.spent_rub)+'</span></div>'+h.map(o=>'<div class="list order-group"><div class="cell"><span class="cell-body"><span class="order-head"><span class="cell-title">Заказ №'+Number(o.id)+'</span><span class="cell-value num">'+rub(o.total_rub)+'</span></span><span class="cell-sub">'+esc(when(o.created_at))+'</span></span></div>'+(o.status==="cancelled"?'<div class="order-cancelled">'+ic("close")+'Отменён: хозяева не смогли приготовить</div>':tracker(o.status))+'<div class="cell"><span class="cell-body"><span class="cell-sub" style="color:var(--label)">'+esc(o.items||"Состав не указан")+'</span></span></div></div>').join("")+'</div>'}
+box.innerHTML=ask+'<div class="section"><div class="section-header"><h2>Мои заказы</h2><span class="num">всего '+rub(stats.spent_rub)+'</span></div>'+h.map(o=>'<div class="list order-group"><div class="cell"><span class="cell-body"><span class="order-head"><span class="cell-title">Заказ №'+Number(o.id)+'</span><span class="cell-value num">'+rub(o.total_rub)+'</span></span><span class="cell-sub">'+esc(when(o.created_at))+'</span></span></div>'+(o.status==="cancelled"?'<div class="order-cancelled">'+ic("close")+'Отменён: в этот раз не получилось</div>':tracker(o.status))+'<div class="cell"><span class="cell-body"><span class="cell-sub" style="color:var(--label)">'+esc(o.items||"Состав не указан")+'</span></span></div></div>').join("")+'</div>'}
 document.addEventListener("click",e=>{const g=e.target.closest("[data-goto]");if(g)show(g.dataset.goto)});
 async function sendOrder(){if(sending)return;const items=cartItems().map(x=>({cocktail_id:Number(x.c.id),quantity:x.q}));if(!items.length)return;
-if(!guest){pendingSend=true;openAuth("login","Войдите или зарегистрируйтесь — и заказ сразу уйдёт хозяевам.");return}
+if(!guest){pendingSend=true;openAuth("login","Войдите или зарегистрируйтесь — и заказ сразу уйдёт в бар.");return}
 sending=true;renderCart();
 try{const r=await fetch("/api/guest/order",{method:"POST",headers:{"content-type":"application/json"},body:JSON.stringify({items})});const d=await r.json().catch(()=>({}));
 if(r.status===401){guest=null;pendingSend=true;openAuth("login","Сессия закончилась — войдите ещё раз.");return}
 if(r.status===409){await loadMenu(true);throw new Error(d.error||"Чего-то из заказа сейчас нет")}
 if(!r.ok)throw new Error(d.error||"Не удалось отправить заказ");
-cart={};saveCart();cocktails.forEach(c=>updateRow(Number(c.id)));VIA.toast("Заказ №"+d.order_id+" отправлен хозяевам");await refreshStats(true);loadMenu(true)}
+cart={};saveCart();cocktails.forEach(c=>updateRow(Number(c.id)));VIA.toast("Заказ №"+d.order_id+" отправлен в бар");await refreshStats(true);loadMenu(true)}
 catch(e){VIA.toast(e.message||"Ошибка сети. Попробуйте ещё раз.",true)}
 finally{sending=false;renderCart();renderCartBar()}}
 
@@ -2248,14 +2248,14 @@ async function logout(){if(!confirm("Выйти из профиля?"))return;tr
 /* ——— оценки ——— */
 async function openReviews(){VIA.openSheet("reviewsSheet");const box=$("#revList");box.innerHTML='<div class="skeleton"></div>';
 try{const r=await fetch("/api/guest/reviews");const d=await r.json();if(!r.ok)throw new Error(d.error||"Не удалось загрузить");const items=d.items||[];
-if(!items.length){box.innerHTML='<div class="empty-state">'+ic("star")+'<h3>Пока нечего оценить</h3>Оценить можно коктейль, который хозяева уже выдали.</div>';return}
+if(!items.length){box.innerHTML='<div class="empty-state">'+ic("star")+'<h3>Пока нечего оценить</h3>Оценить можно коктейль, который вам уже выдали.</div>';return}
 box.innerHTML=items.map(it=>'<div class="review-item" data-item="'+Number(it.order_item_id)+'"><div class="order-head"><span class="cell-title">'+esc(it.cocktail_name)+(Number(it.quantity)>1?" × "+Number(it.quantity):"")+'</span><span class="caption">Заказ №'+Number(it.order_id)+'</span></div>'
 +(it.rating?'<div style="margin-top:6px"><span class="stars-static" aria-label="Оценка '+Number(it.rating)+' из 5">'+"★".repeat(Number(it.rating))+"☆".repeat(5-Number(it.rating))+'</span>'+(it.comment?'<div class="cell-sub">'+esc(it.comment)+'</div>':"")+'</div>'
-:'<form class="rev-form" style="margin-top:4px"><div class="stars" role="radiogroup" aria-label="Оценка «'+esc(it.cocktail_name)+'»">'+[1,2,3,4,5].map(n=>'<button type="button" role="radio" aria-checked="false" data-star="'+n+'" aria-label="'+n+" "+plural(n,["звезда","звезды","звёзд"])+'">'+ic("star")+'</button>').join("")+'</div><label class="field" style="padding:0"><span class="hidden">Комментарий</span><textarea name="comment" maxlength="500" placeholder="Пара слов хозяевам (необязательно)" aria-label="Комментарий" style="min-height:56px"></textarea></label><input type="hidden" name="rating"><button class="btn btn-tinted btn-sm" type="submit" disabled>Отправить оценку</button><p class="footnote" role="alert"></p></form>')+'</div>').join("")}
+:'<form class="rev-form" style="margin-top:4px"><div class="stars" role="radiogroup" aria-label="Оценка «'+esc(it.cocktail_name)+'»">'+[1,2,3,4,5].map(n=>'<button type="button" role="radio" aria-checked="false" data-star="'+n+'" aria-label="'+n+" "+plural(n,["звезда","звезды","звёзд"])+'">'+ic("star")+'</button>').join("")+'</div><label class="field" style="padding:0"><span class="hidden">Комментарий</span><textarea name="comment" maxlength="500" placeholder="Пара слов о коктейле (необязательно)" aria-label="Комментарий" style="min-height:56px"></textarea></label><input type="hidden" name="rating"><button class="btn btn-tinted btn-sm" type="submit" disabled>Отправить оценку</button><p class="footnote" role="alert"></p></form>')+'</div>').join("")}
 catch(e){box.innerHTML='<div class="empty-state"><h3>Не удалось загрузить</h3>'+esc(e.message)+'</div>'}}
 $("#revList").addEventListener("click",e=>{const b=e.target.closest("[data-star]");if(!b)return;const f=b.closest("form"),n=Number(b.dataset.star);f.rating.value=n;f.querySelectorAll("[data-star]").forEach(x=>x.setAttribute("aria-checked",String(Number(x.dataset.star)<=n)));f.querySelector("button[type=submit]").disabled=false});
 $("#revList").addEventListener("submit",async e=>{e.preventDefault();const f=e.target,item=Number(f.closest("[data-item]").dataset.item),msg=f.querySelector("[role=alert]");msg.textContent="Сохраняем…";
-try{const r=await fetch("/api/guest/reviews",{method:"POST",headers:{"content-type":"application/json"},body:JSON.stringify({order_item_id:item,rating:Number(f.rating.value),comment:f.comment.value})});const d=await r.json().catch(()=>({}));if(!r.ok)throw new Error(d.error||"Не удалось сохранить");VIA.toast("Спасибо! Хозяева увидят оценку");openReviews()}catch(err){msg.textContent=err.message}});
+try{const r=await fetch("/api/guest/reviews",{method:"POST",headers:{"content-type":"application/json"},body:JSON.stringify({order_item_id:item,rating:Number(f.rating.value),comment:f.comment.value})});const d=await r.json().catch(()=>({}));if(!r.ok)throw new Error(d.error||"Не удалось сохранить");VIA.toast("Спасибо за оценку!");openReviews()}catch(err){msg.textContent=err.message}});
 
 /* ——— загрузка ——— */
 async function loadMe(){try{const r=await fetch("/api/guest/me");const d=await r.json();guest=d.guest||null}catch(e){guest=null}if(guest)await refreshStats();renderProfile();if(pane==="order")renderCart();if(guest)refreshPush()}
@@ -2535,7 +2535,7 @@ historyEl.addEventListener("click",e=>{const t=e.target.closest("[data-id],[data
   else if(t.hasAttribute("data-new"))openPurchase(null,t);
   else if(t.hasAttribute("data-show-all")){state.ing="";applyPreset("all");loadHistory()}
   else loadHistory()});
-// Вернулись на вкладку — тихо обновить: чек мог добавить второй хозяин со своего телефона.
+// Вернулись на вкладку — тихо обновить: чек мог добавить второй бармен со своего телефона.
 document.addEventListener("visibilitychange",()=>{if(!document.hidden&&loaded&&!document.querySelector(".sheet.open")&&Date.now()-lastLoad>60000)loadHistory(true)});
 addEventListener("pageshow",e=>{if(e.persisted)loadHistory(true)});
 
