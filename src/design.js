@@ -329,8 +329,8 @@ const headTags = (title, app) => `<meta charset="utf-8">
 <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
 <meta name="apple-mobile-web-app-title" content="${app === "bar" ? "VIA Бар" : "VIA Bar"}">
 <link rel="manifest" href="${app === "bar" ? "/manifest-bar.webmanifest" : "/manifest.webmanifest"}">
-<link rel="apple-touch-icon" href="/icons/apple-touch-icon.png">
-<link rel="icon" href="/icons/favicon-64.png" type="image/png" sizes="64x64">
+<link rel="apple-touch-icon" href="/icons/${app === "bar" ? "bar/" : ""}apple-touch-icon.png">
+<link rel="icon" href="/icons/${app === "bar" ? "bar/" : ""}favicon-64.png" type="image/png" sizes="64x64">
 <link rel="preload" href="/fonts/prata-cyrillic-400.woff2" as="font" type="font/woff2" crossorigin>
 <title>${title}</title>`;
 
