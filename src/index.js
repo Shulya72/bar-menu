@@ -164,7 +164,7 @@ const refreshCocktailPrice = async (env, cocktailId) => {
   return {cost:price,price};
 };
 
-const BUILD_VERSION = "2026-10-18-push-diag-v1";
+const BUILD_VERSION = "2026-10-18-offline-v1";
 
 const calculateCocktailStrength = (recipeItems) => {
   let alcoholMl = 0;
@@ -852,7 +852,7 @@ test.addEventListener("click",function(){test.disabled=true;endpoint().then(func
 var post=function(u,b){return fetch(u,{method:"POST",headers:{"content-type":"application/json"},body:JSON.stringify(b||{})}).then(function(r){return r.json().catch(function(){return {}}).then(function(d){if(!r.ok)throw new Error(d.error||"Не получилось — проверьте интернет");return d})})};
 // Выход: стираем сохранённые копии страниц панели, чтобы без входа их не было видно и офлайн.
 var forget=function(){if(!window.caches)return Promise.resolve();return caches.keys().then(function(ks){return Promise.all(ks.map(function(k){
-if(/^via-(pages|data)/.test(k))return caches.delete(k);if(/^via-static/.test(k))return caches.open(k).then(function(c){return c.delete("/__via-warm-bar")})}))}).catch(function(){})};
+if(/^via-(pages|data)/.test(k))return caches.delete(k);if(/^via-static/.test(k))return caches.open(k).then(function(c){return c.keys().then(function(rs){return Promise.all(rs.filter(function(q){return q.url.indexOf("/__via-warm-bar")>=0}).map(function(q){return c.delete(q)}))})})}))}).catch(function(){})};
 var out=function(all){return (all?Promise.resolve():VIA.push.state("bar").then(function(st){if(st==="on")return VIA.push.disable("bar")}).catch(function(){}))
 .then(function(){return post("/api/bar/auth/logout",{all:!!all})}).then(forget).then(function(){location.replace("/bar")}).catch(function(e){VIA.toast(e.message,true,4000)})};
 document.getElementById("logoutHere").addEventListener("click",function(){if(confirm("Выйти из панели на этом телефоне? Чтобы вернуться, понадобится код."))out(false)});

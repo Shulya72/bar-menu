@@ -31,8 +31,15 @@ const WARM = {
   ],
 };
 const NO_CACHE_API = new Set(["/api/health", "/api/photo-debug"]);
-const PAGE_TIMEOUT = 4000; // плохой интернет: через 4 с показываем сохранённое
-const DATA_TIMEOUT = 6000;
+const PAGE_TIMEOUT = 6000; // плохой интернет: через 6 с показываем сохранённое
+const DATA_TIMEOUT = 8000;
+// Сохранённой копии нет: ждём сеть ещё, но не бесконечно — оператор может «заморозить»
+// соединение (так в России ограничивают сайты на Cloudflare), и страница висела бы вечно.
+const LAST_WAIT = 20000;
+// Страница только что открылась из копии — связь, скорее всего, «заморожена»: данные
+// тоже берём из копии быстрее, а не через полные 8 секунд.
+const DATA_TIMEOUT_OFFLINE = 2500;
+let offlineUntil = 0;
 
 const pageKey = (url) => url.origin + url.pathname;
 const cacheable = (res) => res && res.ok && res.type === "basic" && !res.redirected;
@@ -105,12 +112,12 @@ self.addEventListener("fetch", (e) => {
   }
   if (url.pathname === "/sw.js") return;
   if (req.mode === "navigate") {
-    e.respondWith(page(e, url, fetchAndSave(e, req, PAGES, pageKey(url))));
+    e.respondWith(page(e, url, complete(fetchAndSave(e, req, PAGES, pageKey(url)))));
   } else if (url.pathname.startsWith("/api/cocktail-photo")) {
     e.respondWith(photo(e, req));
   } else if (url.pathname.startsWith("/api/")) {
     if (NO_CACHE_API.has(url.pathname)) return;
-    e.respondWith(data(e, req, fetchAndSave(e, req, DATA, req.url, 80)));
+    e.respondWith(data(e, req, complete(fetchAndSave(e, req, DATA, req.url, 80))));
   } else if (STATIC_RE.test(url.pathname)) {
     e.respondWith(staticFile(req, url));
   }
@@ -132,6 +139,17 @@ function fetchAndSave(e, req, cacheName, key, limit) {
   return net;
 }
 
+// Ответ засчитывается, только когда пришёл целиком. При «заморозке» (оператор пропускает
+// первые ~16 КБ соединения) начало ответа приходит сразу, а остальное — никогда: без этого
+// страница висела бы недогруженной вместо сохранённой копии.
+function complete(net) {
+  return net.then(async (res) => {
+    if (!res || res.redirected || res.type !== "basic") return res;
+    const body = await res.arrayBuffer();
+    return new Response(body, { status: res.status, statusText: res.statusText, headers: res.headers });
+  });
+}
+
 async function trim(c, limit) {
   const keys = await c.keys();
   for (let i = 0; i < keys.length - limit; i++) await c.delete(keys[i]);
@@ -146,7 +164,8 @@ async function networkFirst(net, ms, fromCache) {
   const hit = await fromCache();
   if (hit) return { res: hit, offline: true };
   try {
-    return { res: await net, offline: false };
+    const res = await Promise.race([net, timeout(LAST_WAIT)]);
+    return { res, offline: !res };
   } catch (_) {
     return { res: null, offline: true };
   }
@@ -156,6 +175,7 @@ async function page(e, url, net) {
   const { res, offline } = await networkFirst(net, PAGE_TIMEOUT, () =>
     caches.open(PAGES).then((c) => c.match(pageKey(url), { ignoreVary: true })),
   );
+  offlineUntil = offline ? Date.now() + 30000 : 0;
   if (res && offline) {
     // Пометка для страницы: показать «нет интернета — сохранённая версия».
     const html = (await res.text()).replace("<html lang=\"ru\">", "<html lang=\"ru\" data-offline>");
@@ -165,7 +185,7 @@ async function page(e, url, net) {
 }
 
 async function data(e, req, net) {
-  const { res, offline } = await networkFirst(net, DATA_TIMEOUT, () =>
+  const { res, offline } = await networkFirst(net, Date.now() < offlineUntil ? DATA_TIMEOUT_OFFLINE : DATA_TIMEOUT, () =>
     caches.open(DATA).then((c) => c.match(req.url, { ignoreVary: true })),
   );
   notify(e.clientId, offline);
@@ -209,7 +229,8 @@ async function forgetGuest() {
 
 async function warm(app) {
   const st = await caches.open(STATIC);
-  const mark = "/__via-warm-" + app;
+  // Отметка привязана к версии хранилища: сменили PAGES — всё сохраняется заново.
+  const mark = "/__via-warm-" + app + "-" + PAGES;
   if (await st.match(mark)) return;
   const pages = await caches.open(PAGES);
   const data = await caches.open(DATA);
@@ -249,7 +270,7 @@ async function offlinePage(url) {
   const links = saved.map((p) => `<a href="${p}">${NAMES[p]}</a>`).join("");
   const html = `<!doctype html><html lang="ru" data-offline><head><meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover"><meta name="color-scheme" content="dark"><meta name="theme-color" content="#0A0908">
-<title>Нет интернета · VIA Bar</title><style>
+<title>Нет связи · VIA Bar</title><style>
 @font-face{font-family:Prata;src:url(/fonts/prata-cyrillic-400.woff2) format("woff2");unicode-range:U+0400-04FF}
 @font-face{font-family:Prata;src:url(/fonts/prata-latin-400.woff2) format("woff2");unicode-range:U+0000-00FF}
 *{box-sizing:border-box}body{margin:0;min-height:100dvh;background:#0A0908;color:#F5EFE3;font:17px/1.45 -apple-system,BlinkMacSystemFont,"SF Pro Text",system-ui,sans-serif;display:grid;place-items:center;padding:calc(24px + env(safe-area-inset-top)) 20px calc(24px + env(safe-area-inset-bottom))}
@@ -259,8 +280,8 @@ nav{display:flex;flex-direction:column;gap:10px}a{display:flex;align-items:cente
 button{margin-top:14px;min-height:50px;width:100%;border:0;border-radius:999px;background:linear-gradient(180deg,#F0CF86,#C99A4B);color:#1A1307;font:inherit;font-weight:700}
 </style></head><body><main>
 <img src="/brand/via-logo.webp?v=2" alt="VIA Bar" width="112" height="112">
-<h1>Нет интернета</h1>
-<p>Эта страница ещё не сохранена на телефоне — откройте её один раз с интернетом, и дальше она будет открываться и без него.${links ? " Без интернета доступно:" : ""}</p>
+<h1>Нет связи с сайтом</h1>
+<p>Эта страница ещё не сохранена на телефоне. Если интернет есть, а сайт не открывается, — возможно, оператор ограничивает доступ: попробуйте с VPN.${links ? " Без связи доступно:" : ""}</p>
 ${links ? `<nav aria-label="Сохранённые страницы">${links}</nav>` : ""}
 <button type="button" onclick="location.reload()">Попробовать снова</button>
 </main></body></html>`;
