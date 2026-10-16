@@ -296,7 +296,38 @@ export const SHELL_JS = `<script>
     navigator.serviceWorker.addEventListener("message",function(e){var d=e.data||{};if(d.type==="via-net")VIA.setOffline(!!d.offline||navigator.onLine===false)});
     addEventListener("load",function(){navigator.serviceWorker.register("/sw.js").then(function(){return navigator.serviceWorker.ready}).then(function(r){if(navigator.onLine!==false&&r.active)r.active.postMessage({type:"via-warm",app:document.body.classList.contains("app-bar")?"bar":"guest"})}).catch(function(){})});
   }
-  VIA.toast=function(msg,isError){var t=document.getElementById("viaToast");if(!t){t=document.createElement("div");t.id="viaToast";t.className="toast";t.setAttribute("role","status");document.body.appendChild(t)}t.textContent=msg;t.classList.toggle("error",!!isError);t.classList.add("show");clearTimeout(t._h);t._h=setTimeout(function(){t.classList.remove("show")},2600)};
+  // Уведомления на телефон (Web Push). role: "bar" | "guest".
+  // state(): "on" | "off" | "denied" | "install" (iPhone: открыть с экрана «Домой») | "unsupported".
+  // enable() вызывать прямо из нажатия — iPhone спрашивает разрешение только так.
+  VIA.push=(function(){
+    var ios=/iPhone|iPad|iPod/.test(navigator.userAgent),standalone=navigator.standalone===true||matchMedia("(display-mode: standalone)").matches;
+    var key=function(role){return "via.push."+role};
+    var u8=function(s){s=String(s).replace(/-/g,"+").replace(/_/g,"/");while(s.length%4)s+="=";var r=atob(s),u=new Uint8Array(r.length);for(var i=0;i<r.length;i++)u[i]=r.charCodeAt(i);return u};
+    var post=function(u,b){return fetch(u,{method:"POST",headers:{"content-type":"application/json"},body:JSON.stringify(b)}).then(function(r){return r.json().catch(function(){return {}}).then(function(d){if(!r.ok)throw new Error(d.error||"Не удалось сохранить");return d})})};
+    var api={};
+    api.state=function(role){
+      if(!("serviceWorker" in navigator)||!("PushManager" in window)||!("Notification" in window))return Promise.resolve(ios&&!standalone?"install":"unsupported");
+      if(Notification.permission==="denied")return Promise.resolve("denied");
+      return navigator.serviceWorker.ready.then(function(reg){return reg.pushManager.getSubscription()}).then(function(sub){var saved="";try{saved=localStorage.getItem(key(role))||""}catch(e){}
+        return sub&&saved===sub.endpoint&&Notification.permission==="granted"?"on":"off"}).catch(function(){return "off"});
+    };
+    api.enable=function(role){
+      return Notification.requestPermission().then(function(p){
+        if(p!=="granted")throw new Error(p==="denied"?"Уведомления запрещены — включите их в настройках телефона":"Уведомления не включены");
+        return Promise.all([navigator.serviceWorker.ready,fetch("/api/push/key").then(function(r){return r.json()})]);
+      }).then(function(x){var reg=x[0],pk=x[1].publicKey;
+        return reg.pushManager.getSubscription().then(function(sub){return sub||reg.pushManager.subscribe({userVisibleOnly:true,applicationServerKey:u8(pk)})});
+      }).then(function(sub){return post("/api/push/subscribe",{role:role,subscription:sub.toJSON()}).then(function(){try{localStorage.setItem(key(role),sub.endpoint)}catch(e){}return true})});
+    };
+    api.disable=function(role){
+      try{localStorage.removeItem(key(role))}catch(e){}
+      if(!("serviceWorker" in navigator)||!("PushManager" in window))return Promise.resolve(true);
+      return navigator.serviceWorker.ready.then(function(reg){return reg.pushManager.getSubscription()}).then(function(sub){return sub?post("/api/push/unsubscribe",{role:role,endpoint:sub.endpoint}):true});
+    };
+    api.text={on:"Включены на этом телефоне",off:"Выключены",denied:"Запрещены в настройках телефона: Настройки → Уведомления",install:"Работают в приложении с экрана «Домой» — в Safari не приходят",unsupported:"Этот браузер не умеет показывать уведомления"};
+    return api;
+  })();
+  VIA.toast=function(msg,isError,ms){var t=document.getElementById("viaToast");if(!t){t=document.createElement("div");t.id="viaToast";t.className="toast";t.setAttribute("role","status");document.body.appendChild(t)}t.textContent=msg;t.classList.toggle("error",!!isError);t.classList.add("show");clearTimeout(t._h);t._h=setTimeout(function(){t.classList.remove("show")},ms||2600)};
 })();
 </script>`;
 

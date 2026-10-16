@@ -1,6 +1,22 @@
 import App, { ensureSchema, guestOrderShortage, acceptGuestOrderWithStock } from "./index.js";
+import { getVapid, notifyBar, notifyGuest, saveSubscription, removeSubscription } from "./push.js";
 
 const json = (d, s = 200) => Response.json(d, { status: s, headers: { "cache-control": "no-store" } });
+// Уведомление отправляется после ответа: заказ/выдача не ждут push-сервер.
+const later = (c, p) => {
+  const safe = Promise.resolve()
+    .then(p)
+    .catch((err) => console.error("push:", err?.message));
+  if (c?.waitUntil) c.waitUntil(safe);
+};
+const orderItemsText = async (e, id) =>
+  (
+    await e.DB.prepare(
+      "SELECT o.guest_id,COALESCE(GROUP_CONCAT(c.name || ' × ' || oi.quantity, ', '),'') items,COALESCE(SUM(oi.quantity),0) n FROM orders o LEFT JOIN order_items oi ON oi.order_id=o.id LEFT JOIN cocktails c ON c.id=oi.cocktail_id WHERE o.id=? GROUP BY o.id",
+    )
+      .bind(id)
+      .first()
+  ) || {};
 // Телефон в едином виде. Российский номер можно ввести как 8…, +7…, 7… или
 // 10 цифр с 9… — всё это один и тот же номер, хранится как +7XXXXXXXXXX.
 const norm = (v) => {
@@ -119,7 +135,7 @@ const guestReviews = async (r, e) => {
     .all();
   return json({ items: q.results || [] });
 };
-const saveGuestReview = async (r, e) => {
+const saveGuestReview = async (r, e, c) => {
   const g = await me(r, e);
   if (!g) return json({ error: "Войдите в аккаунт" }, 401);
   let b;
@@ -157,9 +173,18 @@ const saveGuestReview = async (r, e) => {
       409,
     );
   }
+  later(c, async () => {
+    const ck = await e.DB.prepare("SELECT name FROM cocktails WHERE id=?").bind(Number(item.cocktail_id)).first();
+    await notifyBar(e, {
+      title: "Новый отзыв",
+      body: "★".repeat(rating) + "☆".repeat(5 - rating) + " " + (ck?.name || "Коктейль") + " — " + g.name + (comment ? ": «" + comment.slice(0, 90) + (comment.length > 90 ? "…" : "") + "»" : ""),
+      url: "/bar/reviews",
+      tag: "review-" + itemId,
+    });
+  });
   return json({ ok: true, message: "Отзыв сохранён" });
 };
-const serveGuestOrder = async (r, e) => {
+const serveGuestOrder = async (r, e, c) => {
   let b;
   try {
     b = await r.json();
@@ -174,9 +199,19 @@ const serveGuestOrder = async (r, e) => {
   await e.DB.prepare("UPDATE orders SET status='served',served_at=CURRENT_TIMESTAMP WHERE id=? AND status='accepted'")
     .bind(id)
     .run();
+  later(c, async () => {
+    const o = await orderItemsText(e, id);
+    if (o.guest_id)
+      await notifyGuest(e, Number(o.guest_id), {
+        title: Number(o.n) > 1 ? "Ваши коктейли готовы" : "Ваш коктейль готов",
+        body: "Заказ №" + id + (o.items ? ": " + o.items : "") + " — можно забирать у стойки.",
+        url: "/menu#order",
+        tag: "order-" + id,
+      });
+  });
   return json({ ok: true, order_id: id, status: "served" });
 };
-const guestOrder = async (r, e) => {
+const guestOrder = async (r, e, c) => {
   const g = await me(r, e);
   if (!g) return json({ error: "Войдите в аккаунт" }, 401);
   let b;
@@ -195,7 +230,7 @@ const guestOrder = async (r, e) => {
     if (!Number.isInteger(id) || !Number.isInteger(qty) || qty < 1 || qty > 50) continue;
     const c = await e.DB.prepare("SELECT id,name,price_rub FROM cocktails WHERE id=? AND is_active=1").bind(id).first();
     if (!c) continue;
-    clean.push({ id, qty, price: Number(c.price_rub || 0) });
+    clean.push({ id, qty, price: Number(c.price_rub || 0), name: c.name });
     total += qty * Number(c.price_rub || 0);
   }
   if (!clean.length) return json({ error: "В заказе нет доступных коктейлей" }, 400);
@@ -210,6 +245,14 @@ const guestOrder = async (r, e) => {
     await e.DB.prepare("INSERT INTO order_items(order_id,cocktail_id,quantity,unit_price_rub) VALUES(?,?,?,?)")
       .bind(oid, x.id, x.qty, x.price)
       .run();
+  later(c, () =>
+    notifyBar(e, {
+      title: "Новый заказ от: " + g.name,
+      body: clean.map((x) => x.name + (x.qty > 1 ? " × " + x.qty : "")).join(", "),
+      url: "/bar/orders",
+      tag: "order-" + oid,
+    }),
+  );
   return json({ ok: true, order_id: oid, total_rub: total });
 };
 const stats = async (r, e) => {
@@ -222,6 +265,14 @@ const stats = async (r, e) => {
     .first();
   const c = await e.DB.prepare(
     "SELECT COALESCE(SUM(oi.quantity),0) cocktails_count FROM orders o JOIN order_items oi ON oi.order_id=o.id WHERE o.guest_id=? AND o.status IN ('pending','accepted','served')",
+  )
+    .bind(g.id)
+    .first();
+  // «За вечер»: с начала открытой смены бара (если она открыта не больше суток назад),
+  // иначе — за последние 12 часов.
+  const ev = await e.DB.prepare(
+    `SELECT COALESCE(SUM(total_rub),0) rub FROM orders WHERE guest_id=? AND status IN ('pending','accepted','served')
+     AND created_at >= COALESCE((SELECT started_at FROM bar_shifts WHERE status='open' AND started_at >= datetime('now','-24 hours') ORDER BY id DESC LIMIT 1), datetime('now','-12 hours'))`,
   )
     .bind(g.id)
     .first();
@@ -264,6 +315,7 @@ const stats = async (r, e) => {
     orders_count: Number(a?.orders_count || 0),
     cocktails_count: Number(c?.cocktails_count || 0),
     spent_rub: Number(a?.spent_rub || 0),
+    evening_rub: Number(ev?.rub || 0),
     history: h.results || [],
     latest_order_items: latestItems,
     favorite_cocktail: fav?.name || null,
@@ -304,7 +356,7 @@ const acceptGuestOrder = async (r, e) => {
   const [body, status] = await acceptGuestOrderWithStock(e, id);
   return json(body, status);
 };
-const rejectGuestOrder = async (r, e) => {
+const rejectGuestOrder = async (r, e, c) => {
   let b;
   try {
     b = await r.json();
@@ -316,10 +368,53 @@ const rejectGuestOrder = async (r, e) => {
   // Отклонить можно только ещё не принятый заказ: со склада он ничего не списывал, бронь снимается.
   const q = await e.DB.prepare("UPDATE orders SET status='cancelled' WHERE id=? AND status='pending'").bind(id).run();
   if (!Number(q.meta?.changes)) return json({ error: "Заказ уже обработан" }, 409);
+  later(c, async () => {
+    const o = await orderItemsText(e, id);
+    if (o.guest_id)
+      await notifyGuest(e, Number(o.guest_id), {
+        title: "Заказ №" + id + " отменён",
+        body: "Хозяева не смогут приготовить" + (o.items ? ": " + o.items : "") + ". Загляните в меню — выберите другой коктейль.",
+        url: "/menu#order",
+        tag: "order-" + id,
+      });
+  });
   return json({ ok: true, order_id: id, status: "cancelled" });
 };
+// ——— Подписка на уведомления ———
+const pushKey = async (r, e) => json({ publicKey: (await getVapid(e)).publicKey });
+const pushSubscribe = async (r, e) => {
+  let b;
+  try {
+    b = await r.json();
+  } catch {
+    return json({ error: "Некорректные данные" }, 400);
+  }
+  const role = b?.role === "guest" ? "guest" : b?.role === "bar" ? "bar" : "";
+  if (!role) return json({ error: "Неизвестная роль" }, 400);
+  let guestId = null;
+  if (role === "guest") {
+    const g = await me(r, e);
+    if (!g) return json({ error: "Войдите в аккаунт" }, 401);
+    guestId = g.id;
+  }
+  if (!(await saveSubscription(e, role, guestId, b?.subscription))) return json({ error: "Некорректная подписка" }, 400);
+  return json({ ok: true });
+};
+const pushUnsubscribe = async (r, e) => {
+  let b;
+  try {
+    b = await r.json();
+  } catch {
+    return json({ error: "Некорректные данные" }, 400);
+  }
+  await removeSubscription(e, b?.role === "guest" ? "guest" : "bar", b?.endpoint);
+  return json({ ok: true });
+};
 const needsDb = (p) =>
-  (p.startsWith("/api/") && p !== "/api/health" && !p.startsWith("/api/cocktail-photo")) || p === "/bar/stock";
+  (p.startsWith("/api/") && p !== "/api/health" && !p.startsWith("/api/cocktail-photo")) ||
+  p === "/bar/stock" ||
+  p === "/bar" ||
+  p === "/bar/reviews";
 export default {
   async fetch(r, e, c) {
     const u = new URL(r.url);
@@ -328,14 +423,17 @@ export default {
     if (u.pathname === "/api/guest/login" && r.method === "POST") return login(r, e);
     if (u.pathname === "/api/guest/me" && r.method === "GET") return json({ guest: await me(r, e) });
     if (u.pathname === "/api/guest/logout" && r.method === "POST") return logout(r, e);
-    if (u.pathname === "/api/guest/order" && r.method === "POST") return guestOrder(r, e);
+    if (u.pathname === "/api/guest/order" && r.method === "POST") return guestOrder(r, e, c);
     if (u.pathname === "/api/guest/stats" && r.method === "GET") return stats(r, e);
     if (u.pathname === "/api/guest/reviews" && r.method === "GET") return guestReviews(r, e);
-    if (u.pathname === "/api/guest/reviews" && r.method === "POST") return saveGuestReview(r, e);
-    if (u.pathname === "/api/bar/guest-order/serve" && r.method === "POST") return serveGuestOrder(r, e);
+    if (u.pathname === "/api/guest/reviews" && r.method === "POST") return saveGuestReview(r, e, c);
+    if (u.pathname === "/api/bar/guest-order/serve" && r.method === "POST") return serveGuestOrder(r, e, c);
     if (u.pathname === "/api/bar/guest-orders" && r.method === "GET") return guestOrders(r, e);
     if (u.pathname === "/api/bar/guest-order/accept" && r.method === "POST") return acceptGuestOrder(r, e);
-    if (u.pathname === "/api/bar/guest-order/reject" && r.method === "POST") return rejectGuestOrder(r, e);
+    if (u.pathname === "/api/bar/guest-order/reject" && r.method === "POST") return rejectGuestOrder(r, e, c);
+    if (u.pathname === "/api/push/key" && r.method === "GET") return pushKey(r, e);
+    if (u.pathname === "/api/push/subscribe" && r.method === "POST") return pushSubscribe(r, e);
+    if (u.pathname === "/api/push/unsubscribe" && r.method === "POST") return pushUnsubscribe(r, e);
     // /menu и /bar/orders целиком рендерятся в index.js (без подмены HTML строками).
     return App.fetch(r, e, c);
   },
