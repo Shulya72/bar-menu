@@ -1,11 +1,30 @@
 import App, { ensureSchema, guestOrderShortage, acceptGuestOrderWithStock } from "./index.js";
 
 const json = (d, s = 200) => Response.json(d, { status: s, headers: { "cache-control": "no-store" } });
+// Телефон в едином виде. Российский номер можно ввести как 8…, +7…, 7… или
+// 10 цифр с 9… — всё это один и тот же номер, хранится как +7XXXXXXXXXX.
 const norm = (v) => {
-  let s = String(v || "").trim();
-  const p = s.startsWith("+") ? "+" : "";
-  return p + s.replace(/\D/g, "");
+  const s = String(v || "").trim();
+  const plus = s.startsWith("+");
+  const d = s.replace(/\D/g, "");
+  if (!plus && d.length === 11 && (d[0] === "8" || d[0] === "7")) return "+7" + d.slice(1);
+  if (!plus && d.length === 10 && d[0] === "9") return "+7" + d;
+  return (plus ? "+" : "") + d;
 };
+// Как этот номер мог быть сохранён раньше (до единого вида): для входа и проверки дублей.
+const phoneVariants = (v) => {
+  const s = String(v || "").trim();
+  const c = norm(s);
+  const out = new Set([c, (s.startsWith("+") ? "+" : "") + s.replace(/\D/g, "")]);
+  if (/^\+7\d{10}$/.test(c)) {
+    const rest = c.slice(2);
+    out.add("8" + rest);
+    out.add("7" + rest);
+    out.add(rest);
+  }
+  return [...out];
+};
+const inList = (n) => Array.from({ length: n }, () => "?").join(",");
 const b64 = (b) => {
   let x = "";
   for (const n of b) x += String.fromCharCode(n);
@@ -31,8 +50,9 @@ const register = async (r, e) => {
   if (name.length < 2 || name.length > 80) return json({ error: "Имя должно быть от 2 до 80 символов" }, 400);
   if (!/^\+?\d{7,15}$/.test(phone)) return json({ error: "Введите корректный номер телефона" }, 400);
   if (!/^\d{4,12}$/.test(pin)) return json({ error: "PIN должен содержать от 4 до 12 цифр" }, 400);
-  if (await e.DB.prepare("SELECT id FROM guests WHERE phone=?").bind(phone).first())
-    return json({ error: "Этот номер уже зарегистрирован" }, 409);
+  const variants = phoneVariants(b?.phone);
+  if (await e.DB.prepare(`SELECT id FROM guests WHERE phone IN (${inList(variants.length)})`).bind(...variants).first())
+    return json({ error: "Этот номер уже зарегистрирован — войдите по нему" }, 409);
   const enc = new TextEncoder(),
     salt = crypto.getRandomValues(new Uint8Array(16)),
     key = await crypto.subtle.importKey("raw", enc.encode(pin), "PBKDF2", false, ["deriveBits"]),
@@ -52,17 +72,29 @@ const login = async (r, e) => {
   } catch {
     return json({ error: "Некорректные данные формы" }, 400);
   }
-  const phone = norm(b?.phone),
-    pin = String(b?.pin || "");
-  const g = await e.DB.prepare("SELECT id,name,pin_salt,pin_hash FROM guests WHERE phone=?").bind(phone).first();
-  if (!g) return json({ error: "Неверный телефон или PIN" }, 401);
+  const pin = String(b?.pin || "");
+  // Номер ищем во всех видах (8…, +7…): старые аккаунты могли сохраниться как угодно.
+  const variants = phoneVariants(b?.phone);
+  const { results } = await e.DB.prepare(
+    `SELECT id,name,pin_salt,pin_hash FROM guests WHERE phone IN (${inList(variants.length)}) ORDER BY id`,
+  )
+    .bind(...variants)
+    .all();
+  if (!results?.length) return json({ error: "Неверный телефон или PIN" }, 401);
   const enc = new TextEncoder(),
     key = await crypto.subtle.importKey("raw", enc.encode(pin), "PBKDF2", false, ["deriveBits"]);
-  let z = String(g.pin_salt).replace(/-/g, "+").replace(/_/g, "/");
-  while (z.length % 4) z += "=";
-  const salt = Uint8Array.from(atob(z), (c) => c.charCodeAt(0)),
-    bits = await crypto.subtle.deriveBits({ name: "PBKDF2", salt, iterations: 100000, hash: "SHA-256" }, key, 256);
-  if (b64(new Uint8Array(bits)) !== g.pin_hash) return json({ error: "Неверный телефон или PIN" }, 401);
+  let g = null;
+  for (const row of results) {
+    let z = String(row.pin_salt).replace(/-/g, "+").replace(/_/g, "/");
+    while (z.length % 4) z += "=";
+    const salt = Uint8Array.from(atob(z), (c) => c.charCodeAt(0)),
+      bits = await crypto.subtle.deriveBits({ name: "PBKDF2", salt, iterations: 100000, hash: "SHA-256" }, key, 256);
+    if (b64(new Uint8Array(bits)) === row.pin_hash) {
+      g = row;
+      break;
+    }
+  }
+  if (!g) return json({ error: "Неверный телефон или PIN" }, 401);
   const t = await session(e, Number(g.id)),
     o = json({ ok: true, name: g.name });
   o.headers.set("Set-Cookie", "bar_guest_session=" + t + "; HttpOnly; Secure; SameSite=Lax; Path=/; Max-Age=2592000");
