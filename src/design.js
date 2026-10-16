@@ -76,7 +76,7 @@ export const DESIGN_CSS = `
   --shadow:0 10px 30px rgba(0,0,0,.45),0 2px 6px rgba(0,0,0,.35);
   --r-xl:22px;--r-lg:16px;--r-md:12px;
   --safe-t:env(safe-area-inset-top,0px);--safe-b:env(safe-area-inset-bottom,0px);
-  --tabbar-h:50px;--tabbar-bg:#110F0C;
+  --tabbar-h:50px;--tabbar-bg:var(--bg); /* = фон страницы: если iOS 26 «обрежет» низ экрана, под панелью тот же цвет */
   --sans:-apple-system,"SF Pro Text",system-ui,"Segoe UI",Roboto,"Helvetica Neue",Arial,sans-serif;
   --serif:Prata,"Iowan Old Style",Georgia,serif;
 }
@@ -116,7 +116,7 @@ a{color:var(--gold);text-decoration:none}
 /* Стеклянная панель вкладок */
 /* Нижняя панель вкладок — как в приложениях iPhone: во всю ширину, прижата к низу,
    сплошная (страница под ней не просвечивает), под ней — зона полоски «Домой». */
-.tabbar{position:fixed;z-index:50;left:0;right:0;bottom:calc(0px - var(--fix-gap,0px));height:calc(var(--tabbar-h) + var(--safe-b));display:flex;align-items:stretch;justify-content:center;padding:0 env(safe-area-inset-right,0px) var(--safe-b) env(safe-area-inset-left,0px);background:var(--tabbar-bg);border-top:.5px solid var(--sep-strong)}
+.tabbar{position:fixed;z-index:50;left:0;right:0;bottom:0;height:calc(var(--tabbar-h) + var(--safe-b));display:flex;align-items:stretch;justify-content:center;padding:0 env(safe-area-inset-right,0px) var(--safe-b) env(safe-area-inset-left,0px);background:var(--tabbar-bg);border-top:.5px solid var(--sep-strong)}
 .tab{position:relative;flex:1;max-width:180px;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:2px;padding-top:2px;color:var(--label-2);font-size:.6875rem;font-weight:600;letter-spacing:.01em;min-width:44px;transition:color .15s ease,background .2s ease}
 .tab .ic{width:24px;height:24px}
 .tab[aria-current=page]{color:var(--gold)}
@@ -234,7 +234,7 @@ a.cell:active,button.cell:active,.cell.tappable:active{background:var(--bg-press
 ::placeholder{color:var(--label-3);opacity:1}
 
 /* ——— Шторка (sheet) ——— */
-.sheet{position:fixed;inset:0 0 calc(0px - var(--fix-gap,0px)) 0;z-index:80;display:flex;align-items:flex-end;justify-content:center;background:rgba(0,0,0,.5);opacity:0;pointer-events:none;transition:opacity .25s ease}
+.sheet{position:fixed;inset:0;z-index:80;display:flex;align-items:flex-end;justify-content:center;background:rgba(0,0,0,.5);opacity:0;pointer-events:none;transition:opacity .25s ease}
 .sheet.open{opacity:1;pointer-events:auto}
 .sheet-panel{position:relative;width:100%;max-width:720px;max-height:92dvh;display:flex;flex-direction:column;background:var(--material-strong);-webkit-backdrop-filter:blur(30px) saturate(170%);backdrop-filter:blur(30px) saturate(170%);border-radius:var(--r-xl) var(--r-xl) 0 0;box-shadow:0 -10px 40px rgba(0,0,0,.4),inset 0 .5px 0 rgba(255,255,255,.12);transform:translateY(100%);transition:transform .34s cubic-bezier(.2,.9,.25,1);padding-bottom:var(--safe-b)}
 .sheet.open .sheet-panel{transform:none}
@@ -251,7 +251,7 @@ a.cell:active,button.cell:active,.cell.tappable:active{background:var(--bg-press
 .empty-state h3{color:var(--label);margin:0 0 6px;font-size:1.0625rem}
 .skeleton{background:linear-gradient(90deg,var(--bg-raised) 0%,var(--bg-raised-2) 50%,var(--bg-raised) 100%);background-size:200% 100%;animation:sk 1.2s ease-in-out infinite;border-radius:10px;min-height:52px}
 @keyframes sk{to{background-position:-200% 0}}
-.toast{position:fixed;left:50%;width:max-content;bottom:calc(var(--tabbar-h) + 26px + var(--safe-b) - var(--fix-gap,0px));transform:translate(-50%,12px);z-index:90;max-width:min(92vw,420px);padding:12px 18px;border-radius:999px;background:var(--material-strong);-webkit-backdrop-filter:blur(20px);backdrop-filter:blur(20px);box-shadow:var(--shadow),inset 0 0 0 .5px var(--sep-strong);color:var(--label);font-size:.9375rem;font-weight:500;opacity:0;pointer-events:none;transition:opacity .2s ease,transform .25s ease;text-align:center}
+.toast{position:fixed;left:50%;width:max-content;bottom:calc(var(--tabbar-h) + 26px + var(--safe-b));transform:translate(-50%,12px);z-index:90;max-width:min(92vw,420px);padding:12px 18px;border-radius:999px;background:var(--material-strong);-webkit-backdrop-filter:blur(20px);backdrop-filter:blur(20px);box-shadow:var(--shadow),inset 0 0 0 .5px var(--sep-strong);color:var(--label);font-size:.9375rem;font-weight:500;opacity:0;pointer-events:none;transition:opacity .2s ease,transform .25s ease;text-align:center}
 .toast.show{opacity:1;transform:translate(-50%,0)}
 .toast.error{color:var(--danger)}
 .offline-pill{display:flex;align-items:center;gap:8px;width:max-content;max-width:100%;margin:2px 0 10px;padding:7px 14px;border-radius:999px;background:var(--bg-raised-2);box-shadow:inset 0 0 0 .5px var(--sep-strong);color:var(--label-2);font-size:.8125rem;font-weight:600;line-height:1.3}
@@ -296,17 +296,6 @@ export const SHELL_JS = `<script>
     navigator.serviceWorker.addEventListener("message",function(e){var d=e.data||{};if(d.type==="via-net")VIA.setOffline(!!d.offline||navigator.onLine===false)});
     addEventListener("load",function(){navigator.serviceWorker.register("/sw.js").then(function(){return navigator.serviceWorker.ready}).then(function(r){if(navigator.onLine!==false&&r.active)r.active.postMessage({type:"via-warm",app:document.body.classList.contains("app-bar")?"bar":"guest"})}).catch(function(){})});
   }
-  // iOS 26: в приложении с экрана «Домой» WebKit иногда (обычно после перехода между
-  // страницами) считает экран короче ровно на высоту статус-бара — всё, что прижато
-  // к низу, «всплывает». Замечаем разницу с настоящей высотой экрана и опускаем
-  // нижние элементы на место через --fix-gap (только iPhone в режиме приложения).
-  (function(){
-    if(!/iPhone/.test(navigator.userAgent)||!(navigator.standalone===true||matchMedia("(display-mode: standalone)").matches))return;
-    var fix=function(){var portrait=innerHeight>=innerWidth,full=portrait?Math.max(screen.width,screen.height):Math.min(screen.width,screen.height),gap=Math.round(full-innerHeight);
-      document.documentElement.style.setProperty("--fix-gap",(gap>0&&gap<100?gap:0)+"px")};
-    fix();addEventListener("resize",fix);addEventListener("pageshow",fix);addEventListener("orientationchange",function(){setTimeout(fix,300)});
-    document.addEventListener("visibilitychange",function(){if(!document.hidden)fix()});setTimeout(fix,400);setTimeout(fix,1500);
-  })();
   VIA.toast=function(msg,isError){var t=document.getElementById("viaToast");if(!t){t=document.createElement("div");t.id="viaToast";t.className="toast";t.setAttribute("role","status");document.body.appendChild(t)}t.textContent=msg;t.classList.toggle("error",!!isError);t.classList.add("show");clearTimeout(t._h);t._h=setTimeout(function(){t.classList.remove("show")},2600)};
 })();
 </script>`;

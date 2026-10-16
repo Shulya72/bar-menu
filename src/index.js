@@ -143,7 +143,7 @@ const refreshCocktailPrice = async (env, cocktailId) => {
   return {cost:price,price};
 };
 
-const BUILD_VERSION = "2026-10-17-ios-gap-fix-v1";
+const BUILD_VERSION = "2026-10-17-tabbar-bg-v1";
 
 const calculateCocktailStrength = (recipeItems) => {
   let alcoholMl = 0;
@@ -825,7 +825,7 @@ label.field,label.cell{margin:0}
 .rb-stepper.is-empty{background:var(--gold-soft);box-shadow:inset 0 0 0 .75px var(--gold-ring)}
 .rb-stepper .st-plus.is-short{color:var(--label-3)}
 .rb-empty .btn{margin-top:14px}
-.order-bar{position:fixed;z-index:45;left:50%;bottom:calc(var(--tabbar-h) + 20px + var(--safe-b) - var(--fix-gap,0px));transform:translateX(-50%);width:min(calc(100% - 24px),520px);display:flex;align-items:center;gap:6px;padding:6px;border-radius:999px;background:var(--bg-raised-2);box-shadow:var(--shadow),inset 0 0 0 .75px var(--gold-ring);animation:ob-in .28s cubic-bezier(.2,.9,.25,1)}
+.order-bar{position:fixed;z-index:45;left:50%;bottom:calc(var(--tabbar-h) + 20px + var(--safe-b));transform:translateX(-50%);width:min(calc(100% - 24px),520px);display:flex;align-items:center;gap:6px;padding:6px;border-radius:999px;background:var(--bg-raised-2);box-shadow:var(--shadow),inset 0 0 0 .75px var(--gold-ring);animation:ob-in .28s cubic-bezier(.2,.9,.25,1)}
 @keyframes ob-in{from{opacity:0;transform:translate(-50%,14px)}}
 .ob-info{flex:1;min-width:0;display:flex;flex-direction:column;align-items:flex-start;justify-content:center;min-height:44px;padding:0 6px 0 12px;border:0;border-radius:999px;background:none;color:var(--label);font:inherit;text-align:left;cursor:pointer}
 .ob-info:active{background:var(--bg-pressed)}
@@ -834,7 +834,7 @@ label.field,label.cell{margin:0}
 .ob-sub{font-size:.75rem;color:var(--label-2);margin-top:1px}
 .order-bar .ob-btn{min-height:44px;padding:0 14px;font-size:.9375rem;flex:none}
 body.app.has-order .screen{padding-bottom:calc(var(--tabbar-h) + 108px + var(--safe-b))}
-body.has-order:not(:has(.sheet.open)) .toast{bottom:calc(var(--tabbar-h) + 96px + var(--safe-b) - var(--fix-gap,0px))}
+body.has-order:not(:has(.sheet.open)) .toast{bottom:calc(var(--tabbar-h) + 96px + var(--safe-b))}
 .toast{width:max-content;border-radius:22px}
 .line-other{--line:var(--gold)}
 .route.line-zero{--line:var(--line-zero)}.route.line-light{--line:var(--line-light)}.route.line-mid{--line:var(--line-mid)}.route.line-strong{--line:var(--line-strong)}
@@ -1962,7 +1962,7 @@ $("#bottleDel").addEventListener("click",async()=>{if(!editing)return;
 .stars-static{color:var(--gold);letter-spacing:2px}
 .review-item{padding:12px 14px}
 .review-item+.review-item{border-top:.5px solid var(--sep-strong)}
-.cart-bar{position:fixed;z-index:45;left:50%;transform:translateX(-50%);bottom:calc(var(--tabbar-h) + 18px + var(--safe-b) - var(--fix-gap,0px));width:min(calc(100% - 24px),520px);display:flex;align-items:center;gap:10px;padding:8px 8px 8px 18px;border-radius:999px;background:var(--material-strong);-webkit-backdrop-filter:blur(22px);backdrop-filter:blur(22px);box-shadow:var(--shadow),inset 0 0 0 .5px var(--sep-strong)}
+.cart-bar{position:fixed;z-index:45;left:50%;transform:translateX(-50%);bottom:calc(var(--tabbar-h) + 18px + var(--safe-b));width:min(calc(100% - 24px),520px);display:flex;align-items:center;gap:10px;padding:8px 8px 8px 18px;border-radius:999px;background:var(--material-strong);-webkit-backdrop-filter:blur(22px);backdrop-filter:blur(22px);box-shadow:var(--shadow),inset 0 0 0 .5px var(--sep-strong)}
 .cart-bar .txt{flex:1;min-width:0;font-weight:600}
 .cart-bar .txt small{display:block;font-weight:400;color:var(--label-2);font-size:.8125rem}
 .app-guest .screen{padding-bottom:calc(var(--tabbar-h) + 110px + var(--safe-b))}
