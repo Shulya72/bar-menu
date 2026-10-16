@@ -151,7 +151,7 @@ const refreshCocktailPrice = async (env, cocktailId) => {
   return {cost:price,price};
 };
 
-const BUILD_VERSION = "2026-10-17-no-hosts-v1";
+const BUILD_VERSION = "2026-10-17-by-va-v1";
 
 const calculateCocktailStrength = (recipeItems) => {
   let alcoholMl = 0;
@@ -2087,7 +2087,7 @@ $("#bottleDel").addEventListener("click",async()=>{if(!editing)return;
 <div class="sheet-body"><p class="footnote" style="margin:0 4px 12px">Оцените выпитые коктейли — нам важно знать, что понравилось.</p><div class="list" id="revList"><div class="skeleton"></div></div></div></div></div>`;
         const guestBody = `
 <section class="pane" data-pane="menu" aria-label="Меню">
-<div class="brand-row"><p class="brand-sub">Семейный бар Владимира и Анастасии</p>${monogram(52)}</div>
+<div class="brand-row"><p class="brand-sub">by Vladimir &amp; Anastasia</p>${monogram(52)}</div>
 <div class="menu-tools"><label class="search">${icon("search")}<input type="search" id="q" placeholder="Коктейль или ингредиент" autocomplete="off" aria-label="Поиск по меню"></label>
 <div class="chips" id="lineChips" role="group" aria-label="Крепость"></div></div>
 <div id="menuList"><div class="list" style="margin-top:20px"><div class="skeleton"></div><div class="skeleton"></div><div class="skeleton"></div></div></div>
