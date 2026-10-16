@@ -55,6 +55,39 @@ self.addEventListener("activate", (e) => {
   );
 });
 
+// ——— Уведомления: новый заказ (бармену), «заказ готов» (гостю) и т. п. ———
+self.addEventListener("push", (e) => {
+  let d = {};
+  try {
+    d = e.data ? e.data.json() : {};
+  } catch (_) {
+    d = { body: e.data ? e.data.text() : "" };
+  }
+  e.waitUntil(
+    self.registration.showNotification(d.title || "VIA Bar", {
+      body: d.body || "",
+      tag: d.tag || undefined,
+      data: { url: d.url || "/" },
+      icon: "/icons/apple-touch-icon.png?v=2",
+      badge: "/icons/favicon-64.png?v=2",
+    }),
+  );
+});
+self.addEventListener("notificationclick", (e) => {
+  e.notification.close();
+  const url = new URL((e.notification.data && e.notification.data.url) || "/", self.location.origin);
+  e.waitUntil(
+    self.clients.matchAll({ type: "window", includeUncontrolled: true }).then((list) => {
+      const same = list.find((c) => new URL(c.url).pathname === url.pathname);
+      if (same)
+        return (same.navigate ? same.navigate(url.href).catch(() => same) : Promise.resolve(same)).then((c) =>
+          (c || same).focus(),
+        );
+      return self.clients.openWindow(url.href);
+    }),
+  );
+});
+
 self.addEventListener("message", (e) => {
   const d = e.data || {};
   if (d.type === "via-warm" && WARM[d.app]) e.waitUntil(warm(d.app));
