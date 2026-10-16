@@ -252,6 +252,9 @@ a.cell:active,button.cell:active,.cell.tappable:active{background:var(--bg-press
 .toast{position:fixed;left:50%;width:max-content;bottom:calc(var(--tabbar-h) + 26px + var(--safe-b));transform:translate(-50%,12px);z-index:90;max-width:min(92vw,420px);padding:12px 18px;border-radius:999px;background:var(--material-strong);-webkit-backdrop-filter:blur(20px);backdrop-filter:blur(20px);box-shadow:var(--shadow),inset 0 0 0 .5px var(--sep-strong);color:var(--label);font-size:.9375rem;font-weight:500;opacity:0;pointer-events:none;transition:opacity .2s ease,transform .25s ease;text-align:center}
 .toast.show{opacity:1;transform:translate(-50%,0)}
 .toast.error{color:var(--danger)}
+.offline-pill{display:flex;align-items:center;gap:8px;width:max-content;max-width:100%;margin:2px 0 10px;padding:7px 14px;border-radius:999px;background:var(--bg-raised-2);box-shadow:inset 0 0 0 .5px var(--sep-strong);color:var(--label-2);font-size:.8125rem;font-weight:600;line-height:1.3}
+.offline-pill::before{content:"";flex:none;width:8px;height:8px;border-radius:50%;background:var(--warn)}
+.offline-pill[hidden]{display:none}
 .thumb{width:56px;height:56px;flex:none;border-radius:12px;object-fit:cover;background:var(--bg-raised-2);box-shadow:inset 0 0 0 .5px var(--sep)}
 .thumb-ph{display:grid;place-items:center;color:var(--label-3)}
 .thumb-ph .ic{width:24px;height:24px}
@@ -283,6 +286,14 @@ export const SHELL_JS = `<script>
   document.addEventListener("pointermove",function(e){if(!drag)return;drag.dy=Math.max(0,e.clientY-drag.y);drag.p.style.transform="translateY("+drag.dy+"px)"});
   var end=function(){if(!drag)return;var p=drag.p;p.style.transition="";p.style.transform="";if(drag.dy>110)VIA.closeSheet(p.closest(".sheet"));drag=null};
   document.addEventListener("pointerup",end);document.addEventListener("pointercancel",end);
+  // Офлайн-режим: сервис-воркер (/sw.js) хранит копию страниц и данных на устройстве.
+  VIA.setOffline=function(on){var p=document.getElementById("viaOffline");if(!p){if(!on)return;p=document.createElement("div");p.id="viaOffline";p.className="offline-pill";p.setAttribute("role","status");p.textContent="Нет интернета — сохранённая версия";var m=document.querySelector("main.screen");if(m)m.prepend(p);else document.body.prepend(p)}p.hidden=!on};
+  if(document.documentElement.hasAttribute("data-offline")||navigator.onLine===false)VIA.setOffline(true);
+  addEventListener("offline",function(){VIA.setOffline(true)});addEventListener("online",function(){VIA.setOffline(false)});
+  if("serviceWorker" in navigator){
+    navigator.serviceWorker.addEventListener("message",function(e){var d=e.data||{};if(d.type==="via-net")VIA.setOffline(!!d.offline||navigator.onLine===false)});
+    addEventListener("load",function(){navigator.serviceWorker.register("/sw.js").then(function(){return navigator.serviceWorker.ready}).then(function(r){if(navigator.onLine!==false&&r.active)r.active.postMessage({type:"via-warm",app:document.body.classList.contains("app-bar")?"bar":"guest"})}).catch(function(){})});
+  }
   VIA.toast=function(msg,isError){var t=document.getElementById("viaToast");if(!t){t=document.createElement("div");t.id="viaToast";t.className="toast";t.setAttribute("role","status");document.body.appendChild(t)}t.textContent=msg;t.classList.toggle("error",!!isError);t.classList.add("show");clearTimeout(t._h);t._h=setTimeout(function(){t.classList.remove("show")},2600)};
 })();
 </script>`;
