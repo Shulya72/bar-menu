@@ -3,7 +3,7 @@
 // свежая версия (а копия на телефоне обновляется), без интернета — последняя
 // сохранённая. Заказы, закупки и правки склада без интернета не отправляются:
 // страница покажет «нет связи», как и раньше.
-const STATIC = "via-static-1"; // шрифты, иконки, логотип — меняются только с версией
+const STATIC = "via-static-2"; // шрифты, иконки, логотип — меняются только с версией
 const PAGES = "via-pages";
 const DATA = "via-data";
 const PHOTOS = "via-photos";
@@ -15,10 +15,10 @@ const STATIC_FILES = [
   "/brand/via-logo.webp",
   "/icons/favicon-64.png",
   "/icons/apple-touch-icon.png",
-  "/manifest.webmanifest",
-  "/manifest-bar.webmanifest",
 ];
-const STATIC_RE = /^\/(fonts|icons|brand)\/|\.webmanifest$/;
+// Файлы приложения (*.webmanifest) не кэшируются: iPhone при добавлении на экран
+// «Домой» должен получить их свежими.
+const STATIC_RE = /^\/(fonts|icons|brand)\//;
 
 // Что сохранить сразу, даже если раздел ещё не открывали (один раз на версию).
 const WARM = {
