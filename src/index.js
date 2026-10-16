@@ -143,7 +143,7 @@ const refreshCocktailPrice = async (env, cocktailId) => {
   return {cost:price,price};
 };
 
-const BUILD_VERSION = "2026-10-16-offline-v1";
+const BUILD_VERSION = "2026-10-17-docked-tabbar-v1";
 
 const calculateCocktailStrength = (recipeItems) => {
   let alcoholMl = 0;
@@ -1916,7 +1916,6 @@ $("#bottleDel").addEventListener("click",async()=>{if(!editing)return;
         const guestCss = `
 .pane[hidden]{display:none!important}
 .tabbar button.tab{border:0;font-family:inherit;cursor:pointer;padding:0;background:transparent}
-.tabbar button.tab[aria-current=page]{background:var(--gold-soft)}
 .brand-row{display:flex;align-items:center;justify-content:space-between;gap:12px;margin:-6px 0 14px}.brand-row .monogram{flex:none}
 .brand-sub{color:var(--label-2);margin:0}
 .menu-tools{display:flex;flex-direction:column;gap:10px;margin-bottom:6px}
