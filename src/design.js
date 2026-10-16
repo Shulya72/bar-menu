@@ -304,17 +304,19 @@ export const SHELL_JS = `<script>
     var key=function(role){return "via.push."+role};
     var u8=function(s){s=String(s).replace(/-/g,"+").replace(/_/g,"/");while(s.length%4)s+="=";var r=atob(s),u=new Uint8Array(r.length);for(var i=0;i<r.length;i++)u[i]=r.charCodeAt(i);return u};
     var post=function(u,b){return fetch(u,{method:"POST",headers:{"content-type":"application/json"},body:JSON.stringify(b)}).then(function(r){return r.json().catch(function(){return {}}).then(function(d){if(!r.ok)throw new Error(d.error||"Не удалось сохранить");return d})})};
+    // Если помощник офлайн-режима не запустился (приватный режим и т. п.), ready не наступит никогда.
+    var ready=function(){return Promise.race([navigator.serviceWorker.ready,new Promise(function(_,no){setTimeout(function(){no(new Error("Приложение ещё загружается — попробуйте через пару секунд"))},8000)})])};
     var api={};
     api.state=function(role){
       if(!("serviceWorker" in navigator)||!("PushManager" in window)||!("Notification" in window))return Promise.resolve(ios&&!standalone?"install":"unsupported");
       if(Notification.permission==="denied")return Promise.resolve("denied");
-      return navigator.serviceWorker.ready.then(function(reg){return reg.pushManager.getSubscription()}).then(function(sub){var saved="";try{saved=localStorage.getItem(key(role))||""}catch(e){}
+      return ready().then(function(reg){return reg.pushManager.getSubscription()}).then(function(sub){var saved="";try{saved=localStorage.getItem(key(role))||""}catch(e){}
         return sub&&saved===sub.endpoint&&Notification.permission==="granted"?"on":"off"}).catch(function(){return "off"});
     };
     api.enable=function(role){
       return Notification.requestPermission().then(function(p){
         if(p!=="granted")throw new Error(p==="denied"?"Уведомления запрещены — включите их в настройках телефона":"Уведомления не включены");
-        return Promise.all([navigator.serviceWorker.ready,fetch("/api/push/key").then(function(r){return r.json()})]);
+        return Promise.all([ready(),fetch("/api/push/key").then(function(r){return r.json()})]);
       }).then(function(x){var reg=x[0],pk=x[1].publicKey;
         return reg.pushManager.getSubscription().then(function(sub){return sub||reg.pushManager.subscribe({userVisibleOnly:true,applicationServerKey:u8(pk)})});
       }).then(function(sub){return post("/api/push/subscribe",{role:role,subscription:sub.toJSON()}).then(function(){try{localStorage.setItem(key(role),sub.endpoint)}catch(e){}return true})});
@@ -322,7 +324,7 @@ export const SHELL_JS = `<script>
     api.disable=function(role){
       try{localStorage.removeItem(key(role))}catch(e){}
       if(!("serviceWorker" in navigator)||!("PushManager" in window))return Promise.resolve(true);
-      return navigator.serviceWorker.ready.then(function(reg){return reg.pushManager.getSubscription()}).then(function(sub){return sub?post("/api/push/unsubscribe",{role:role,endpoint:sub.endpoint}):true});
+      return ready().then(function(reg){return reg.pushManager.getSubscription()}).then(function(sub){return sub?post("/api/push/unsubscribe",{role:role,endpoint:sub.endpoint}):true});
     };
     api.text={on:"Включены на этом телефоне",off:"Выключены",denied:"Запрещены в настройках телефона: Настройки → Уведомления",install:"Работают в приложении с экрана «Домой» — в Safari не приходят",unsupported:"Этот браузер не умеет показывать уведомления"};
     return api;
