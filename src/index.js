@@ -147,7 +147,7 @@ const refreshCocktailPrice = async (env, cocktailId) => {
   return {cost:price,price};
 };
 
-const BUILD_VERSION = "2026-10-17-phone-8-7-v1";
+const BUILD_VERSION = "2026-10-17-member-fav-v1";
 
 const calculateCocktailStrength = (recipeItems) => {
   let alcoholMl = 0;
@@ -1951,7 +1951,10 @@ $("#bottleDel").addEventListener("click",async()=>{if(!editing)return;
 .member-top{display:flex;align-items:center;gap:14px}
 .member-name{font-family:var(--serif);font-size:1.75rem;line-height:1.1;margin:0;color:var(--label)}
 .member-phone{color:var(--label-2);font-size:.9375rem;margin-top:4px}
-.member-stats{display:grid;grid-template-columns:1fr 1.4fr 1fr;gap:10px;margin-top:20px;padding-top:16px;border-top:.5px solid var(--gold-ring)}
+.member-stats{display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-top:20px;padding-top:16px;border-top:.5px solid var(--gold-ring)}
+.member-fav{margin-top:14px;padding-top:14px;border-top:.5px solid var(--gold-ring)}
+.member-fav span{display:block;font-size:.75rem;color:var(--label-2);text-transform:uppercase;letter-spacing:.06em}
+.member-fav b{display:block;margin-top:4px;font-family:var(--serif);font-weight:400;font-size:1.375rem;line-height:1.2;color:var(--gold);overflow-wrap:anywhere}
 .member-stats div{min-width:0}
 .member-stats b{display:block;font-size:1.0625rem;font-weight:600;color:var(--gold);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
 .member-stats span{display:block;font-size:.75rem;color:var(--label-2);margin-top:2px}
@@ -2121,7 +2124,9 @@ $("#pLogin").onclick=()=>openAuth("login");$("#pReg").onclick=()=>openAuth("reg"
 const s=stats||{},phone=String(guest.phone||""),last4=phone.replace(/\D/g,"").slice(-4),latest=(s.history||[])[0],li=s.latest_order_items||[];
 const lp=li.find(i=>i.photo_url);
 box.innerHTML='<div class="member-card"><div class="member-top">'+${JSON.stringify(monogram(64))}+'<div style="min-width:0"><h2 class="member-name">'+esc(guest.name)+'</h2><div class="member-phone num">'+(last4?"Телефон •• "+esc(last4):"")+'</div></div></div>'
-+'<div class="member-stats"><div><b class="num">'+Number(s.cocktails_count||0)+'</b><span>'+plural(Number(s.cocktails_count||0),["коктейль","коктейля","коктейлей"])+'</span></div><div><b>'+esc(s.favorite_cocktail||"—")+'</b><span>любимый коктейль</span></div><div><b class="num">'+rub(s.spent_rub)+'</b><span>всего</span></div></div></div>'
++'<div class="member-stats"><div><b class="num">'+Number(s.cocktails_count||0)+'</b><span>'+plural(Number(s.cocktails_count||0),["коктейль","коктейля","коктейлей"])+'</span></div><div><b class="num">'+rub(s.spent_rub)+'</b><span>всего</span></div></div>'
+// любимый коктейль — отдельной строкой во всю ширину, чтобы длинное название помещалось целиком
++(s.favorite_cocktail?'<div class="member-fav"><span>Любимый коктейль</span><b>'+esc(s.favorite_cocktail)+'</b></div>':"")+'</div>'
 +(latest?'<div class="section"><div class="section-header"><h2>Последний заказ</h2><span>'+esc(when(latest.created_at))+'</span></div><div class="list"><div class="cell">'+(lp?'<img class="thumb" src="'+esc(lp.photo_url)+'" alt="">':'<span class="thumb thumb-ph">'+ic("glass")+'</span>')+'<span class="cell-body"><span class="cell-title">'+esc(latest.items||"—")+'</span><span class="cell-sub num">'+rub(latest.total_rub)+' · '+(latest.status==="cancelled"?"Отменён":["Заказан","Принят","Выдан"][STEP[latest.status]??0])+'</span></span></div>'+(li.length?'<button class="cell" type="button" id="repeatOrder" style="color:var(--gold);justify-content:center;font-weight:600">'+ic("refresh")+' Повторить заказ</button>':"")+'</div></div>':"")
 +'<div class="section"><div class="list"><button class="cell has-icon" type="button" data-goto="order"><span class="cell-icon">'+ic("receipt")+'</span><span class="cell-body"><span class="cell-title">Мои заказы</span><span class="cell-sub">'+Number(s.orders_count||0)+' '+plural(Number(s.orders_count||0),["заказ","заказа","заказов"])+'</span></span>'+ic("chevronRight").replace('class="ic"','class="ic cell-chevron"')+'</button><button class="cell has-icon" type="button" id="openReviews"><span class="cell-icon">'+ic("star")+'</span><span class="cell-body"><span class="cell-title">Мои оценки</span><span class="cell-sub">Оцените выпитые коктейли</span></span>'+ic("chevronRight").replace('class="ic"','class="ic cell-chevron"')+'</button></div></div>'
 +'<div class="section"><button class="btn btn-danger btn-block" type="button" id="logout">'+ic("logout")+'Выйти</button></div>';
