@@ -51,7 +51,7 @@ const checkPin = async (e, pin) => {
 
 // ——— Сессии ———
 const tokenOf = (r) => /(?:^|;\s*)via_bar=([A-Za-z0-9_-]+)/.exec(r.headers.get("cookie") || "")?.[1] || "";
-const deviceLabel = (r) => {
+export const deviceLabel = (r) => {
   const ua = r.headers.get("user-agent") || "";
   return /iPhone/.test(ua) ? "iPhone" : /iPad/.test(ua) ? "iPad" : /Android/.test(ua) ? "Android" : /Macintosh/.test(ua) ? "Mac" : /Windows/.test(ua) ? "Windows" : "Устройство";
 };

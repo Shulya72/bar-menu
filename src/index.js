@@ -4,7 +4,7 @@ import { renderDocument, htmlResponse, icon, monogram } from "./design.js";
 // один раз: результат отмечается в app_migrations, а внутри экземпляра Worker'а
 // запоминается промисом. Чтобы изменить схему — добавь команду в SCHEMA_SQL и
 // поменяй SCHEMA_VERSION: новая версия применится один раз при следующем запросе.
-const SCHEMA_VERSION="schema-2026-10-18-bar-auth";
+const SCHEMA_VERSION="schema-2026-10-18-push-diag";
 const SCHEMA_SQL=[
   "CREATE TABLE IF NOT EXISTS app_migrations (name TEXT PRIMARY KEY, applied_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP)",
   "CREATE TABLE IF NOT EXISTS ingredients (id INTEGER PRIMARY KEY AUTOINCREMENT, name TEXT NOT NULL UNIQUE, unit TEXT NOT NULL DEFAULT 'ml' CHECK(unit IN ('ml','g','pcs')), is_active INTEGER NOT NULL DEFAULT 1, created_at TEXT DEFAULT NULL, updated_at TEXT DEFAULT NULL)",
@@ -43,6 +43,12 @@ const SCHEMA_SQL=[
   // Уведомления на телефон: подписки (бармен / гость) и ключи VAPID.
   "CREATE TABLE IF NOT EXISTS push_subscriptions (id INTEGER PRIMARY KEY AUTOINCREMENT,endpoint TEXT NOT NULL,p256dh TEXT NOT NULL,auth TEXT NOT NULL,role TEXT NOT NULL,guest_id INTEGER,created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP)",
   "CREATE UNIQUE INDEX IF NOT EXISTS idx_push_endpoint_role ON push_subscriptions(endpoint,role)",
+  // Проверка уведомлений: устройство и последний ответ push-сервера.
+  "ALTER TABLE push_subscriptions ADD COLUMN label TEXT",
+  "ALTER TABLE push_subscriptions ADD COLUMN last_status INTEGER",
+  "ALTER TABLE push_subscriptions ADD COLUMN last_error TEXT",
+  "ALTER TABLE push_subscriptions ADD COLUMN last_at TEXT",
+  "ALTER TABLE push_subscriptions ADD COLUMN bar_session_id INTEGER",
   "CREATE TABLE IF NOT EXISTS app_kv (key TEXT PRIMARY KEY,value TEXT NOT NULL)",
   // Вход в панель бармена: сессии устройств (только SHA-256 токена) и неудачные попытки.
   "CREATE TABLE IF NOT EXISTS bar_sessions (id INTEGER PRIMARY KEY AUTOINCREMENT,token_hash TEXT NOT NULL UNIQUE,label TEXT,created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,last_seen_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP)",
@@ -158,7 +164,7 @@ const refreshCocktailPrice = async (env, cocktailId) => {
   return {cost:price,price};
 };
 
-const BUILD_VERSION = "2026-10-18-push-sync-v1";
+const BUILD_VERSION = "2026-10-18-push-diag-v1";
 
 const calculateCocktailStrength = (recipeItems) => {
   let alcoholMl = 0;
@@ -806,6 +812,8 @@ export default {
 </div></div>
 <div class="section"><div class="section-header"><h2>Уведомления</h2></div><div class="list">
 <div class="cell has-icon"><span class="cell-icon">${icon("bell")}</span><span class="cell-body"><span class="cell-title">Новые заказы и отзывы</span><span class="cell-sub" id="pushSub" aria-live="polite">Проверяем…</span></span><button class="btn btn-tinted btn-sm" type="button" id="pushBtn" hidden>Включить</button></div>
+<button class="cell has-icon" type="button" id="pushTest" hidden><span class="cell-icon">${icon("check")}</span><span class="cell-body"><span class="cell-title">Отправить тестовое уведомление</span><span class="cell-sub">Придёт через 5 секунд — сверните приложение</span></span></button>
+<div class="cell has-icon"><span class="cell-icon">${icon("info")}</span><span class="cell-body"><span class="cell-title">На сервере</span><span class="cell-sub" id="pushServer" aria-live="polite">Проверяем…</span></span></div>
 </div><p class="section-footer">Придут на этот телефон, даже когда приложение закрыто: «Новый заказ от: Анна», «Новый отзыв от: Анна». Включите на каждом телефоне, где стоит барменская панель.</p></div>
 <div class="section"><div class="section-header"><h2>Безопасность</h2></div><div class="list">
 <button class="cell has-icon" type="button" data-open-sheet="pinSheet"><span class="cell-icon">${icon("lock")}</span><span class="cell-body"><span class="cell-title">Сменить код</span><span class="cell-sub">${devSub}</span></span>${icon("chevronRight","cell-chevron")}</button>
@@ -823,10 +831,23 @@ export default {
       }).replace("</main>",()=>`</main><script>
 document.addEventListener("DOMContentLoaded",function(){var sub=document.getElementById("pushSub"),btn=document.getElementById("pushBtn"),cur="";
 function paint(st){cur=st;sub.textContent=VIA.push.text[st]||"";btn.hidden=!(st==="on"||st==="off");btn.textContent=st==="on"?"Выключить":"Включить"}
-VIA.push.state("bar").then(paint);
+var srv=document.getElementById("pushServer"),test=document.getElementById("pushTest");
+// Подписка этого телефона (адрес) — чтобы сервер сказал, есть ли она у него.
+var endpoint=function(){if(!("serviceWorker" in navigator)||!("PushManager" in window))return Promise.resolve("");
+return Promise.race([navigator.serviceWorker.ready,new Promise(function(ok){setTimeout(ok,4000)})]).then(function(reg){return reg?reg.pushManager.getSubscription():null}).then(function(x){return x?x.endpoint:""}).catch(function(){return ""})};
+var when=function(ts){var d=new Date(String(ts).replace(" ","T")+"Z"),t=d.toLocaleTimeString("ru-RU",{hour:"2-digit",minute:"2-digit"});
+return d.toDateString()===new Date().toDateString()?"сегодня в "+t:d.toLocaleDateString("ru-RU",{day:"numeric",month:"long"})+", "+t};
+var result=function(x){var c=Number(x.last_status||0);return c>=200&&c<300?"отправлено успешно":c?"ошибка "+c+(x.last_error?" ("+x.last_error+")":""):"нет связи с сервером уведомлений"+(x.last_error?" ("+x.last_error+")":"")};
+var server=function(){return endpoint().then(function(ep){return fetch("/api/bar/push/status",{method:"POST",headers:{"content-type":"application/json"},body:JSON.stringify({endpoint:ep})}).then(function(r){return r.json()}).then(function(d){
+var list=d.devices||[],mine=list.filter(function(x){return x.mine})[0];
+srv.textContent=(mine?"Этот телефон подписан · "+(mine.last_at?"последнее уведомление "+when(mine.last_at)+" — "+result(mine):"уведомлений ещё не было"):"Этот телефон не подписан — нажмите «Включить»")+". Всего телефонов бармена с уведомлениями: "+list.length+".";
+test.hidden=!mine})}).catch(function(){srv.textContent="Не удалось проверить — нет связи"})};
+VIA.push.state("bar").then(paint);VIA.push.sync("bar").then(server);
 btn.addEventListener("click",function(){btn.disabled=true;var p=cur==="on"?VIA.push.disable("bar"):VIA.push.enable("bar");
 p.then(function(){VIA.toast(cur==="on"?"Уведомления выключены":"Готово — новые заказы придут на этот телефон")}).catch(function(e){VIA.toast(e.message||"Не получилось",true,4000)})
-.then(function(){return VIA.push.state("bar")}).then(paint).then(function(){btn.disabled=false})})});
+.then(function(){return VIA.push.state("bar")}).then(paint).then(server).then(function(){btn.disabled=false})});
+test.addEventListener("click",function(){test.disabled=true;endpoint().then(function(ep){return fetch("/api/bar/push/test",{method:"POST",headers:{"content-type":"application/json"},body:JSON.stringify({endpoint:ep})}).then(function(r){return r.json().then(function(d){if(!r.ok)throw new Error(d.error||"Не получилось");return d})})})
+.then(function(){VIA.toast("Отправили — сверните приложение: уведомление придёт через 5 секунд",false,5000);setTimeout(server,9000)}).catch(function(e){VIA.toast(e.message,true,5000);server()}).then(function(){setTimeout(function(){test.disabled=false},6000)})})});
 (function(){
 var post=function(u,b){return fetch(u,{method:"POST",headers:{"content-type":"application/json"},body:JSON.stringify(b||{})}).then(function(r){return r.json().catch(function(){return {}}).then(function(d){if(!r.ok)throw new Error(d.error||"Не получилось — проверьте интернет");return d})})};
 // Выход: стираем сохранённые копии страниц панели, чтобы без входа их не было видно и офлайн.
@@ -1233,7 +1254,7 @@ async function acceptOrder(){
     const d=await r.json().catch(()=>({}));
     if(!r.ok)throw new Error(d.error||"Не удалось принять заказ. Попробуйте ещё раз.");
     VIA.closeSheet("orderSheet");
-    VIA.toast("Заказ"+(d.order_id?" №"+d.order_id:"")+" принят, ингредиенты списаны");
+    VIA.toast("Заказ"+(d.order_id?" №"+d.order_id:"")+" принят, ингредиенты списаны"+VIA.notifiedNote(d));
   }catch(e){toastLong(e&&e.message||"Нет связи. Попробуйте ещё раз.",true)}
   finally{setBusy(false);await refresh()}
 }
@@ -3222,7 +3243,7 @@ $("#draftAccept").onclick=async()=>{
   try{
     const d=await post("/api/bar/order/accept",{});
     draftGen++;draft={shift:draft.shift,order:null,items:[]};recalc();renderDraft();
-    VIA.toast("Заказ №"+Number(d.order_id)+" принят");
+    VIA.toast("Заказ №"+Number(d.order_id)+" принят"+VIA.notifiedNote(d));
   }catch(e){const m=e.message||netErr;setMsg(m);VIA.toast(e.status===409?"Не хватает ингредиентов — подробности под заказом":m,true)}
   finally{b.disabled=false;b.innerHTML=html;keepFocus(hadFocus,b);loadDraft()}
 };

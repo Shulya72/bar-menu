@@ -1,6 +1,6 @@
 import App, { ensureSchema, guestOrderShortage, acceptGuestOrderWithStock } from "./index.js";
-import { getVapid, notifyBar, notifyGuest, saveSubscription, removeSubscription } from "./push.js";
-import { barSession, barAuthApi, barLoginPage, authRequired, needsBarAuth, isBarPage } from "./barauth.js";
+import { getVapid, notifyBar, notifyGuest, saveSubscription, removeSubscription, barPushStatus, barPushTest } from "./push.js";
+import { barSession, barAuthApi, barLoginPage, authRequired, needsBarAuth, isBarPage, deviceLabel } from "./barauth.js";
 
 const json = (d, s = 200) => Response.json(d, { status: s, headers: { "cache-control": "no-store" } });
 // Уведомление отправляется после ответа: заказ/выдача не ждут push-сервер.
@@ -405,14 +405,15 @@ const pushSubscribe = async (r, e) => {
   }
   const role = b?.role === "guest" ? "guest" : b?.role === "bar" ? "bar" : "";
   if (!role) return json({ error: "Неизвестная роль" }, 400);
-  if (role === "bar" && !(await barSession(r, e))) return authRequired();
+  const bs = role === "bar" ? await barSession(r, e) : null;
+  if (role === "bar" && !bs) return authRequired();
   let guestId = null;
   if (role === "guest") {
     const g = await me(r, e);
     if (!g) return json({ error: "Войдите в аккаунт" }, 401);
     guestId = g.id;
   }
-  if (!(await saveSubscription(e, role, guestId, b?.subscription))) return json({ error: "Некорректная подписка" }, 400);
+  if (!(await saveSubscription(e, role, guestId, b?.subscription, deviceLabel(r), bs?.id ?? null))) return json({ error: "Некорректная подписка" }, 400);
   return json({ ok: true });
 };
 const pushUnsubscribe = async (r, e) => {
@@ -423,6 +424,37 @@ const pushUnsubscribe = async (r, e) => {
     return json({ error: "Некорректные данные" }, 400);
   }
   await removeSubscription(e, b?.role === "guest" ? "guest" : "bar", b?.endpoint);
+  return json({ ok: true });
+};
+// Заказ за стойкой принят — сообщаем остальным телефонам бармена (не тому, с которого приняли).
+const acceptBarOrder = async (r, e, c) => {
+  const res = await App.fetch(r, e, c);
+  if (!res.ok) return res;
+  const d = await res.json();
+  const s = await barSession(r, e);
+  const sid = s?.id ?? -1;
+  const [items, cnt] = await e.DB.batch([
+    e.DB.prepare("SELECT c.name,oi.quantity qty FROM bar_order_items oi JOIN cocktails c ON c.id=oi.cocktail_id WHERE oi.order_id=? ORDER BY oi.id").bind(Number(d.order_id)),
+    e.DB.prepare("SELECT COUNT(*) n FROM push_subscriptions WHERE role='bar' AND (bar_session_id IS NULL OR bar_session_id<>?)").bind(sid),
+  ]);
+  const list = items.results || [],
+    notified = list.length ? Number(cnt.results?.[0]?.n || 0) : 0;
+  if (notified)
+    later(c, () =>
+      notifyBar(e, { title: "Заказ за стойкой", body: list.map((x) => x.name + (x.qty > 1 ? " × " + x.qty : "")).join(", "), url: "/bar/orders", tag: "bar-order-" + d.order_id }, sid),
+    );
+  return json({ ...d, notified });
+};
+// «Ещё → Уведомления»: состояние подписок бармена и тестовое уведомление (только после входа).
+const pushBarStatus = async (r, e) => {
+  const b = await r.json().catch(() => ({}));
+  return json({ devices: await barPushStatus(e, b?.endpoint) });
+};
+const pushBarTest = async (r, e, c) => {
+  const b = await r.json().catch(() => ({}));
+  const t = await barPushTest(e, b?.endpoint, 5000);
+  if (!t) return json({ error: "Этот телефон не подписан на уведомления — нажмите «Включить»" }, 404);
+  c.waitUntil(t.job.catch((err) => console.error("push test:", err?.message)));
   return json({ ok: true });
 };
 const needsDb = (p) => (p.startsWith("/api/") && p !== "/api/health" && !p.startsWith("/api/cocktail-photo")) || isBarPage(p);
@@ -456,6 +488,9 @@ export default {
     if (u.pathname === "/api/bar/guest-orders" && r.method === "GET") return guestOrders(r, e);
     if (u.pathname === "/api/bar/guest-order/accept" && r.method === "POST") return acceptGuestOrder(r, e, c);
     if (u.pathname === "/api/bar/guest-order/reject" && r.method === "POST") return rejectGuestOrder(r, e, c);
+    if (u.pathname === "/api/bar/order/accept" && r.method === "POST") return acceptBarOrder(r, e, c);
+    if (u.pathname === "/api/bar/push/status" && r.method === "POST") return pushBarStatus(r, e);
+    if (u.pathname === "/api/bar/push/test" && r.method === "POST") return pushBarTest(r, e, c);
     if (u.pathname === "/api/push/key" && r.method === "GET") return pushKey(r, e);
     if (u.pathname === "/api/push/subscribe" && r.method === "POST") return pushSubscribe(r, e);
     if (u.pathname === "/api/push/unsubscribe" && r.method === "POST") return pushUnsubscribe(r, e);
