@@ -76,7 +76,7 @@ export const DESIGN_CSS = `
   --shadow:0 10px 30px rgba(0,0,0,.45),0 2px 6px rgba(0,0,0,.35);
   --r-xl:22px;--r-lg:16px;--r-md:12px;
   --safe-t:env(safe-area-inset-top,0px);--safe-b:env(safe-area-inset-bottom,0px);
-  --tabbar-h:64px;
+  --tabbar-h:50px;--tabbar-bg:#110F0C;
   --sans:-apple-system,"SF Pro Text",system-ui,"Segoe UI",Roboto,"Helvetica Neue",Arial,sans-serif;
   --serif:Prata,"Iowan Old Style",Georgia,serif;
 }
@@ -114,13 +114,15 @@ a{color:var(--gold);text-decoration:none}
 .screen-sub{color:var(--label-2);margin:0 0 18px;font-size:.9375rem}
 
 /* Стеклянная панель вкладок */
-.tabbar{position:fixed;z-index:50;left:50%;bottom:calc(10px + var(--safe-b));transform:translateX(-50%);width:min(calc(100% - 24px),520px);height:var(--tabbar-h);display:flex;align-items:stretch;padding:5px;border-radius:999px;background:var(--material);-webkit-backdrop-filter:blur(26px) saturate(180%);backdrop-filter:blur(26px) saturate(180%);box-shadow:var(--shadow),inset 0 .5px 0 rgba(255,255,255,.14),inset 0 0 0 .5px var(--sep-strong)}
-.tab{position:relative;flex:1;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:2px;border-radius:999px;color:var(--label-2);font-size:.6875rem;font-weight:600;letter-spacing:.01em;min-width:44px;transition:color .15s ease,background .2s ease}
+/* Нижняя панель вкладок — как в приложениях iPhone: во всю ширину, прижата к низу,
+   сплошная (страница под ней не просвечивает), под ней — зона полоски «Домой». */
+.tabbar{position:fixed;z-index:50;left:0;right:0;bottom:0;height:calc(var(--tabbar-h) + var(--safe-b));display:flex;align-items:stretch;justify-content:center;padding:0 env(safe-area-inset-right,0px) var(--safe-b) env(safe-area-inset-left,0px);background:var(--tabbar-bg);border-top:.5px solid var(--sep-strong)}
+.tab{position:relative;flex:1;max-width:180px;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:2px;padding-top:2px;color:var(--label-2);font-size:.6875rem;font-weight:600;letter-spacing:.01em;min-width:44px;transition:color .15s ease,background .2s ease}
 .tab .ic{width:24px;height:24px}
-.tab[aria-current=page]{color:var(--gold);background:var(--gold-soft)}
-.tab:active{transform:scale(.94)}
-.tab-badge{position:absolute;top:4px;left:calc(50% + 6px);min-width:18px;height:18px;padding:0 5px;border-radius:9px;background:#C8283A;color:#fff;font-size:.6875rem;font-weight:700;line-height:18px;text-align:center}
-@media (prefers-reduced-transparency:reduce){.tabbar,.navbar.scrolled,.sheet-panel{background:var(--material-strong);-webkit-backdrop-filter:none;backdrop-filter:none}}
+.tab[aria-current=page]{color:var(--gold)}
+.tab:active{opacity:.6}
+.tab-badge{position:absolute;top:3px;left:calc(50% + 6px);min-width:18px;height:18px;padding:0 5px;border-radius:9px;background:#C8283A;color:#fff;font-size:.6875rem;font-weight:700;line-height:18px;text-align:center}
+@media (prefers-reduced-transparency:reduce){.navbar.scrolled,.sheet-panel{background:var(--material-strong);-webkit-backdrop-filter:none;backdrop-filter:none}}
 
 /* ——— Сгруппированные списки (iOS inset grouped) ——— */
 .section{margin:22px 0 0}
