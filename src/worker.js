@@ -1,5 +1,6 @@
 import App, { ensureSchema, guestOrderShortage, acceptGuestOrderWithStock } from "./index.js";
 import { getVapid, notifyBar, notifyGuest, saveSubscription, removeSubscription } from "./push.js";
+import { barSession, barAuthApi, barLoginPage, authRequired, needsBarAuth, isBarPage } from "./barauth.js";
 
 const json = (d, s = 200) => Response.json(d, { status: s, headers: { "cache-control": "no-store" } });
 // Уведомление отправляется после ответа: заказ/выдача не ждут push-сервер.
@@ -404,6 +405,7 @@ const pushSubscribe = async (r, e) => {
   }
   const role = b?.role === "guest" ? "guest" : b?.role === "bar" ? "bar" : "";
   if (!role) return json({ error: "Неизвестная роль" }, 400);
+  if (role === "bar" && !(await barSession(r, e))) return authRequired();
   let guestId = null;
   if (role === "guest") {
     const g = await me(r, e);
@@ -423,15 +425,25 @@ const pushUnsubscribe = async (r, e) => {
   await removeSubscription(e, b?.role === "guest" ? "guest" : "bar", b?.endpoint);
   return json({ ok: true });
 };
-const needsDb = (p) =>
-  (p.startsWith("/api/") && p !== "/api/health" && !p.startsWith("/api/cocktail-photo")) ||
-  p === "/bar/stock" ||
-  p === "/bar" ||
-  p === "/bar/reviews";
+const needsDb = (p) => (p.startsWith("/api/") && p !== "/api/health" && !p.startsWith("/api/cocktail-photo")) || isBarPage(p);
+// Посетителю без входа список коктейлей отдаётся без остатков склада (меню они не нужны).
+const withoutStock = async (res) => {
+  if (!res.ok) return res;
+  const list = await res.json();
+  for (const c of Array.isArray(list) ? list : []) for (const i of c.recipe_items || []) delete i.stock_available;
+  return json(list);
+};
 export default {
   async fetch(r, e, c) {
     const u = new URL(r.url);
-    if (needsDb(u.pathname)) await ensureSchema(e);
+    const gated = needsBarAuth(u.pathname, r.method);
+    if (gated || needsDb(u.pathname)) await ensureSchema(e);
+    if (u.pathname === "/api/bar/auth" || u.pathname.startsWith("/api/bar/auth/"))
+      return (await barAuthApi(r, e, u)) || json({ error: "Не найдено" }, 404);
+    // Панель бармена: страницы и данные — только после входа по коду.
+    if (gated && !(await barSession(r, e))) return isBarPage(u.pathname) ? barLoginPage(r, e) : authRequired();
+    if (u.pathname === "/api/cocktails" && r.method === "GET" && !(await barSession(r, e)))
+      return withoutStock(await App.fetch(r, e, c));
     if (u.pathname === "/api/guest/register" && r.method === "POST") return register(r, e);
     if (u.pathname === "/api/guest/login" && r.method === "POST") return login(r, e);
     if (u.pathname === "/api/guest/me" && r.method === "GET") return json({ guest: await me(r, e) });

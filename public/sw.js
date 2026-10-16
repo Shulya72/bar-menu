@@ -4,8 +4,9 @@
 // сохранённая. Заказы, закупки и правки склада без интернета не отправляются:
 // страница покажет «нет связи», как и раньше.
 const STATIC = "via-static-3"; // шрифты, иконки, логотип — меняются только с версией
-const PAGES = "via-pages";
-const DATA = "via-data";
+// -2: после защиты панели входом старые копии барменских страниц стираются со всех устройств.
+const PAGES = "via-pages-2";
+const DATA = "via-data-2";
 const PHOTOS = "via-photos";
 const KEEP = [STATIC, PAGES, DATA, PHOTOS];
 
