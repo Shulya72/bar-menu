@@ -4,7 +4,7 @@ import { renderDocument, htmlResponse, icon, monogram } from "./design.js";
 // один раз: результат отмечается в app_migrations, а внутри экземпляра Worker'а
 // запоминается промисом. Чтобы изменить схему — добавь команду в SCHEMA_SQL и
 // поменяй SCHEMA_VERSION: новая версия применится один раз при следующем запросе.
-const SCHEMA_VERSION="schema-2026-10-16";
+const SCHEMA_VERSION="schema-2026-10-17";
 const SCHEMA_SQL=[
   "CREATE TABLE IF NOT EXISTS app_migrations (name TEXT PRIMARY KEY, applied_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP)",
   "CREATE TABLE IF NOT EXISTS ingredients (id INTEGER PRIMARY KEY AUTOINCREMENT, name TEXT NOT NULL UNIQUE, unit TEXT NOT NULL DEFAULT 'ml' CHECK(unit IN ('ml','g','pcs')), is_active INTEGER NOT NULL DEFAULT 1, created_at TEXT DEFAULT NULL, updated_at TEXT DEFAULT NULL)",
@@ -36,6 +36,10 @@ const SCHEMA_SQL=[
   "CREATE TABLE IF NOT EXISTS guest_sessions (token TEXT PRIMARY KEY,guest_id INTEGER NOT NULL,created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,expires_at TEXT NOT NULL)",
   "CREATE TABLE IF NOT EXISTS orders (id INTEGER PRIMARY KEY AUTOINCREMENT,guest_id INTEGER,status TEXT NOT NULL DEFAULT 'pending',total_rub INTEGER NOT NULL DEFAULT 0,created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,accepted_at TEXT,served_at TEXT)",
   "CREATE TABLE IF NOT EXISTS order_items (id INTEGER PRIMARY KEY AUTOINCREMENT,order_id INTEGER NOT NULL,cocktail_id INTEGER NOT NULL,quantity INTEGER NOT NULL,unit_price_rub INTEGER NOT NULL DEFAULT 0)",
+  // Телефоны гостей в единый вид +7XXXXXXXXXX (раньше хранились как ввели: 8…, 7…, 9…).
+  // OR IGNORE: если человек был зарегистрирован дважды (с 8 и с +7), обе записи остаются, вход найдёт нужную по PIN.
+  "UPDATE OR IGNORE guests SET phone='+7'||substr(phone,2) WHERE length(phone)=11 AND (phone GLOB '8*' OR phone GLOB '7*') AND phone NOT GLOB '*[^0-9]*'",
+  "UPDATE OR IGNORE guests SET phone='+7'||phone WHERE length(phone)=10 AND phone GLOB '9*' AND phone NOT GLOB '*[^0-9]*'",
   "CREATE TABLE IF NOT EXISTS guest_reviews (id INTEGER PRIMARY KEY AUTOINCREMENT,guest_id INTEGER NOT NULL,order_item_id INTEGER NOT NULL UNIQUE,order_id INTEGER NOT NULL,cocktail_id INTEGER NOT NULL,rating INTEGER NOT NULL CHECK(rating BETWEEN 1 AND 5),comment TEXT NOT NULL DEFAULT '',created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP)",
 ];
 const migrateSchema=async env=>{
@@ -143,7 +147,7 @@ const refreshCocktailPrice = async (env, cocktailId) => {
   return {cost:price,price};
 };
 
-const BUILD_VERSION = "2026-10-17-menu-dim-v1";
+const BUILD_VERSION = "2026-10-17-phone-8-7-v1";
 
 const calculateCocktailStrength = (recipeItems) => {
   let alcoholMl = 0;
