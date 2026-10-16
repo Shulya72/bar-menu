@@ -158,7 +158,7 @@ const refreshCocktailPrice = async (env, cocktailId) => {
   return {cost:price,price};
 };
 
-const BUILD_VERSION = "2026-10-18-bar-auth-v1";
+const BUILD_VERSION = "2026-10-18-push-sync-v1";
 
 const calculateCocktailStrength = (recipeItems) => {
   let alcoholMl = 0;
@@ -2294,7 +2294,7 @@ $("#revList").addEventListener("submit",async e=>{e.preventDefault();const f=e.t
 try{const r=await fetch("/api/guest/reviews",{method:"POST",headers:{"content-type":"application/json"},body:JSON.stringify({order_item_id:item,rating:Number(f.rating.value),comment:f.comment.value})});const d=await r.json().catch(()=>({}));if(!r.ok)throw new Error(d.error||"Не удалось сохранить");VIA.toast("Спасибо за оценку!");openReviews()}catch(err){msg.textContent=err.message}});
 
 /* ——— загрузка ——— */
-async function loadMe(){try{const r=await fetch("/api/guest/me");const d=await r.json();guest=d.guest||null}catch(e){guest=null}if(guest)await refreshStats();renderProfile();if(pane==="order")renderCart();if(guest)refreshPush()}
+async function loadMe(){try{const r=await fetch("/api/guest/me");const d=await r.json();guest=d.guest||null}catch(e){guest=null}if(guest)await refreshStats();renderProfile();if(pane==="order")renderCart();if(guest)VIA.push.sync("guest").then(refreshPush)}
 // Меню вместе с наличием: коктейль, на который не хватает ингредиентов, заказать нельзя.
 let menuLoadedAt=0;
 async function loadMenu(quiet){try{const r=await fetch("/api/cocktails",{cache:"no-store"});if(!r.ok)throw 0;const x=await r.json();cocktails=Array.isArray(x)?x:[];byId=new Map(cocktails.map(c=>[Number(c.id),c]));menuLoadedAt=Date.now();
