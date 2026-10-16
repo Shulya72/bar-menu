@@ -143,7 +143,7 @@ const refreshCocktailPrice = async (env, cocktailId) => {
   return {cost:price,price};
 };
 
-const BUILD_VERSION = "2026-10-17-docked-tabbar-v1";
+const BUILD_VERSION = "2026-10-17-app-scopes-v1";
 
 const calculateCocktailStrength = (recipeItems) => {
   let alcoholMl = 0;
