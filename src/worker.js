@@ -1,4 +1,4 @@
-import App, { ensureSchema } from "./index.js";
+import App, { ensureSchema, guestOrderShortage, acceptGuestOrderWithStock } from "./index.js";
 
 const json = (d, s = 200) => Response.json(d, { status: s, headers: { "cache-control": "no-store" } });
 const norm = (v) => {
@@ -167,6 +167,9 @@ const guestOrder = async (r, e) => {
     total += qty * Number(c.price_rub || 0);
   }
   if (!clean.length) return json({ error: "В заказе нет доступных коктейлей" }, 400);
+  // Заказать можно только то, на что сейчас хватает ингредиентов (с учётом других заказов).
+  const shortage = await guestOrderShortage(e, clean);
+  if (shortage) return json({ error: shortage }, 409);
   const q = await e.DB.prepare("INSERT INTO orders(guest_id,status,total_rub) VALUES(?,'pending',?)")
     .bind(g.id, total)
     .run();
@@ -265,11 +268,23 @@ const acceptGuestOrder = async (r, e) => {
   }
   const id = Number(b?.order_id);
   if (!Number.isInteger(id) || id < 1) return json({ error: "Неверный номер заказа" }, 400);
-  const o = await e.DB.prepare("SELECT id,status FROM orders WHERE id=?").bind(id).first();
-  if (!o) return json({ error: "Заказ не найден" }, 404);
-  if (o.status !== "pending") return json({ error: "Заказ уже обработан" }, 409);
-  await e.DB.prepare("UPDATE orders SET status='accepted',accepted_at=CURRENT_TIMESTAMP WHERE id=?").bind(id).run();
-  return json({ ok: true, order_id: id });
+  // Списание ингредиентов со склада — в момент «Принять».
+  const [body, status] = await acceptGuestOrderWithStock(e, id);
+  return json(body, status);
+};
+const rejectGuestOrder = async (r, e) => {
+  let b;
+  try {
+    b = await r.json();
+  } catch {
+    return json({ error: "Некорректные данные" }, 400);
+  }
+  const id = Number(b?.order_id);
+  if (!Number.isInteger(id) || id < 1) return json({ error: "Неверный номер заказа" }, 400);
+  // Отклонить можно только ещё не принятый заказ: со склада он ничего не списывал, бронь снимается.
+  const q = await e.DB.prepare("UPDATE orders SET status='cancelled' WHERE id=? AND status='pending'").bind(id).run();
+  if (!Number(q.meta?.changes)) return json({ error: "Заказ уже обработан" }, 409);
+  return json({ ok: true, order_id: id, status: "cancelled" });
 };
 const needsDb = (p) =>
   (p.startsWith("/api/") && p !== "/api/health" && !p.startsWith("/api/cocktail-photo")) || p === "/bar/stock";
@@ -288,6 +303,7 @@ export default {
     if (u.pathname === "/api/bar/guest-order/serve" && r.method === "POST") return serveGuestOrder(r, e);
     if (u.pathname === "/api/bar/guest-orders" && r.method === "GET") return guestOrders(r, e);
     if (u.pathname === "/api/bar/guest-order/accept" && r.method === "POST") return acceptGuestOrder(r, e);
+    if (u.pathname === "/api/bar/guest-order/reject" && r.method === "POST") return rejectGuestOrder(r, e);
     // /menu и /bar/orders целиком рендерятся в index.js (без подмены HTML строками).
     return App.fetch(r, e, c);
   },
