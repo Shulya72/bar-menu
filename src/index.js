@@ -151,7 +151,7 @@ const refreshCocktailPrice = async (env, cocktailId) => {
   return {cost:price,price};
 };
 
-const BUILD_VERSION = "2026-10-17-guest-push-v2";
+const BUILD_VERSION = "2026-10-17-push-text-v1";
 
 const calculateCocktailStrength = (recipeItems) => {
   let alcoholMl = 0;
@@ -797,7 +797,7 @@ export default {
 </div></div>
 <div class="section"><div class="section-header"><h2>Уведомления</h2></div><div class="list">
 <div class="cell has-icon"><span class="cell-icon">${icon("bell")}</span><span class="cell-body"><span class="cell-title">Новые заказы и отзывы</span><span class="cell-sub" id="pushSub" aria-live="polite">Проверяем…</span></span><button class="btn btn-tinted btn-sm" type="button" id="pushBtn" hidden>Включить</button></div>
-</div><p class="section-footer">Придут на этот телефон, даже когда приложение закрыто: «Новый заказ от: Анна», «Новый отзыв». Включите на каждом телефоне, где стоит барменская панель.</p></div>`,
+</div><p class="section-footer">Придут на этот телефон, даже когда приложение закрыто: «Новый заказ от: Анна», «Новый отзыв от: Анна». Включите на каждом телефоне, где стоит барменская панель.</p></div>`,
       }).replace("</main>",()=>`</main><script>
 document.addEventListener("DOMContentLoaded",function(){var sub=document.getElementById("pushSub"),btn=document.getElementById("pushBtn"),cur="";
 function paint(st){cur=st;sub.textContent=VIA.push.text[st]||"";btn.hidden=!(st==="on"||st==="off");btn.textContent=st==="on"?"Выключить":"Включить"}
@@ -2123,7 +2123,7 @@ function togglePush(){if(!window.VIA||!VIA.push)return;
 if(pushState==="install"){VIA.toast("Уведомления работают в приложении: Поделиться → «На экран „Домой“», затем откройте меню оттуда",true,6000);return}
 if(pushState==="denied"){VIA.toast("Уведомления запрещены: Настройки → Уведомления → VIA Bar",true,5000);return}
 if(pushState==="unsupported"){VIA.toast(VIA.push.text.unsupported,true);return}
-const off=pushState==="on";(off?VIA.push.disable("guest"):VIA.push.enable("guest")).then(()=>VIA.toast(off?"Уведомления выключены":"Готово — сообщим, когда заказ будет готов")).catch(e=>VIA.toast(e.message||"Не получилось",true,4000)).then(refreshPush)}
+const off=pushState==="on";(off?VIA.push.disable("guest"):VIA.push.enable("guest")).then(()=>VIA.toast(off?"Уведомления выключены":"Готово — напишем, когда примем заказ и когда он будет готов")).catch(e=>VIA.toast(e.message||"Не получилось",true,4000)).then(refreshPush)}
 document.addEventListener("click",e=>{if(e.target.closest("#pushToggle,#pushAsk"))togglePush()});
 let cart={};try{cart=JSON.parse(localStorage.getItem("via.cart")||"{}")||{}}catch(e){cart={}}
 const saveCart=()=>{try{localStorage.setItem("via.cart",JSON.stringify(cart))}catch(e){}};
@@ -2187,7 +2187,7 @@ const sb=$("#sendOrder");if(sb)sb.onclick=sendOrder;renderOrders()}
 function renderOrders(){const box=$("#ordersBox");if(!guest){box.innerHTML="";return}const h=(stats&&stats.history)||[];
 if(!h.length){box.innerHTML=stats?'<div class="section"><div class="section-header"><h2>Мои заказы</h2></div><div class="list"><div class="empty-state">Заказов пока не было.</div></div></div>':"";return}
 // Есть незавершённый заказ, а уведомления выключены — предлагаем сообщить, когда будет готов.
-const ask=pushState==="off"&&h.some(o=>o.status==="pending"||o.status==="accepted")?'<div class="section"><div class="list"><div class="cell has-icon"><span class="cell-icon">'+ic("bell")+'</span><span class="cell-body"><span class="cell-title">Сообщить, когда заказ будет готов?</span><span class="cell-sub">Пришлём уведомление на этот телефон</span></span><button class="btn btn-primary btn-sm" type="button" id="pushAsk">Включить</button></div></div></div>':"";
+const ask=pushState==="off"&&h.some(o=>o.status==="pending"||o.status==="accepted")?'<div class="section"><div class="list"><div class="cell has-icon"><span class="cell-icon">'+ic("bell")+'</span><span class="cell-body"><span class="cell-title">Написать, когда заказ будет готов?</span><span class="cell-sub">Пришлём уведомление на этот телефон</span></span><button class="btn btn-primary btn-sm" type="button" id="pushAsk">Включить</button></div></div></div>':"";
 // Сколько всего потрачено за всё время — здесь, в списке всех заказов
 box.innerHTML=ask+'<div class="section"><div class="section-header"><h2>Мои заказы</h2><span class="num">всего '+rub(stats.spent_rub)+'</span></div>'+h.map(o=>'<div class="list order-group"><div class="cell"><span class="cell-body"><span class="order-head"><span class="cell-title">Заказ №'+Number(o.id)+'</span><span class="cell-value num">'+rub(o.total_rub)+'</span></span><span class="cell-sub">'+esc(when(o.created_at))+'</span></span></div>'+(o.status==="cancelled"?'<div class="order-cancelled">'+ic("close")+'Отменён: хозяева не смогли приготовить</div>':tracker(o.status))+'<div class="cell"><span class="cell-body"><span class="cell-sub" style="color:var(--label)">'+esc(o.items||"Состав не указан")+'</span></span></div></div>').join("")+'</div>'}
 document.addEventListener("click",e=>{const g=e.target.closest("[data-goto]");if(g)show(g.dataset.goto)});
@@ -2214,7 +2214,7 @@ box.innerHTML='<div class="member-card"><div class="member-top">'+${JSON.stringi
 +(s.favorite_cocktail?'<div class="member-fav"><span>Любимый коктейль</span><b>'+esc(s.favorite_cocktail)+'</b></div>':"")+'</div>'
 +(latest?'<div class="section"><div class="section-header"><h2>Последний заказ</h2><span>'+esc(when(latest.created_at))+'</span></div><div class="list"><div class="cell">'+(lp?'<img class="thumb" src="'+esc(lp.photo_url)+'" alt="">':'<span class="thumb thumb-ph">'+ic("glass")+'</span>')+'<span class="cell-body"><span class="cell-title">'+esc(latest.items||"—")+'</span><span class="cell-sub num">'+rub(latest.total_rub)+' · '+(latest.status==="cancelled"?"Отменён":["Заказан","Принят","Выдан"][STEP[latest.status]??0])+'</span></span></div>'+(li.length?'<button class="cell" type="button" id="repeatOrder" style="color:var(--gold);justify-content:center;font-weight:600">'+ic("refresh")+' Повторить заказ</button>':"")+'</div></div>':"")
 +'<div class="section"><div class="list"><button class="cell has-icon" type="button" data-goto="order"><span class="cell-icon">'+ic("receipt")+'</span><span class="cell-body"><span class="cell-title">Мои заказы</span><span class="cell-sub">'+Number(s.orders_count||0)+' '+plural(Number(s.orders_count||0),["заказ","заказа","заказов"])+'</span></span>'+ic("chevronRight").replace('class="ic"','class="ic cell-chevron"')+'</button><button class="cell has-icon" type="button" id="openReviews"><span class="cell-icon">'+ic("star")+'</span><span class="cell-body"><span class="cell-title">Мои оценки</span><span class="cell-sub">Оцените выпитые коктейли</span></span>'+ic("chevronRight").replace('class="ic"','class="ic cell-chevron"')+'</button>'
-+(pushState&&pushState!=="unsupported"?'<button class="cell has-icon" type="button" id="pushToggle"><span class="cell-icon">'+ic("bell")+'</span><span class="cell-body"><span class="cell-title">Уведомления о заказе</span><span class="cell-sub">'+esc(pushState==="off"?"Сообщим, когда заказ будет готов":VIA.push.text[pushState]||"")+'</span></span><span class="cell-value">'+(pushState==="on"?"Вкл.":pushState==="off"?"Выкл.":"")+'</span></button>':"")+'</div></div>'
++(pushState&&pushState!=="unsupported"?'<button class="cell has-icon" type="button" id="pushToggle"><span class="cell-icon">'+ic("bell")+'</span><span class="cell-body"><span class="cell-title">Уведомления о заказе</span><span class="cell-sub">'+esc(pushState==="off"?"Напишем, когда примем заказ и когда он будет готов":VIA.push.text[pushState]||"")+'</span></span><span class="cell-value">'+(pushState==="on"?"Вкл.":pushState==="off"?"Выкл.":"")+'</span></button>':"")+'</div></div>'
 +'<div class="section"><button class="btn btn-danger btn-block" type="button" id="logout">'+ic("logout")+'Выйти</button></div>';
 // Повторить заказ: добавляем только то, что сейчас есть в наличии (не больше остатка).
 const rp=$("#repeatOrder");if(rp)rp.onclick=()=>{const added=[],out=[],less=[];

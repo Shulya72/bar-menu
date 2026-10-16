@@ -360,7 +360,7 @@ const headTags = (title, app) => `<meta charset="utf-8">
 <meta name="apple-mobile-web-app-capable" content="yes">
 <meta name="mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
-<meta name="apple-mobile-web-app-title" content="${app === "bar" ? "VIA Бар" : "VIA Bar"}">
+<meta name="apple-mobile-web-app-title" content="${app === "bar" ? "VIA Bar" : "VIA with love"}">
 <link rel="manifest" href="${app === "bar" ? "/manifest-bar.webmanifest" : "/manifest.webmanifest"}">
 <link rel="apple-touch-icon" href="/icons/${app === "bar" ? "bar/" : ""}apple-touch-icon.png?v=2">
 <link rel="icon" href="/icons/${app === "bar" ? "bar/" : ""}favicon-64.png?v=2" type="image/png" sizes="64x64">

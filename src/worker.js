@@ -9,14 +9,41 @@ const later = (c, p) => {
     .catch((err) => console.error("push:", err?.message));
   if (c?.waitUntil) c.waitUntil(safe);
 };
-const orderItemsText = async (e, id) =>
-  (
-    await e.DB.prepare(
-      "SELECT o.guest_id,COALESCE(GROUP_CONCAT(c.name || ' × ' || oi.quantity, ', '),'') items,COALESCE(SUM(oi.quantity),0) n FROM orders o LEFT JOIN order_items oi ON oi.order_id=o.id LEFT JOIN cocktails c ON c.id=oi.cocktail_id WHERE o.id=? GROUP BY o.id",
-    )
-      .bind(id)
-      .first()
-  ) || {};
+// Состав заказа для уведомления гостю: кому и что.
+const orderInfo = async (e, id) => {
+  const { results } = await e.DB.prepare(
+    "SELECT o.guest_id,c.name,oi.quantity qty FROM orders o JOIN order_items oi ON oi.order_id=o.id LEFT JOIN cocktails c ON c.id=oi.cocktail_id WHERE o.id=? ORDER BY oi.id",
+  )
+    .bind(id)
+    .all();
+  const rows = results || [];
+  return { guest_id: rows[0]?.guest_id, items: rows.map((x) => ({ name: x.name || "Коктейль", qty: Number(x.qty) || 1 })) };
+};
+// Тексты гостю — от лица хозяев, по-человечески и без номеров заказов.
+// Название коктейля после двоеточия: не нужно согласовывать «готов/готова/готово».
+const itemLabel = (x) => "«" + x.name + "»" + (x.qty > 1 ? " × " + x.qty : "");
+const guestText = (kind, items) => {
+  const one = items.length === 1,
+    what = one ? itemLabel(items[0]) : "",
+    list = items.map(itemLabel).join(", ") + ". ";
+  if (kind === "accepted")
+    return one
+      ? { title: "Уже готовим: " + what, body: "Напишем, как только будет готово." }
+      : { title: "Уже готовим ваш заказ", body: list + "Напишем, как только всё будет готово." };
+  if (kind === "served")
+    return one
+      ? { title: "Готово: " + what, body: "Ждём вас у стойки. Приятного вечера!" }
+      : { title: "Готово: ваш заказ", body: list + "Ждём вас у стойки. Приятного вечера!" };
+  return one
+    ? { title: "Увы, не сегодня: " + what, body: "Простите! Загляните в меню — подберём что-нибудь другое." }
+    : { title: "Увы, заказ не получится", body: list + "Простите! Загляните в меню — подберём что-нибудь другое." };
+};
+const notifyGuestOrder = (e, c, id, kind) =>
+  later(c, async () => {
+    const o = await orderInfo(e, id);
+    if (o.guest_id && o.items.length)
+      await notifyGuest(e, Number(o.guest_id), { ...guestText(kind, o.items), url: "/menu#order", tag: "order-" + id });
+  });
 // Телефон в едином виде. Российский номер можно ввести как 8…, +7…, 7… или
 // 10 цифр с 9… — всё это один и тот же номер, хранится как +7XXXXXXXXXX.
 const norm = (v) => {
@@ -176,8 +203,8 @@ const saveGuestReview = async (r, e, c) => {
   later(c, async () => {
     const ck = await e.DB.prepare("SELECT name FROM cocktails WHERE id=?").bind(Number(item.cocktail_id)).first();
     await notifyBar(e, {
-      title: "Новый отзыв",
-      body: "★".repeat(rating) + "☆".repeat(5 - rating) + " " + (ck?.name || "Коктейль") + " — " + g.name + (comment ? ": «" + comment.slice(0, 90) + (comment.length > 90 ? "…" : "") + "»" : ""),
+      title: "Новый отзыв от: " + g.name,
+      body: "★".repeat(rating) + "☆".repeat(5 - rating) + " " + (ck?.name || "Коктейль") + (comment ? " — «" + comment.slice(0, 90) + (comment.length > 90 ? "…" : "") + "»" : ""),
       url: "/bar/reviews",
       tag: "review-" + itemId,
     });
@@ -199,16 +226,7 @@ const serveGuestOrder = async (r, e, c) => {
   await e.DB.prepare("UPDATE orders SET status='served',served_at=CURRENT_TIMESTAMP WHERE id=? AND status='accepted'")
     .bind(id)
     .run();
-  later(c, async () => {
-    const o = await orderItemsText(e, id);
-    if (o.guest_id)
-      await notifyGuest(e, Number(o.guest_id), {
-        title: Number(o.n) > 1 ? "Ваши коктейли готовы" : "Ваш коктейль готов",
-        body: "Заказ №" + id + (o.items ? ": " + o.items : "") + " — можно забирать у стойки.",
-        url: "/menu#order",
-        tag: "order-" + id,
-      });
-  });
+  notifyGuestOrder(e, c, id, "served");
   return json({ ok: true, order_id: id, status: "served" });
 };
 const guestOrder = async (r, e, c) => {
@@ -343,7 +361,7 @@ const guestOrders = async (r, e) => {
   }
   return json({ orders });
 };
-const acceptGuestOrder = async (r, e) => {
+const acceptGuestOrder = async (r, e, c) => {
   let b;
   try {
     b = await r.json();
@@ -354,6 +372,7 @@ const acceptGuestOrder = async (r, e) => {
   if (!Number.isInteger(id) || id < 1) return json({ error: "Неверный номер заказа" }, 400);
   // Списание ингредиентов со склада — в момент «Принять».
   const [body, status] = await acceptGuestOrderWithStock(e, id);
+  if (status === 200) notifyGuestOrder(e, c, id, "accepted");
   return json(body, status);
 };
 const rejectGuestOrder = async (r, e, c) => {
@@ -368,16 +387,7 @@ const rejectGuestOrder = async (r, e, c) => {
   // Отклонить можно только ещё не принятый заказ: со склада он ничего не списывал, бронь снимается.
   const q = await e.DB.prepare("UPDATE orders SET status='cancelled' WHERE id=? AND status='pending'").bind(id).run();
   if (!Number(q.meta?.changes)) return json({ error: "Заказ уже обработан" }, 409);
-  later(c, async () => {
-    const o = await orderItemsText(e, id);
-    if (o.guest_id)
-      await notifyGuest(e, Number(o.guest_id), {
-        title: "Заказ №" + id + " отменён",
-        body: "Хозяева не смогут приготовить" + (o.items ? ": " + o.items : "") + ". Загляните в меню — выберите другой коктейль.",
-        url: "/menu#order",
-        tag: "order-" + id,
-      });
-  });
+  notifyGuestOrder(e, c, id, "cancelled");
   return json({ ok: true, order_id: id, status: "cancelled" });
 };
 // ——— Подписка на уведомления ———
@@ -429,7 +439,7 @@ export default {
     if (u.pathname === "/api/guest/reviews" && r.method === "POST") return saveGuestReview(r, e, c);
     if (u.pathname === "/api/bar/guest-order/serve" && r.method === "POST") return serveGuestOrder(r, e, c);
     if (u.pathname === "/api/bar/guest-orders" && r.method === "GET") return guestOrders(r, e);
-    if (u.pathname === "/api/bar/guest-order/accept" && r.method === "POST") return acceptGuestOrder(r, e);
+    if (u.pathname === "/api/bar/guest-order/accept" && r.method === "POST") return acceptGuestOrder(r, e, c);
     if (u.pathname === "/api/bar/guest-order/reject" && r.method === "POST") return rejectGuestOrder(r, e, c);
     if (u.pathname === "/api/push/key" && r.method === "GET") return pushKey(r, e);
     if (u.pathname === "/api/push/subscribe" && r.method === "POST") return pushSubscribe(r, e);
