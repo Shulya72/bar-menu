@@ -327,9 +327,18 @@ export const SHELL_JS = `<script>
       if(!("serviceWorker" in navigator)||!("PushManager" in window))return Promise.resolve(true);
       return ready().then(function(reg){return reg.pushManager.getSubscription()}).then(function(sub){return sub?post("/api/push/unsubscribe",{role:role,endpoint:sub.endpoint}):true});
     };
+    // Сервер мог забыть подписку (сброс при защите панели, «Выйти на всех», смена адреса
+    // подписки самим iPhone). Если на этом телефоне уведомления включали — тихо напоминаем.
+    api.sync=function(role){
+      var saved="";try{saved=localStorage.getItem(key(role))||""}catch(e){}
+      if(!saved||!("serviceWorker" in navigator)||!("PushManager" in window)||!("Notification" in window)||Notification.permission!=="granted")return Promise.resolve();
+      return ready().then(function(reg){return reg.pushManager.getSubscription()}).then(function(sub){if(!sub)return;
+        return post("/api/push/subscribe",{role:role,subscription:sub.toJSON()}).then(function(){try{localStorage.setItem(key(role),sub.endpoint)}catch(e){}})}).catch(function(){});
+    };
     api.text={on:"Включены на этом телефоне",off:"Выключены",denied:"Запрещены в настройках телефона: Настройки → Уведомления",install:"Работают в приложении с экрана «Домой» — в Safari не приходят",unsupported:"Этот браузер не умеет показывать уведомления"};
     return api;
   })();
+  if(document.body.classList.contains("app-bar")&&document.querySelector(".tabbar"))addEventListener("load",function(){VIA.push.sync("bar")});
   VIA.toast=function(msg,isError,ms){var t=document.getElementById("viaToast");if(!t){t=document.createElement("div");t.id="viaToast";t.className="toast";t.setAttribute("role","status");document.body.appendChild(t)}t.textContent=msg;t.classList.toggle("error",!!isError);t.classList.add("show");clearTimeout(t._h);t._h=setTimeout(function(){t.classList.remove("show")},ms||2600)};
 })();
 </script>`;
