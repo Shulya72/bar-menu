@@ -85,22 +85,35 @@ export async function encryptPayload(p256dhB64, authB64, plaintext) {
 }
 
 async function sendOne(env, sub, message) {
-  const body = await encryptPayload(sub.p256dh, sub.auth, JSON.stringify(message));
-  const res = await fetch(sub.endpoint, {
-    method: "POST",
-    headers: {
-      Authorization: await vapidHeader(env, sub.endpoint),
-      "Content-Encoding": "aes128gcm",
-      "Content-Type": "application/octet-stream",
-      TTL: "3600",
-      Urgency: "high",
-    },
-    body,
-  });
+  let status = 0,
+    error = "";
+  try {
+    const body = await encryptPayload(sub.p256dh, sub.auth, JSON.stringify(message));
+    const res = await fetch(sub.endpoint, {
+      method: "POST",
+      headers: {
+        Authorization: await vapidHeader(env, sub.endpoint),
+        "Content-Encoding": "aes128gcm",
+        "Content-Type": "application/octet-stream",
+        TTL: "3600",
+        Urgency: "high",
+      },
+      body,
+    });
+    status = res.status;
+    if (status >= 400) error = (await res.text().catch(() => "")).slice(0, 160);
+  } catch (e) {
+    error = String(e?.message || e).slice(0, 160);
+  }
   // Подписка больше не действует (приложение удалили, уведомления выключили) — забываем её.
-  if (res.status === 404 || res.status === 410)
-    await env.DB.prepare("DELETE FROM push_subscriptions WHERE id=?").bind(sub.id).run();
-  return res.status;
+  if (status === 404 || status === 410) await env.DB.prepare("DELETE FROM push_subscriptions WHERE id=?").bind(sub.id).run();
+  // Иначе запоминаем, чем ответил push-сервер, — это видно в «Ещё → Уведомления».
+  else
+    await env.DB.prepare("UPDATE push_subscriptions SET last_status=?,last_error=?,last_at=CURRENT_TIMESTAMP WHERE id=?")
+      .bind(status, error, sub.id)
+      .run();
+  if (!status) console.error("push:", error);
+  return status;
 }
 
 async function sendTo(env, sql, binds, message) {
@@ -111,23 +124,58 @@ async function sendTo(env, sql, binds, message) {
 }
 
 // message: { title, body, url, tag }
-export const notifyBar = (env, message) =>
-  sendTo(env, "SELECT id,endpoint,p256dh,auth FROM push_subscriptions WHERE role='bar'", [], message);
+// exceptSession: не слать на телефон, с которого действие и сделали (заказ за стойкой).
+export const notifyBar = (env, message, exceptSession = null) =>
+  sendTo(
+    env,
+    "SELECT id,endpoint,p256dh,auth FROM push_subscriptions WHERE role='bar' AND (? IS NULL OR bar_session_id IS NULL OR bar_session_id<>?)",
+    [exceptSession, exceptSession],
+    message,
+  );
 export const notifyGuest = (env, guestId, message) =>
   sendTo(env, "SELECT id,endpoint,p256dh,auth FROM push_subscriptions WHERE role='guest' AND guest_id=?", [guestId], message);
 
-export async function saveSubscription(env, role, guestId, sub) {
+export async function saveSubscription(env, role, guestId, sub, label = "", barSessionId = null) {
   const endpoint = String(sub?.endpoint || ""),
     p256dh = String(sub?.keys?.p256dh || ""),
     auth = String(sub?.keys?.auth || "");
   if (!/^https:\/\//.test(endpoint) || endpoint.length > 1000 || !p256dh || !auth) return false;
   await env.DB.prepare(
-    "INSERT INTO push_subscriptions(endpoint,p256dh,auth,role,guest_id) VALUES(?,?,?,?,?) ON CONFLICT(endpoint,role) DO UPDATE SET p256dh=excluded.p256dh,auth=excluded.auth,guest_id=excluded.guest_id",
+    "INSERT INTO push_subscriptions(endpoint,p256dh,auth,role,guest_id,label,bar_session_id) VALUES(?,?,?,?,?,?,?) ON CONFLICT(endpoint,role) DO UPDATE SET p256dh=excluded.p256dh,auth=excluded.auth,guest_id=excluded.guest_id,label=excluded.label,bar_session_id=excluded.bar_session_id",
   )
-    .bind(endpoint, p256dh, auth, role, guestId)
+    .bind(endpoint, p256dh, auth, role, guestId, String(label || "").slice(0, 40), barSessionId)
     .run();
   return true;
 }
 
 export const removeSubscription = (env, role, endpoint) =>
   env.DB.prepare("DELETE FROM push_subscriptions WHERE endpoint=? AND role=?").bind(String(endpoint || ""), role).run();
+
+// ——— Проверка в панели бармена («Ещё → Уведомления») ———
+// Какие телефоны бармена подписаны и чем ответил push-сервер в последний раз.
+export async function barPushStatus(env, endpoint) {
+  const { results } = await env.DB.prepare(
+    "SELECT label,created_at,last_status,last_error,last_at,endpoint=? mine FROM push_subscriptions WHERE role='bar' ORDER BY id",
+  )
+    .bind(String(endpoint || ""))
+    .all();
+  return (results || []).map((x) => ({ ...x, mine: !!x.mine }));
+}
+// Тестовое уведомление на этот телефон через несколько секунд (успеть свернуть приложение).
+export async function barPushTest(env, endpoint, delayMs) {
+  const sub = await env.DB.prepare("SELECT id,endpoint,p256dh,auth FROM push_subscriptions WHERE role='bar' AND endpoint=?")
+    .bind(String(endpoint || ""))
+    .first();
+  if (!sub) return null;
+  // В объекте: иначе await у вызывающего ждал бы всю задержку.
+  return {
+    job: new Promise((ok) => setTimeout(ok, delayMs)).then(() =>
+      sendOne(env, sub, {
+        title: "Проверка уведомлений",
+        body: "Всё работает: заказы и отзывы гостей будут приходить на этот телефон.",
+        url: "/bar",
+        tag: "push-test",
+      }),
+    ),
+  };
+}

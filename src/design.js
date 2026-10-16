@@ -339,6 +339,8 @@ export const SHELL_JS = `<script>
     return api;
   })();
   if(document.body.classList.contains("app-bar")&&document.querySelector(".tabbar"))addEventListener("load",function(){VIA.push.sync("bar")});
+  // Приписка к «Заказ принят»: на сколько других телефонов бармена ушло уведомление.
+  VIA.notifiedNote=function(d){var n=Number(d&&d.notified||0);return n?" · отправили на "+n+" "+(n%10===1&&n%100!==11?"телефон":n%10>=2&&n%10<=4&&(n%100<10||n%100>=20)?"телефона":"телефонов")+" бармена":""};
   VIA.toast=function(msg,isError,ms){var t=document.getElementById("viaToast");if(!t){t=document.createElement("div");t.id="viaToast";t.className="toast";t.setAttribute("role","status");document.body.appendChild(t)}t.textContent=msg;t.classList.toggle("error",!!isError);t.classList.add("show");clearTimeout(t._h);t._h=setTimeout(function(){t.classList.remove("show")},ms||2600)};
 })();
 </script>`;
@@ -361,11 +363,19 @@ const BAR_GUARD_JS = `<script>
 </script>`;
 
 // Значок «новые гостевые заказы» на вкладке «Заказы» (обновляется, пока вкладка видима).
+// Пока панель открыта на экране, о новом заказе сообщает и плашка — даже если iPhone
+// не покажет уведомление приложения, которое и так открыто.
 const BAR_BADGE_JS = `<script>
 (function(){var b=document.getElementById("ordersBadge");if(!b)return;
-if(document.querySelector('.tab[data-tab="orders"][aria-current]'))return; // страница заказов сама опрашивает очередь
-var load=function(){if(document.hidden)return;fetch("/api/bar/guest-orders").then(function(r){return r.ok?r.json():null}).then(function(d){if(!d)return;var n=(d.orders||[]).filter(function(o){return o.status==="pending"}).length;b.textContent=n;b.hidden=!n}).catch(function(){})};
-load();setInterval(load,20000);document.addEventListener("visibilitychange",load)})();
+var onOrders=!!document.querySelector('.tab[data-tab="orders"][aria-current]'); // страница заказов сама опрашивает очередь
+var get=function(){try{return Number(localStorage.getItem("via.orders.seen")||0)}catch(e){return 0}},set=function(n){try{localStorage.setItem("via.orders.seen",String(n))}catch(e){}};
+var load=function(){if(document.hidden)return;fetch("/api/bar/guest-orders").then(function(r){return r.ok?r.json():null}).then(function(d){if(!d)return;
+var all=d.orders||[],pend=all.filter(function(o){return o.status==="pending"}),max=all.reduce(function(m,o){return Math.max(m,Number(o.id)||0)},0),seen=get();
+if(!onOrders){b.textContent=pend.length;b.hidden=!pend.length}
+var fresh=pend.filter(function(o){return Number(o.id)>seen});
+if(seen&&fresh.length&&!onOrders&&window.VIA&&VIA.toast)VIA.toast("Новый заказ от: "+(fresh[0].guest_name||"гостя")+(fresh.length>1?" и ещё "+(fresh.length-1):""),false,6000);
+if(max>seen)set(max)}).catch(function(){})};
+load();if(!onOrders){setInterval(load,20000);document.addEventListener("visibilitychange",load)}})();
 </script>`;
 
 const headTags = (title, app) => `<meta charset="utf-8">
