@@ -143,7 +143,7 @@ const refreshCocktailPrice = async (env, cocktailId) => {
   return {cost:price,price};
 };
 
-const BUILD_VERSION = "2026-10-17-tabbar-bg-v1";
+const BUILD_VERSION = "2026-10-17-menu-dim-v1";
 
 const calculateCocktailStrength = (recipeItems) => {
   let alcoholMl = 0;
@@ -1966,12 +1966,12 @@ $("#bottleDel").addEventListener("click",async()=>{if(!editing)return;
 .cart-bar .txt{flex:1;min-width:0;font-weight:600}
 .cart-bar .txt small{display:block;font-weight:400;color:var(--label-2);font-size:.8125rem}
 .app-guest .screen{padding-bottom:calc(var(--tabbar-h) + 110px + var(--safe-b))}
-.menu-row.is-out .thumb{filter:grayscale(1);opacity:.4}
+.menu-row.is-out .thumb{opacity:.55}
 .menu-row.is-out .menu-name{color:var(--label-2)}
 .menu-row.is-out .menu-desc,.menu-row.is-out .menu-ing{color:var(--label-3)}
 .menu-row.is-out .scale{opacity:.5}
 .out-tag{display:inline-block;max-width:6.5em;text-align:center;font-size:.75rem;line-height:1.25;color:var(--label-2)}
-.sheet-photo.is-out{filter:grayscale(1);opacity:.5}
+.sheet-photo.is-out{opacity:.55}
 .order-cancelled{display:flex;align-items:center;gap:8px;padding:12px 14px;color:var(--danger);font-size:.9375rem}
 .order-cancelled .ic{width:18px;height:18px;flex:none}
 `;
