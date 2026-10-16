@@ -286,11 +286,13 @@ const stats = async (r, e) => {
   )
     .bind(g.id)
     .first();
-  // «За вечер»: с начала открытой смены бара (если она открыта не больше суток назад),
-  // иначе — за последние 12 часов.
-  const ev = await e.DB.prepare(
-    `SELECT COALESCE(SUM(total_rub),0) rub FROM orders WHERE guest_id=? AND status IN ('pending','accepted','served')
-     AND created_at >= COALESCE((SELECT started_at FROM bar_shifts WHERE status='open' AND started_at >= datetime('now','-24 hours') ORDER BY id DESC LIMIT 1), datetime('now','-12 hours'))`,
+  // «За визит»: заказы после закрытия последней смены — счётчик обнуляется,
+  // когда бармен закрывает смену (днём, вечером — неважно).
+  const ses = await e.DB.prepare(
+    `SELECT (SELECT COALESCE(SUM(oi.quantity),0) FROM orders o JOIN order_items oi ON oi.order_id=o.id
+       WHERE o.guest_id=?1 AND o.status IN ('pending','accepted','served') AND o.created_at>t.since) cocktails,
+     (SELECT COALESCE(SUM(total_rub),0) FROM orders WHERE guest_id=?1 AND status IN ('pending','accepted','served') AND created_at>t.since) rub
+     FROM (SELECT COALESCE(MAX(closed_at),'') since FROM bar_shifts WHERE status='closed') t`,
   )
     .bind(g.id)
     .first();
@@ -333,7 +335,8 @@ const stats = async (r, e) => {
     orders_count: Number(a?.orders_count || 0),
     cocktails_count: Number(c?.cocktails_count || 0),
     spent_rub: Number(a?.spent_rub || 0),
-    evening_rub: Number(ev?.rub || 0),
+    visit_cocktails: Number(ses?.cocktails || 0),
+    visit_rub: Number(ses?.rub || 0),
     history: h.results || [],
     latest_order_items: latestItems,
     favorite_cocktail: fav?.name || null,
