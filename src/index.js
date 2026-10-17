@@ -164,7 +164,7 @@ const refreshCocktailPrice = async (env, cocktailId) => {
   return {cost:price,price};
 };
 
-const BUILD_VERSION = "2026-10-18-offline-v1";
+const BUILD_VERSION = "2026-10-18-photo-sweep-v1";
 
 const calculateCocktailStrength = (recipeItems) => {
   let alcoholMl = 0;
@@ -199,6 +199,42 @@ const refreshCocktailStrength = async (env, cocktailId) => {
   return calculated;
 };
 
+// Ключ файла в R2 по ссылке из коктейля: "/api/cocktail-photo?key=cocktails/…" или старый вид "/api/cocktail-photo/cocktails/…".
+const photoKeyOf = (value) => {
+  if (!value) return "";
+  try {
+    const u = new URL(value, "https://bar-menu.invalid");
+    const key = u.searchParams.get("key") || (u.pathname.startsWith("/api/cocktail-photo/") ? decodeURIComponent(u.pathname.slice("/api/cocktail-photo/".length)) : "");
+    return key.startsWith("cocktails/") ? key : "";
+  } catch (e) {
+    return "";
+  }
+};
+
+// Уборка хранилища фото: удаляет файлы, на которые не ссылается ни один коктейль, —
+// остатки старых замен, фото от несохранённых правок, файлы после сбоя удаления.
+// Файлы моложе суток не трогаем: их могли загрузить только что, а коктейль ещё сохраняется.
+export const sweepPhotos = async (env, minAgeMs = 24 * 3600e3) => {
+  if (!env.PHOTOS) return null;
+  const { results } = await env.DB.prepare("SELECT photo_url,avatar_url FROM cocktails").all();
+  const used = new Set();
+  for (const c of results || []) for (const v of [c.photo_url, c.avatar_url]) { const k = photoKeyOf(v); if (k) used.add(k); }
+  const now = Date.now(), extra = [];
+  let files = 0, cursor;
+  do {
+    const page = await env.PHOTOS.list({ prefix: "cocktails/", cursor });
+    for (const o of page.objects || []) {
+      if (!used.has(o.key) && now - new Date(o.uploaded).getTime() > minAgeMs) extra.push(o);
+      else files++;
+    }
+    cursor = page.truncated ? page.cursor : undefined;
+  } while (cursor);
+  for (let i = 0; i < extra.length; i += 1000) await env.PHOTOS.delete(extra.slice(i, i + 1000).map((o) => o.key));
+  const result = { at: new Date(now).toISOString(), files, deleted: extra.length, freed: extra.reduce((s, o) => s + o.size, 0) };
+  await env.DB.prepare("INSERT INTO app_kv(key,value) VALUES('photo_sweep',?) ON CONFLICT(key) DO UPDATE SET value=excluded.value").bind(JSON.stringify(result)).run();
+  return result;
+};
+
 const getCocktails = async (env, includeStock = true) => {
   // Коктейли, рецепты и остатки читаются параллельно, а не по очереди.
   const [[cocktailRows,recipeRows],stockRows]=await Promise.all([
@@ -223,12 +259,8 @@ const getCocktails = async (env, includeStock = true) => {
   }
   for(const c of results){
     for(const field of ["photo_url","avatar_url"]){
-      if(!c[field])continue;
-      try{
-        const u=new URL(c[field],"https://bar-menu.invalid");
-        const key=u.searchParams.get("key") || (u.pathname.startsWith("/api/cocktail-photo/") ? decodeURIComponent(u.pathname.slice("/api/cocktail-photo/".length)) : "");
-        if(key && key.startsWith("cocktails/"))c[field]="/api/cocktail-photo?key="+encodeURIComponent(key);
-      }catch(e){}
+      const key=photoKeyOf(c[field]);
+      if(key)c[field]="/api/cocktail-photo?key="+encodeURIComponent(key);
     }
     c.recipe_items=recipesByCocktail.get(Number(c.id))||[];
     if(includeStock){
@@ -391,11 +423,12 @@ export default {
         const nextPhotoUrl=String(data.photo_url||""),nextAvatarUrl=String(data.avatar_url??existing.avatar_url??"");
         await env.DB.prepare("UPDATE cocktails SET name=?,description=?,category=?,strength=?,photo_url=?,avatar_url=?,glass=?,ice=?,method=?,garnish=?,updated_at=CURRENT_TIMESTAMP WHERE id=?")
           .bind(name,String(data.description||""),"",strength,nextPhotoUrl,nextAvatarUrl,String(data.inventory??data.glass??""),"",String(data.method||""),"",id).run();
+        // Замена фото: старый оригинал и кадр удаляются сразу. Сравниваем ключи файлов, а не текст ссылок —
+        // у старых записей ссылка могла храниться в другом виде, и неизменённое фото удалилось бы.
         if(env.PHOTOS){
-          for(const oldUrl of [existing.photo_url,existing.avatar_url]){
-            if(!oldUrl||oldUrl===nextPhotoUrl||oldUrl===nextAvatarUrl)continue;
-            try{const u=new URL(oldUrl,"https://bar-menu.invalid"),key=u.searchParams.get("key")||(u.pathname.startsWith("/api/cocktail-photo/")?decodeURIComponent(u.pathname.slice("/api/cocktail-photo/".length)):"");if(key&&key.startsWith("cocktails/"))await env.PHOTOS.delete(key)}catch(e){}
-          }
+          const keep=new Set([photoKeyOf(nextPhotoUrl),photoKeyOf(nextAvatarUrl)]);
+          for(const key of [photoKeyOf(existing.photo_url),photoKeyOf(existing.avatar_url)])
+            if(key&&!keep.has(key))try{await env.PHOTOS.delete(key)}catch(e){}
         }
         await env.DB.prepare("DELETE FROM recipe_ingredients WHERE cocktail_id=?").bind(id).run();
         for(const item of (Array.isArray(data.recipe_items)?data.recipe_items:[])){
@@ -419,12 +452,9 @@ export default {
         let photoKey="";
         if(env.PHOTOS){
           for(const value of [cocktail.photo_url,cocktail.avatar_url]){
-            if(!value)continue;
-            try{
-              const u=new URL(value,"https://bar-menu.invalid");
-              const key=u.searchParams.get("key") || (u.pathname.startsWith("/api/cocktail-photo/") ? decodeURIComponent(u.pathname.slice("/api/cocktail-photo/".length)) : "");
-              if(key && key.startsWith("cocktails/")){if(!photoKey)photoKey=key;await env.PHOTOS.delete(key);}
-            }catch(e){photoDeleted=false;}
+            const key=photoKeyOf(value);
+            if(!key)continue;
+            try{if(!photoKey)photoKey=key;await env.PHOTOS.delete(key);}catch(e){photoDeleted=false;}
           }
         }
 
@@ -796,6 +826,13 @@ export default {
         let rv={n:0,avg:0,ids:""};
         try{const r=await env.DB.prepare("SELECT COUNT(*) n,AVG(rating) avg,(SELECT GROUP_CONCAT(id) FROM (SELECT id FROM guest_reviews ORDER BY id DESC LIMIT 100)) ids FROM guest_reviews").first();rv={n:Number(r?.n||0),avg:Number(r?.avg||0),ids:String(r?.ids||"")}}catch(e){}
         let devices=0;try{devices=Number((await env.DB.prepare("SELECT COUNT(*) n FROM bar_sessions").first())?.n||0)}catch(e){}
+        // Фото коктейлей: что сделала последняя ночная уборка хранилища.
+        let sweep=null;try{sweep=JSON.parse((await env.DB.prepare("SELECT value FROM app_kv WHERE key='photo_sweep'").first())?.value||"null")}catch(e){}
+        const files=n=>n+" "+(n%10===1&&n%100!==11?"файл":[2,3,4].includes(n%10)&&![12,13,14].includes(n%100)?"файла":"файлов");
+        const size=b=>b<1048576?Math.max(1,Math.round(b/1024))+" КБ":(b/1048576).toFixed(1).replace(".",",")+" МБ";
+        const photoSub=!sweep?"Старое фото удаляется при замене, лишние файлы убираются каждую ночь"
+          :sweep.deleted?"Последняя уборка удалила "+files(sweep.deleted)+" ("+size(sweep.freed)+"), осталось "+files(sweep.files)
+          :"Лишних нет, в хранилище "+files(sweep.files)+" · проверка каждую ночь";
         const devSub="Панель открыта на "+devices+" "+(devices%10===1&&devices%100!==11?"устройстве":"устройствах");
         const rvSub=rv.n?rv.n+" "+(rv.n%10===1&&rv.n%100!==11?"отзыв":[2,3,4].includes(rv.n%10)&&![12,13,14].includes(rv.n%100)?"отзыва":"отзывов")+" · ★ "+rv.avg.toFixed(1).replace(".",","):"Пока нет — гости оценивают выданные коктейли";
         return htmlResponse(renderDocument({
@@ -804,6 +841,7 @@ export default {
         body:`<div class="section"><div class="section-header"><h2>Бар</h2></div><div class="list">
 <a class="cell has-icon" href="/bar/ingredients"><span class="cell-icon">${icon("leaf")}</span><span class="cell-body"><span class="cell-title">Ингредиенты</span><span class="cell-sub">Справочник для рецептов и склада</span></span>${icon("chevronRight","cell-chevron")}</a>
 <a class="cell has-icon" href="/bar/statistics"><span class="cell-icon">${icon("chart")}</span><span class="cell-body"><span class="cell-title">Статистика</span><span class="cell-sub">Смены, заказы и выручка</span></span>${icon("chevronRight","cell-chevron")}</a>
+<div class="cell has-icon"><span class="cell-icon">${icon("camera")}</span><span class="cell-body"><span class="cell-title">Фото коктейлей</span><span class="cell-sub">${photoSub}</span></span></div>
 </div></div>
 <div class="section"><div class="section-header"><h2>Гости</h2></div><div class="list">
 <a class="cell has-icon" href="/bar/reviews" id="reviewsCell" data-ids="${rv.ids}"><span class="cell-icon">${icon("star")}</span><span class="cell-body"><span class="cell-title">Отзывы гостей</span><span class="cell-sub">${rvSub}</span></span><span class="badge" id="reviewsNew" hidden></span>${icon("chevronRight","cell-chevron")}</a>

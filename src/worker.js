@@ -1,4 +1,4 @@
-import App, { ensureSchema, guestOrderShortage, acceptGuestOrderWithStock } from "./index.js";
+import App, { ensureSchema, guestOrderShortage, acceptGuestOrderWithStock, sweepPhotos } from "./index.js";
 import { getVapid, notifyBar, notifyGuest, saveSubscription, removeSubscription, barPushStatus, barPushTest } from "./push.js";
 import { barSession, barAuthApi, barLoginPage, authRequired, needsBarAuth, isBarPage, deviceLabel } from "./barauth.js";
 
@@ -496,5 +496,11 @@ export default {
     if (u.pathname === "/api/push/unsubscribe" && r.method === "POST") return pushUnsubscribe(r, e);
     // /menu и /bar/orders целиком рендерятся в index.js (без подмены HTML строками).
     return App.fetch(r, e, c);
+  },
+  // Раз в сутки (расписание — в wrangler.toml): уборка лишних фото коктейлей в хранилище.
+  async scheduled(ev, e) {
+    await ensureSchema(e);
+    const r = await sweepPhotos(e);
+    if (r?.deleted) console.log("photo sweep:", JSON.stringify(r));
   },
 };
