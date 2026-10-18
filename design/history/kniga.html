@@ -1,0 +1,163 @@
+<!doctype html>
+<html lang="ru">
+<head>
+<meta charset="utf-8">
+<title>История создания приложения VIA Family Bar</title>
+<link rel="stylesheet" href="../redesign-v4/fonts/cormorant-garamond/500.css">
+<link rel="stylesheet" href="../redesign-v4/fonts/cormorant-garamond/600.css">
+<link rel="stylesheet" href="../redesign-v4/fonts/cormorant-garamond/500-italic.css">
+<link rel="stylesheet" href="../redesign-v4/fonts/manrope/500.css">
+<link rel="stylesheet" href="../redesign-v4/fonts/manrope/700.css">
+<style>
+/* Одна книга: титул, содержание, четыре вариации подряд. Страница = экран телефона.
+   Цвета задаются на каждой странице переменными из палитры её вариации (или раздела). */
+@page{size:600px 1180px;margin:0}
+*{margin:0;padding:0;box-sizing:border-box}
+html,body{-webkit-print-color-adjust:exact;print-color-adjust:exact}
+body{font-family:Manrope,sans-serif}
+a{color:inherit;text-decoration:none}
+.pg{width:600px;height:1180px;overflow:hidden;break-after:page;position:relative;display:flex;flex-direction:column;padding:46px 48px 42px;
+  background:radial-gradient(120% 38% at 50% 0%,var(--glow),transparent 72%),var(--bg);color:var(--ink)}
+.pg:last-child{break-after:auto}
+.kick{font:700 11px/1 Manrope;letter-spacing:.2em;text-transform:uppercase;color:var(--ink2)}
+h2{font:600 36px/1.05 "Cormorant Garamond";margin-top:10px;text-wrap:balance}
+h1 em,h2 em{font-style:italic;font-weight:500;color:var(--acc)}
+.num{position:absolute;right:48px;top:48px;font:500 13px/1 Manrope;color:var(--ink2);opacity:.7}
+.foot{position:absolute;left:48px;right:48px;bottom:30px;display:flex;justify-content:space-between;font:500 11.5px/1 Manrope;color:var(--ink2);opacity:.65}
+/* титул книги */
+.title{align-items:center;text-align:center;justify-content:center}
+.title .tk{font:700 12px/1.4 Manrope;letter-spacing:.3em;text-transform:uppercase;color:var(--acc)}
+.title img{width:230px;height:230px;margin-top:44px}
+.title h1{font:600 76px/1 "Cormorant Garamond";margin-top:30px}
+.title .by{font:700 11px/1 Manrope;letter-spacing:.26em;text-transform:uppercase;color:var(--ink2);margin-top:18px}
+.title .sub{font:500 17px/1.6 Manrope;color:var(--ink2);margin-top:40px}
+.eras{position:absolute;left:48px;right:48px;bottom:56px;display:grid;grid-template-columns:repeat(4,1fr);gap:10px;text-align:left}
+.eras i{display:block;height:5px;border-radius:3px}
+.eras b{display:block;font:600 24px/1 "Cormorant Garamond";margin-top:14px}
+.eras span{display:block;font:500 11.5px/1.4 Manrope;color:var(--ink2);margin-top:6px}
+/* содержание книги */
+.cont .list{margin-top:44px;display:flex;flex-direction:column;gap:18px}
+.cont a{display:grid;grid-template-columns:52px 1fr auto;gap:0 14px;align-items:center;padding:28px 22px 28px 16px;border-radius:18px;background:var(--raised);box-shadow:inset 0 0 0 1px var(--line);position:relative;overflow:hidden}
+.cont a::before{content:"";position:absolute;left:0;top:0;bottom:0;width:4px;background:var(--era)}
+.cont a .n{font:600 50px/1 "Cormorant Garamond";color:var(--era);text-align:center}
+.cont a .k{font:700 10.5px/1 Manrope;letter-spacing:.18em;text-transform:uppercase;color:var(--ink2)}
+.cont a .t{font:600 28px/1.1 "Cormorant Garamond";margin-top:7px}
+.cont a .t em{font-style:italic;font-weight:500;color:var(--era)}
+.cont a .d{font:500 13.5px/1.5 Manrope;color:var(--ink2);margin-top:8px}
+.cont a .d i{font-style:normal;color:var(--era)}
+.cont a .p{font:500 13px/1.3 Manrope;color:var(--ink2);text-align:right;white-space:nowrap}
+.cont a .p b{display:block;font:600 24px/1 "Cormorant Garamond";color:var(--ink);margin-top:4px}
+.cont .intro{margin-top:auto;margin-bottom:10px;font:500 15px/1.65 Manrope;color:var(--ink2)}
+.cont .intro b{color:var(--ink);font-weight:700}
+/* обложка вариации */
+.cover{justify-content:center}
+.cover .v{font:500 15px/1 Manrope;letter-spacing:.32em;text-transform:uppercase;color:var(--acc)}
+.cover h1{font:600 72px/.98 "Cormorant Garamond";margin-top:18px;text-wrap:balance}
+.cover .when{font:500 17px/1.4 Manrope;color:var(--ink2);margin-top:14px}
+.cover .lead{font:500 16px/1.62 Manrope;margin-top:26px;max-width:470px}
+.stats{display:grid;grid-template-columns:repeat(3,1fr);margin-top:40px;border-top:1px solid var(--line);border-bottom:1px solid var(--line)}
+.stats div{padding:18px 4px}
+.stats div+div{border-left:1px solid var(--line);padding-left:18px}
+.stats b{display:block;font:600 40px/1 "Cormorant Garamond";color:var(--acc)}
+.stats span{display:block;margin-top:6px;font:500 12.5px/1.3 Manrope;color:var(--ink2)}
+.toc{margin-top:34px}
+.toc a{display:flex;justify-content:space-between;gap:16px;padding:11px 0;border-bottom:1px solid var(--line);font:500 14.5px/1.3 Manrope}
+.toc a span:last-child{color:var(--ink2);white-space:nowrap}
+.series{display:flex;gap:8px;margin-top:30px}
+.series i{flex:1;height:5px;border-radius:3px;background:var(--line)}
+.series i.on{background:var(--acc)}
+/* как было устроено */
+.how ul{list-style:none;margin-top:40px;display:flex;flex-direction:column;gap:30px}
+.how li{display:grid;grid-template-columns:22px 1fr;gap:4px 12px;font:500 17px/1.6 Manrope}
+.how li::before{content:"";width:8px;height:8px;margin-top:9px;border-radius:2px;transform:rotate(45deg);background:var(--acc)}
+.how li b{font-weight:700}
+.how .note{margin-top:auto;margin-bottom:28px;padding:18px 20px;border-radius:14px;background:var(--raised);font:500 14px/1.6 Manrope;color:var(--ink2)}
+/* хронология */
+.tl{margin-top:40px;position:relative}
+.tl::before{content:"";position:absolute;left:5px;top:8px;bottom:8px;width:1.5px;background:var(--line)}
+.tl .d{position:relative;padding-left:34px;padding-bottom:34px}
+.tl .d::before{content:"";position:absolute;left:-1px;top:7px;width:14px;height:14px;border-radius:50%;background:var(--bg);box-shadow:inset 0 0 0 2.5px var(--acc)}
+.tl .d b{display:block;font:600 28px/1.1 "Cormorant Garamond";color:var(--acc)}
+.tl .d p{margin-top:8px;font:500 16.5px/1.6 Manrope}
+/* разделитель раздела */
+.div{justify-content:center}
+.div .when{font:700 12px/1 Manrope;letter-spacing:.2em;text-transform:uppercase;color:var(--acc)}
+.div h2{font-size:52px;margin-top:16px}
+.div p{font:500 17px/1.6 Manrope;color:var(--ink2);margin-top:20px;max-width:470px}
+.div .thumbs{display:flex;gap:14px;margin-top:40px}
+.div .thumbs img{width:150px;height:325px;border-radius:16px;object-fit:cover;object-position:top;box-shadow:0 0 0 1px var(--line),0 18px 36px var(--shade)}
+/* экран */
+.cap{font:500 14.5px/1.5 Manrope;color:var(--ink2);margin-top:8px;min-height:66px}
+.shot{margin:16px auto 0;width:420px;height:909px;border-radius:32px;display:block;box-shadow:0 0 0 1px var(--line),0 24px 50px var(--shade)}
+/* итог вариации */
+.end{justify-content:center}
+.end h2{font-size:48px}
+.end .lead{font:500 16px/1.62 Manrope;margin-top:18px;max-width:470px}
+.end .next{margin-top:44px;padding:22px 24px;border-radius:18px;background:var(--raised);box-shadow:inset 0 0 0 1px var(--line)}
+.end .next b{display:block;font:600 26px/1.15 "Cormorant Garamond";color:var(--acc);margin-top:8px}
+.end .next p{font:500 14.5px/1.55 Manrope;color:var(--ink2);margin-top:8px}
+</style>
+</head>
+<body>
+<div id="root"></div>
+<script>window.BOOKS = [];</script>
+<script src="v1.js"></script>
+<script src="v2.js"></script>
+<script src="v3.js"></script>
+<script src="v4.js"></script>
+<script>
+(() => {
+  const TITLE = { bg: "#0B0907", glow: "rgba(229,185,88,.13)", raised: "#16120C", ink: "#F5EBD3", ink2: "#B5A88E", acc: "#E5B958", line: "rgba(229,185,88,.18)", shade: "rgba(0,0,0,.55)" };
+  const vars = (p) => Object.entries({ shade: "rgba(0,0,0,.55)", ...p }).map(([k, v]) => `--${k}:${v}`).join(";");
+  const strip = (s) => s.replace(/<[^>]+>/g, "");
+  // титул и содержание — страницы 1 и 2; вариации начинаются с 3-й, номер на странице = номер страницы PDF
+  let n = 2, h = "";
+  const ranges = [];
+  for (const B of BOOKS) {
+    const start = n + 1, toc = [];
+    let body = "";
+    const foot = `<div class="foot"><span>VIA Family Bar · история создания</span><span>Вариация ${B.n}</span></div>`;
+    const page = (cls, inner, label, pal = B.pal, id = "") => {
+      n++;
+      if (label) toc.push([label, n]);
+      body += `<section class="pg ${cls}"${id ? ` id="${id}"` : ""} style="${vars(pal)}">${inner}<span class="num">${n}</span>${foot}</section>`;
+    };
+    page("cover", "", "", B.pal, "v" + B.n); // заполняется ниже, когда известны номера страниц
+    page("how", `<div class="kick">Как это было устроено</div><h2 aria-label="${strip(B.howTitle)}">${B.howTitle}</h2><ul>${B.how.map((x) => `<li><span>${x}</span></li>`).join("")}</ul><p class="note">${B.note}</p>`, "Как это было устроено");
+    for (const [i, part] of B.timeline.entries())
+      page("", `<div class="kick">Хронология${B.timeline.length > 1 ? ` · ${i + 1} из ${B.timeline.length}` : ""}</div><h2 aria-label="Хронология: ${strip(part.title)}">${part.title}</h2><div class="tl">${part.days.map(([d, t]) => `<div class="d"><b>${d}</b><p>${t}</p></div>`).join("")}</div>`, i ? "" : "Хронология");
+    for (const [si, s] of B.sections.entries()) {
+      const id = `v${B.n}s${si}`;
+      page("div", `<div class="when">${s.when}</div><h2 aria-label="${strip(s.title)}">${s.title}</h2><p>${s.about}</p><div class="thumbs">${s.items.slice(0, 3).map(([f]) => `<img src="img/${f}.jpg">`).join("")}</div>`, strip(s.title), s.pal || B.pal, id);
+      toc[toc.length - 1].push(id);
+      for (const [f, t, c] of s.items) page("", `<div class="kick">${s.short}</div><h2>${t}</h2><p class="cap">${c}</p><img class="shot" src="img/${f}.jpg">`, "", s.pal || B.pal);
+    }
+    page("end", `<div class="kick">Итог вариации ${B.n}</div><h2 aria-label="${strip(B.endTitle)}">${B.endTitle}</h2><p class="lead">${B.endText}</p>
+      <div class="next"><div class="kick">${B.next[0]}</div><b>${B.next[1]}</b><p>${B.next[2]}</p></div>`, B.n === 4 ? "Продолжение следует" : "Итог и что дальше");
+    const cover = `<div class="v">Вариация ${B.n} из 4</div><h1 aria-label="Вариация ${B.n}. ${strip(B.title)}">${B.title}</h1><div class="when">${B.when}</div><p class="lead">${B.lead}</p>
+      <div class="stats">${B.stats.map(([a, b]) => `<div><b>${a}</b><span>${b}</span></div>`).join("")}</div>
+      <div class="toc">${toc.map(([a, p, id]) => `<a href="#${id || ""}"><span>${a}</span><span>${p}</span></a>`).join("")}</div>
+      <div class="series">${[1, 2, 3, 4].map((i) => `<i class="${i === B.n ? "on" : ""}"></i>`).join("")}</div>`;
+    h += body.replace(`id="v${B.n}" style="${vars(B.pal)}">`, `id="v${B.n}" style="${vars(B.pal)}">${cover}`);
+    ranges.push([B, start, n]);
+  }
+  const title = `<section class="pg title" style="${vars(TITLE)}">
+    <div class="tk">История создания приложения</div>
+    <img src="via-logo-gold.png" alt="">
+    <h1 aria-label="VIA Family Bar — история создания приложения">VIA <em>Family Bar</em></h1>
+    <div class="by">by Vladimir &amp; Anastasia</div>
+    <p class="sub">Февраль — октябрь 2026<br>Четыре вариации одного домашнего бара</p>
+    <div class="eras">${ranges.map(([B]) => `<div><i style="background:${B.era}"></i><b>${B.n}</b><span>${B.who}<br>${B.mon}</span></div>`).join("")}</div>
+  </section>`;
+  const cont = `<section class="pg cont" style="${vars(TITLE)}">
+    <div class="kick">Содержание</div><h2 aria-label="Содержание">Четыре <em>вариации</em></h2>
+    <div class="list">${ranges.map(([B, a, b]) => `<a href="#v${B.n}" style="--era:${B.era}"><span class="n">${B.n}</span>
+      <span><span class="k">Вариация ${B.n} · ${B.month}</span><span class="t" style="display:block">${B.title}</span><span class="d" style="display:block">${B.tag}<br><i>${B.n === 1 ? "GitHub Pages" : "вместе с " + B.who}</i></span></span>
+      <span class="p">стр.<b>${a}–${b}</b></span></a>`).join("")}</div>
+    <p class="intro">Как семейный бар <b>Владимира и Анастасии</b> за восемь месяцев прошёл путь от одной страницы со списком коктейлей до двух приложений для iPhone — и как в этом помогали нейросети: <b>ChatGPT, Claude и Gemini</b>.</p>
+  </section>`;
+  document.getElementById("root").outerHTML = title + cont + h;
+})();
+</script>
+</body>
+</html>
