@@ -79,12 +79,23 @@
   - Что делает: выгружает базу D1 в `db.sql` и копирует фото коктейлей в R2 `bar-menu-photos/backups/<дата МСК>/`.
   - Что в логе: только счётчики.
   - Когда запускать: перед большими изменениями (редизайн, миграции).
+  - **Пока не работает** (первый запуск 18.10.2026): у токена `CLOUDFLARE_API_TOKEN` нет прав на D1, Cloudflare ответил «Authentication error 10000».
+    - Владимиру нужно добавить токену права «D1 — Edit» и «Workers R2 Storage — Edit»: dash.cloudflare.com → My Profile → API Tokens → токен → Edit.
+    - После этого перезапустить сценарий.
+    - Секрет `CLOUDFLARE_ACCOUNT_ID` в GitHub пуст: wrangler сам находит аккаунт по токену.
+  - **Ручной бэкап 18.10.2026.** Меню, рецепты и все фото коктейлей сняты с живого сайта (только GET) и отданы Владимиру архивом «VIA-Bar-меню-2026-10-18.zip». Код сайта отдан архивом «VIA-Bar-код-сайта-2026-10-18.zip».
 - **D1 Time Travel.** Базу можно вернуть на любую минуту за последние 7 дней (на платном тарифе Cloudflare — 30): `wrangler d1 time-travel restore bar-menu-db --timestamp=<ISO>`. Нужен токен Cloudflare с правами D1, то есть через Actions или у Владимира.
 - **Восстановление из бэкапа R2:**
   1. `wrangler r2 object get bar-menu-photos/backups/<дата>/db.sql --remote --file db.sql`.
   2. Залить в новую пустую базу: `wrangler d1 create …`, затем `wrangler d1 execute <новая> --remote --file db.sql`.
   3. Переключить `database_id` в `wrangler.toml`.
   4. Фото вернуть из `backups/<дата>/cocktails/` в `cocktails/`.
+
+## GitHub: что осталось прибрать
+
+- Из сессии Claude можно отправлять изменения только в свою рабочую ветку. Метки (теги) и удаление чужих веток сервер не пропускает (403).
+- **Старые ветки удаляет Владимир**: GitHub → Branches, корзина у каждой ветки кроме `main` и рабочей `claude/…`. Это 37 старых веток ChatGPT-версии 4–13 октября: почти все влиты в `main` через PR #1–#33, остальные устарели (PR #4 закрыт, бэкапы ChatGPT; `backup/via-bar-original-2026-10-15` — то же, что коммит `15fc6d6`).
+- Чтобы ветки не копились: Settings → General → «Automatically delete head branches».
 
 ## История: четыре вариации
 
