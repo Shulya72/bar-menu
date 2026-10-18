@@ -1,2 +1,7 @@
 .impeccable/
 .claude/worktrees/
+.wrangler/
+node_modules/
+design/redesign-v4/shots/
+design/history/*.pdf
+design/history/heads.json

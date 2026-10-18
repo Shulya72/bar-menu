@@ -1,0 +1,20 @@
+// Снимает каждый .screen из page.html в shots/<id>.png (390×844 @2x).
+import { chromium } from "/opt/node-tools/node_modules/playwright/index.mjs";
+import fs from "node:fs";
+const dir = new URL(".", import.meta.url).pathname;
+const b = await chromium.launch({ executablePath: "/opt/pw-browsers/chromium-1194/chrome-linux/chrome", args: ["--no-sandbox", "--allow-file-access-from-files"] });
+const p = await b.newPage({ viewport: { width: 1800, height: 1000 }, deviceScaleFactor: 2 });
+const errs = [];
+p.on("console", (m) => m.type() === "error" && errs.push(m.text()));
+p.on("pageerror", (e) => errs.push(String(e)));
+await p.goto("file://" + dir + "page.html");
+await p.evaluate(() => document.fonts.ready);
+await p.waitForTimeout(400);
+fs.mkdirSync(dir + "shots", { recursive: true });
+const ids = await p.$$eval(".screen", (a) => a.map((s) => s.id));
+for (const id of ids) await p.locator("#" + id).screenshot({ path: dir + "shots/" + id + ".png" });
+const fonts = await p.evaluate(() => [...document.fonts].filter((f) => f.status === "loaded").map((f) => f.family + " " + f.weight + " " + f.style));
+console.log("экраны:", ids.join(", "));
+console.log("шрифты:", [...new Set(fonts)].join(" | "));
+console.log("ошибки:", errs.length ? errs.join("\n") : "нет");
+await b.close();
