@@ -7,6 +7,15 @@ import { renderDocument, htmlResponse, icon, monogram } from "./design.js";
 const SCHEMA_VERSION="schema-2026-10-18-push-diag";
 const SCHEMA_SQL=[
   "CREATE TABLE IF NOT EXISTS app_migrations (name TEXT PRIMARY KEY, applied_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP)",
+  // Основные таблицы — для новой пустой базы (раньше их создавал schema.sql). На рабочей базе
+  // они давно есть, и эти команды ничего не меняют.
+  "CREATE TABLE IF NOT EXISTS cocktails (id INTEGER PRIMARY KEY AUTOINCREMENT,name TEXT NOT NULL,description TEXT DEFAULT '',category TEXT DEFAULT '',strength TEXT DEFAULT '',price_rub INTEGER DEFAULT 0,photo_url TEXT DEFAULT '',avatar_url TEXT DEFAULT '',glass TEXT DEFAULT '',ice TEXT DEFAULT '',method TEXT DEFAULT '',garnish TEXT DEFAULT '',is_active INTEGER NOT NULL DEFAULT 1,created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,updated_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP)",
+  "CREATE TABLE IF NOT EXISTS products (id INTEGER PRIMARY KEY AUTOINCREMENT,name TEXT NOT NULL,brand TEXT DEFAULT '',category TEXT DEFAULT '',unit TEXT NOT NULL CHECK(unit IN ('ml','g','pcs')),min_stock REAL NOT NULL DEFAULT 0,is_active INTEGER NOT NULL DEFAULT 1,ingredient_id INTEGER,store TEXT DEFAULT '')",
+  "CREATE TABLE IF NOT EXISTS recipe_items (id INTEGER PRIMARY KEY AUTOINCREMENT,cocktail_id INTEGER NOT NULL REFERENCES cocktails(id) ON DELETE CASCADE,product_id INTEGER NOT NULL REFERENCES products(id),quantity REAL NOT NULL CHECK(quantity > 0),UNIQUE(cocktail_id,product_id))",
+  "CREATE TABLE IF NOT EXISTS purchase_batches (id INTEGER PRIMARY KEY AUTOINCREMENT,product_id INTEGER NOT NULL REFERENCES products(id),purchased_qty REAL NOT NULL CHECK(purchased_qty > 0),remaining_qty REAL NOT NULL CHECK(remaining_qty >= 0),price_rub REAL NOT NULL DEFAULT 0,purchased_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,receipt_deleted INTEGER NOT NULL DEFAULT 0)",
+  "CREATE INDEX IF NOT EXISTS idx_recipe_items_cocktail ON recipe_items(cocktail_id)",
+  "CREATE INDEX IF NOT EXISTS idx_recipe_items_product ON recipe_items(product_id)",
+  "CREATE INDEX IF NOT EXISTS idx_purchase_batches_product ON purchase_batches(product_id,purchased_at)",
   "CREATE TABLE IF NOT EXISTS ingredients (id INTEGER PRIMARY KEY AUTOINCREMENT, name TEXT NOT NULL UNIQUE, unit TEXT NOT NULL DEFAULT 'ml' CHECK(unit IN ('ml','g','pcs')), is_active INTEGER NOT NULL DEFAULT 1, created_at TEXT DEFAULT NULL, updated_at TEXT DEFAULT NULL)",
   // SQLite/D1 does not allow ADD COLUMN with a non-constant DEFAULT.
   "ALTER TABLE ingredients ADD COLUMN unit TEXT NOT NULL DEFAULT 'ml'",

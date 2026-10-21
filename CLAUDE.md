@@ -43,8 +43,8 @@
   - `src/barauth.js` — вход в панель по коду бармена;
   - `src/push.js` — уведомления Web Push.
 - **База D1 `bar-menu-db`:**
-  - Схему создаёт и обновляет сам Worker: `ensureSchema`, таблица `app_migrations`, `SCHEMA_VERSION` в `src/index.js`.
-  - Отдельного schema.sql нет.
+  - Схему создаёт и обновляет сам Worker: `ensureSchema`, таблица `app_migrations`, `SCHEMA_VERSION` в `src/index.js`. Пустая база поднимается с нуля: основные таблицы (`cocktails`, `products`, `recipe_items`, `purchase_batches`) тоже в `SCHEMA_SQL`.
+  - Отдельного schema.sql нет (старый удалён 18.10, его таблицы перенесены в `SCHEMA_SQL` 21.10).
 - **Хранилище R2 `bar-menu-photos`:**
   - `cocktails/<uuid>.<ext>` — фото коктейлей. Отдаются через `/api/cocktail-photo?key=…`, наружу открыт только префикс `cocktails/`.
   - `backups/<дата>/` — бэкапы.
