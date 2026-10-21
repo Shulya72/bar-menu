@@ -173,7 +173,7 @@ const refreshCocktailPrice = async (env, cocktailId) => {
   return {cost:price,price};
 };
 
-const BUILD_VERSION = "2026-10-21-ivory-v2";
+const BUILD_VERSION = "2026-10-21-ivory-v3";
 
 const calculateCocktailStrength = (recipeItems) => {
   let alcoholMl = 0;
@@ -994,7 +994,7 @@ label.field,label.cell{margin:0}
 .rb-price{font-weight:700;color:var(--accent)}
 .rb-short{display:inline-flex;align-items:center;gap:5px;min-height:24px;padding:3px 10px;border-radius:12px;background:var(--warn-tint);color:var(--warn);font-size:.71875rem;font-weight:700;line-height:1.25}
 .rb-short .ic{width:13px;height:13px;flex:none}
-.rb-row.is-short .rb-thumb{opacity:.55}
+.rb-row.is-short .rb-thumb{filter:brightness(.6)}
 .scale{display:inline-flex;align-items:center;gap:3px}
 .scale i{display:block;width:7px;height:7px;border-radius:50%;background:var(--brass)}
 .scale i.o{background:none;box-shadow:inset 0 0 0 1.3px var(--brass)}
@@ -2133,10 +2133,11 @@ $("#bottleDel").addEventListener("click",async()=>{if(!editing)return;
 .add-pill::after{content:"";position:absolute;left:0;right:0;top:-5px;bottom:-5px}
 .add-pill:active{transform:scale(.95)}
 .dk .stepper{min-width:90px}
-.dk.is-out .ph img{filter:grayscale(1);opacity:.5}
+/* Нет в наличии: фото под тёплой тёмной маской цвета «чернил» сайта, цвет коктейля виден */
+.dk.is-out .ph::after,.cs-hero.is-out::after{content:"";position:absolute;inset:0;z-index:1;background:linear-gradient(180deg,rgba(42,14,22,.38),rgba(42,14,22,.56));pointer-events:none}
 .dk.is-out .dk-name{color:var(--label-2)}
 .dk.is-out .dk-ft>b{color:var(--label-3);font-weight:600}
-.tag{position:absolute;left:10px;bottom:10px;height:26px;border-radius:13px;padding:0 10px;display:flex;align-items:center;font-size:.71875rem;font-weight:700;background:rgba(255,250,242,.92);color:#5A1322}
+.tag{position:absolute;z-index:2;left:10px;bottom:10px;height:26px;border-radius:13px;padding:0 10px;display:flex;align-items:center;font-size:.71875rem;font-weight:700;background:rgba(255,250,242,.92);color:#5A1322}
 /* полоса заказа над вкладками */
 .cart-bar{position:fixed;z-index:45;left:max(14px,calc(50% - 346px));right:max(14px,calc(50% - 346px));bottom:calc(var(--tabbar-h) + 12px + var(--safe-b));min-height:60px;display:flex;align-items:center;gap:12px;padding:8px 9px 8px 18px;border-radius:20px;background:var(--btn-fill);color:var(--btn-ink);box-shadow:0 18px 34px rgba(60,12,24,.32)}
 .cart-bar .txt{flex:1;min-width:0;font-weight:700;font-size:.9375rem;line-height:1.2}
@@ -2147,7 +2148,6 @@ $("#bottleDel").addEventListener("click",async()=>{if(!editing)return;
 .cs-panel .sheet-body{padding:0}
 .cs-hero{position:relative;width:100%;aspect-ratio:1/1;max-height:min(56dvh,560px);background:#2A0A14;overflow:hidden}
 .cs-hero img{width:100%;height:100%;object-fit:cover;display:block}
-.cs-hero.is-out img{filter:grayscale(1);opacity:.6}
 .cs-x{position:absolute;top:14px;right:14px;z-index:3;width:40px;height:40px;border-radius:50%;border:0;display:grid;place-items:center;background:rgba(255,250,242,.9);color:#3A0F18;cursor:pointer;padding:0}
 .cs-x .ic{width:18px;height:18px}
 .cs-card{position:relative;margin-top:-30px;border-radius:30px 30px 0 0;background:var(--paint) no-repeat,var(--bg);padding:12px 22px 0}
