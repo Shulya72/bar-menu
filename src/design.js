@@ -289,8 +289,9 @@ a.cell:active,button.cell:active,.cell.tappable:active{background:var(--bg-press
 
 /* ——— Шторка (sheet) ——— */
 .sheet{position:fixed;inset:0;z-index:80;display:flex;align-items:flex-end;justify-content:center;opacity:0;pointer-events:none;transition:opacity .25s ease}
-/* за шторкой — размытая страница в цвет слоновой кости (--bg); пока шторку тянут вниз, размытие уходит (--scrim) */
-.sheet::before{content:"";position:absolute;inset:0;background:rgba(246,239,229,.5);-webkit-backdrop-filter:blur(16px) saturate(120%);backdrop-filter:blur(16px) saturate(120%);opacity:var(--scrim,1);transition:opacity .34s cubic-bezier(.2,.9,.25,1)}
+/* за шторкой — полупрозрачное размытие в цвет слоновой кости (--bg): страница проглядывает, шторка «выпала» поверх неё;
+   пока шторку тянут вниз, размытие уходит (--scrim) */
+.sheet::before{content:"";position:absolute;inset:0;background:rgba(246,239,229,.32);-webkit-backdrop-filter:blur(6px) saturate(115%);backdrop-filter:blur(6px) saturate(115%);opacity:var(--scrim,1);transition:opacity .34s cubic-bezier(.2,.9,.25,1)}
 .sheet.dragging::before{transition:none}
 .sheet.open{opacity:1;pointer-events:auto}
 .sheet-panel{position:relative;z-index:1;width:100%;max-width:720px;max-height:92dvh;display:flex;flex-direction:column;background:var(--paint) no-repeat,var(--bg);border-radius:30px 30px 0 0;box-shadow:0 -12px 40px rgba(42,14,22,.22);transform:translateY(100%);transition:transform .34s cubic-bezier(.2,.9,.25,1);padding-bottom:var(--safe-b);overflow:hidden}
