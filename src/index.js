@@ -173,7 +173,7 @@ const refreshCocktailPrice = async (env, cocktailId) => {
   return {cost:price,price};
 };
 
-const BUILD_VERSION = "2026-10-21-ivory-v4";
+const BUILD_VERSION = "2026-10-21-ivory-v4.1";
 
 const calculateCocktailStrength = (recipeItems) => {
   let alcoholMl = 0;
@@ -835,13 +835,6 @@ export default {
         let rv={n:0,avg:0,ids:""};
         try{const r=await env.DB.prepare("SELECT COUNT(*) n,AVG(rating) avg,(SELECT GROUP_CONCAT(id) FROM (SELECT id FROM guest_reviews ORDER BY id DESC LIMIT 100)) ids FROM guest_reviews").first();rv={n:Number(r?.n||0),avg:Number(r?.avg||0),ids:String(r?.ids||"")}}catch(e){}
         let devices=0;try{devices=Number((await env.DB.prepare("SELECT COUNT(*) n FROM bar_sessions").first())?.n||0)}catch(e){}
-        // Фото коктейлей: что сделала последняя ночная уборка хранилища.
-        let sweep=null;try{sweep=JSON.parse((await env.DB.prepare("SELECT value FROM app_kv WHERE key='photo_sweep'").first())?.value||"null")}catch(e){}
-        const files=n=>n+" "+(n%10===1&&n%100!==11?"файл":[2,3,4].includes(n%10)&&![12,13,14].includes(n%100)?"файла":"файлов");
-        const size=b=>b<1048576?Math.max(1,Math.round(b/1024))+" КБ":(b/1048576).toFixed(1).replace(".",",")+" МБ";
-        const photoSub=!sweep?"Старое фото удаляется при замене, лишние файлы убираются каждую ночь"
-          :sweep.deleted?"Последняя уборка удалила "+files(sweep.deleted)+" ("+size(sweep.freed)+"), осталось "+files(sweep.files)
-          :"Лишних нет, в хранилище "+files(sweep.files)+" · проверка каждую ночь";
         const devSub="Панель открыта на "+devices+" "+(devices%10===1&&devices%100!==11?"устройстве":"устройствах");
         const rvSub=rv.n?rv.n+" "+(rv.n%10===1&&rv.n%100!==11?"отзыв":[2,3,4].includes(rv.n%10)&&![12,13,14].includes(rv.n%100)?"отзыва":"отзывов")+" · ★ "+rv.avg.toFixed(1).replace(".",","):"Пока нет — гости оценивают выданные коктейли";
         return htmlResponse(renderDocument({
@@ -850,7 +843,6 @@ export default {
         body:`<div class="section"><div class="section-header"><h2>Бар</h2></div><div class="list">
 <a class="cell has-icon" href="/bar/ingredients"><span class="cell-icon">${icon("leaf")}</span><span class="cell-body"><span class="cell-title">Ингредиенты</span><span class="cell-sub">Справочник для рецептов и склада</span></span>${icon("chevronRight","cell-chevron")}</a>
 <a class="cell has-icon" href="/bar/statistics"><span class="cell-icon">${icon("chart")}</span><span class="cell-body"><span class="cell-title">Статистика</span><span class="cell-sub">Смены, заказы и выручка</span></span>${icon("chevronRight","cell-chevron")}</a>
-<div class="cell has-icon"><span class="cell-icon">${icon("camera")}</span><span class="cell-body"><span class="cell-title">Фото коктейлей</span><span class="cell-sub">${photoSub}</span></span></div>
 </div></div>
 <div class="section"><div class="section-header"><h2>Гости</h2></div><div class="list">
 <a class="cell has-icon" href="/bar/reviews" id="reviewsCell" data-ids="${rv.ids}"><span class="cell-icon">${icon("star")}</span><span class="cell-body"><span class="cell-title">Отзывы гостей</span><span class="cell-sub">${rvSub}</span></span><span class="badge" id="reviewsNew" hidden></span>${icon("chevronRight","cell-chevron")}</a>
@@ -860,7 +852,6 @@ export default {
 <div class="section"><div class="section-header"><h2>Уведомления</h2></div><div class="list">
 <div class="cell has-icon"><span class="cell-icon">${icon("bell")}</span><span class="cell-body"><span class="cell-title">Новые заказы и отзывы</span><span class="cell-sub" id="pushSub" aria-live="polite">Проверяем…</span></span><button class="btn btn-tinted btn-sm" type="button" id="pushBtn" hidden>Включить</button></div>
 <button class="cell has-icon" type="button" id="pushTest" hidden><span class="cell-icon">${icon("check")}</span><span class="cell-body"><span class="cell-title">Отправить тестовое уведомление</span><span class="cell-sub">Придёт через 5 секунд — сверните приложение</span></span></button>
-<div class="cell has-icon"><span class="cell-icon">${icon("info")}</span><span class="cell-body"><span class="cell-title">На сервере</span><span class="cell-sub" id="pushServer" aria-live="polite">Проверяем…</span></span></div>
 </div><p class="section-footer">Придут на этот телефон, даже когда приложение закрыто: «Новый заказ от: Анна», «Новый отзыв от: Анна». Включите на каждом телефоне, где стоит барменская панель.</p></div>
 <div class="section"><div class="section-header"><h2>Безопасность</h2></div><div class="list">
 <button class="cell has-icon" type="button" data-open-sheet="pinSheet"><span class="cell-icon">${icon("lock")}</span><span class="cell-body"><span class="cell-title">Сменить код</span><span class="cell-sub">${devSub}</span></span>${icon("chevronRight","cell-chevron")}</button>
@@ -878,23 +869,18 @@ export default {
       }).replace("</main>",()=>`</main><script>
 document.addEventListener("DOMContentLoaded",function(){var sub=document.getElementById("pushSub"),btn=document.getElementById("pushBtn"),cur="";
 function paint(st){cur=st;sub.textContent=VIA.push.text[st]||"";btn.hidden=!(st==="on"||st==="off");btn.textContent=st==="on"?"Выключить":"Включить"}
-var srv=document.getElementById("pushServer"),test=document.getElementById("pushTest");
-// Подписка этого телефона (адрес) — чтобы сервер сказал, есть ли она у него.
+var test=document.getElementById("pushTest");
+// Подписка этого телефона (адрес) — тестовое уведомление показываем, только если сервер её знает.
 var endpoint=function(){if(!("serviceWorker" in navigator)||!("PushManager" in window))return Promise.resolve("");
 return Promise.race([navigator.serviceWorker.ready,new Promise(function(ok){setTimeout(ok,4000)})]).then(function(reg){return reg?reg.pushManager.getSubscription():null}).then(function(x){return x?x.endpoint:""}).catch(function(){return ""})};
-var when=function(ts){var d=new Date(String(ts).replace(" ","T")+"Z"),t=d.toLocaleTimeString("ru-RU",{hour:"2-digit",minute:"2-digit"});
-return d.toDateString()===new Date().toDateString()?"сегодня в "+t:d.toLocaleDateString("ru-RU",{day:"numeric",month:"long"})+", "+t};
-var result=function(x){var c=Number(x.last_status||0);return c>=200&&c<300?"отправлено успешно":c?"ошибка "+c+(x.last_error?" ("+x.last_error+")":""):"нет связи с сервером уведомлений"+(x.last_error?" ("+x.last_error+")":"")};
 var server=function(){return endpoint().then(function(ep){return fetch("/api/bar/push/status",{method:"POST",headers:{"content-type":"application/json"},body:JSON.stringify({endpoint:ep})}).then(function(r){return r.json()}).then(function(d){
-var list=d.devices||[],mine=list.filter(function(x){return x.mine})[0];
-srv.textContent=(mine?"Этот телефон подписан · "+(mine.last_at?"последнее уведомление "+when(mine.last_at)+" — "+result(mine):"уведомлений ещё не было"):"Этот телефон не подписан — нажмите «Включить»")+". Всего телефонов бармена с уведомлениями: "+list.length+".";
-test.hidden=!mine})}).catch(function(){srv.textContent="Не удалось проверить — нет связи"})};
+test.hidden=!(d.devices||[]).some(function(x){return x.mine})})}).catch(function(){test.hidden=true})};
 VIA.push.state("bar").then(paint);VIA.push.sync("bar").then(server);
 btn.addEventListener("click",function(){btn.disabled=true;var p=cur==="on"?VIA.push.disable("bar"):VIA.push.enable("bar");
 p.then(function(){VIA.toast(cur==="on"?"Уведомления выключены":"Готово — новые заказы придут на этот телефон")}).catch(function(e){VIA.toast(e.message||"Не получилось",true,4000)})
 .then(function(){return VIA.push.state("bar")}).then(paint).then(server).then(function(){btn.disabled=false})});
 test.addEventListener("click",function(){test.disabled=true;endpoint().then(function(ep){return fetch("/api/bar/push/test",{method:"POST",headers:{"content-type":"application/json"},body:JSON.stringify({endpoint:ep})}).then(function(r){return r.json().then(function(d){if(!r.ok)throw new Error(d.error||"Не получилось");return d})})})
-.then(function(){VIA.toast("Отправили — сверните приложение: уведомление придёт через 5 секунд",false,5000);setTimeout(server,9000)}).catch(function(e){VIA.toast(e.message,true,5000);server()}).then(function(){setTimeout(function(){test.disabled=false},6000)})})});
+.then(function(){VIA.toast("Отправили — сверните приложение: уведомление придёт через 5 секунд",false,5000)}).catch(function(e){VIA.toast(e.message,true,5000);server()}).then(function(){setTimeout(function(){test.disabled=false},6000)})})});
 (function(){
 var post=function(u,b){return fetch(u,{method:"POST",headers:{"content-type":"application/json"},body:JSON.stringify(b||{})}).then(function(r){return r.json().catch(function(){return {}}).then(function(d){if(!r.ok)throw new Error(d.error||"Не получилось — проверьте интернет");return d})})};
 // Выход: стираем сохранённые копии страниц панели, чтобы без входа их не было видно и офлайн.
