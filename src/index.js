@@ -1,4 +1,4 @@
-import { renderDocument, htmlResponse, icon, monogram } from "./design.js";
+import { renderDocument, htmlResponse, icon, monogram, wordmark } from "./design.js";
 // Схема базы. Раньше каждая таблица/колонка «досоздавалась» на КАЖДОМ запросе
 // (30–40 последовательных обращений к D1 ≈ 3–5 с). Теперь всё это выполняется
 // один раз: результат отмечается в app_migrations, а внутри экземпляра Worker'а
@@ -173,7 +173,7 @@ const refreshCocktailPrice = async (env, cocktailId) => {
   return {cost:price,price};
 };
 
-const BUILD_VERSION = "2026-10-18-photo-sweep-v1";
+const BUILD_VERSION = "2026-10-21-ivory-v1";
 
 const calculateCocktailStrength = (recipeItems) => {
   let alcoholMl = 0;
@@ -846,7 +846,7 @@ export default {
         const rvSub=rv.n?rv.n+" "+(rv.n%10===1&&rv.n%100!==11?"отзыв":[2,3,4].includes(rv.n%10)&&![12,13,14].includes(rv.n%100)?"отзыва":"отзывов")+" · ★ "+rv.avg.toFixed(1).replace(".",","):"Пока нет — гости оценивают выданные коктейли";
         return htmlResponse(renderDocument({
         title:"Ещё", app:"bar", tab:"more", docTitle:"Ещё · VIA Бар",
-        extraCss:`.cell .badge{flex:none}.cell .danger-text{color:var(--danger)}.form-msg{margin:12px 4px 0;color:var(--danger)}.form-msg:empty{display:none}.sr-only{position:absolute;width:1px;height:1px;overflow:hidden;clip:rect(0 0 0 0);white-space:nowrap}`,
+        extraCss:`.section{margin-top:22px}.section-header{margin:0 4px 9px}.section-header h2{font:700 .6875rem/1 var(--sans);letter-spacing:.14em;text-transform:uppercase;color:var(--label-3)}#logoutAll .cell-icon{background:var(--danger-tint);color:var(--danger)}.cell .badge{flex:none}.cell .danger-text{color:var(--danger)}.form-msg{margin:12px 4px 0;color:var(--danger)}.form-msg:empty{display:none}.sr-only{position:absolute;width:1px;height:1px;overflow:hidden;clip:rect(0 0 0 0);white-space:nowrap}`,
         body:`<div class="section"><div class="section-header"><h2>Бар</h2></div><div class="list">
 <a class="cell has-icon" href="/bar/ingredients"><span class="cell-icon">${icon("leaf")}</span><span class="cell-body"><span class="cell-title">Ингредиенты</span><span class="cell-sub">Справочник для рецептов и склада</span></span>${icon("chevronRight","cell-chevron")}</a>
 <a class="cell has-icon" href="/bar/statistics"><span class="cell-icon">${icon("chart")}</span><span class="cell-body"><span class="cell-title">Статистика</span><span class="cell-sub">Смены, заказы и выручка</span></span>${icon("chevronRight","cell-chevron")}</a>
@@ -854,7 +854,7 @@ export default {
 </div></div>
 <div class="section"><div class="section-header"><h2>Гости</h2></div><div class="list">
 <a class="cell has-icon" href="/bar/reviews" id="reviewsCell" data-ids="${rv.ids}"><span class="cell-icon">${icon("star")}</span><span class="cell-body"><span class="cell-title">Отзывы гостей</span><span class="cell-sub">${rvSub}</span></span><span class="badge" id="reviewsNew" hidden></span>${icon("chevronRight","cell-chevron")}</a>
-<a class="cell has-icon" href="/menu"><span class="cell-icon">${icon("glass")}</span><span class="cell-body"><span class="cell-title">Гостевое меню</span><span class="cell-sub">Так видят бар гости</span></span>${icon("chevronRight","cell-chevron")}</a>
+<a class="cell has-icon" href="/menu"><span class="cell-icon">${icon("coupe")}</span><span class="cell-body"><span class="cell-title">Гостевое меню</span><span class="cell-sub">Так видят бар гости</span></span>${icon("chevronRight","cell-chevron")}</a>
 <a class="cell has-icon" href="/"><span class="cell-icon">${icon("home")}</span><span class="cell-body"><span class="cell-title">Главная</span></span>${icon("chevronRight","cell-chevron")}</a>
 </div></div>
 <div class="section"><div class="section-header"><h2>Уведомления</h2></div><div class="list">
@@ -943,8 +943,9 @@ if(n){b.textContent=n+" "+(n%10===1&&n%100!==11?"новый":"новых");b.hid
           sub:"Оценки, которые гости поставили выданным коктейлям.",
           extraCss:`
 .rv-summary{margin-top:6px}
-.rv-avg{font-family:var(--serif);font-size:2.25rem;line-height:1;color:var(--label);margin-right:10px}
-.rv-stars{color:var(--gold);letter-spacing:2px}
+.rv-avg{font:600 2.5rem/1 var(--serif);color:var(--accent);margin-right:10px}
+.rv-stars{color:var(--brass);letter-spacing:2px}
+#rvList .cell-title,.rv-item .cell-title{font:600 1.125rem/1.15 var(--serif)}
 .rv-stars.sm{letter-spacing:0}
 .rv-summary .cell-body{display:flex;align-items:baseline}
 .rv-item{padding:12px 14px}
@@ -985,48 +986,49 @@ label.field,label.cell{margin:0}
 .rb-line .line-head .count{font-variant-numeric:tabular-nums}
 .rb-row{display:flex;align-items:center;--sep-inset:74px}
 .rb-open{flex:1;min-width:0;padding-right:6px;cursor:pointer}
-.rb-thumb{width:48px;height:60px;border-radius:10px}
+.rb-thumb{width:50px;height:50px;border-radius:13px}
 .thumb-ph.rb-thumb{color:var(--line,var(--gold));background:color-mix(in srgb,var(--line,var(--gold)) 10%,var(--bg-raised-2))}
-.rb-row .cell-title{font-weight:600}
-.rb-ings{display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;overflow:hidden}
-.rb-meta{display:flex;flex-wrap:wrap;align-items:center;gap:3px 10px;margin-top:5px;font-size:.8125rem;color:var(--label-2)}
-.rb-price{font-weight:600}
-.rb-short{display:inline-flex;align-items:center;gap:4px;color:var(--warn);font-weight:600}
-.rb-short .ic{width:15px;height:15px}
+.rb-row .cell-title{font:600 1.1875rem/1.12 var(--serif)}
+.rb-ings{display:block;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.rb-meta{display:flex;flex-wrap:wrap;align-items:center;gap:6px 10px;margin-top:6px;font-size:.8125rem;color:var(--label-2)}
+.rb-price{font-weight:700;color:var(--accent)}
+.rb-short{display:inline-flex;align-items:center;gap:5px;min-height:24px;padding:3px 10px;border-radius:12px;background:var(--warn-tint);color:var(--warn);font-size:.71875rem;font-weight:700;line-height:1.25}
+.rb-short .ic{width:13px;height:13px;flex:none}
 .rb-row.is-short .rb-thumb{opacity:.55}
 .scale{display:inline-flex;align-items:center;gap:3px}
-.scale i{display:block;width:7px;height:7px;border-radius:50%;background:var(--line)}
-.scale i.o{background:none;box-shadow:inset 0 0 0 1.5px var(--line)}
+.scale i{display:block;width:7px;height:7px;border-radius:50%;background:var(--brass)}
+.scale i.o{background:none;box-shadow:inset 0 0 0 1.3px var(--brass)}
 .rb-stepper{flex:none}
 .rb-row .rb-stepper{margin-right:10px}
 .rb-stepper button{position:relative}
 .rb-stepper button::after{content:"";position:absolute;inset:-4px 0}
-.rb-stepper .ic{width:20px;height:20px}
+.rb-stepper .ic{width:17px;height:17px}
 .rb-stepper.is-empty .st-minus,.rb-stepper.is-empty .st-count{display:none}
-.rb-stepper.is-empty{background:var(--gold-soft);box-shadow:inset 0 0 0 .75px var(--gold-ring)}
+.rb-stepper.is-empty{min-width:36px;width:36px;height:36px;padding:0;border-radius:50%;justify-content:center}
+.rb-stepper.is-empty .st-plus{width:36px;height:36px}
 .rb-stepper .st-plus.is-short{color:var(--label-3)}
 .rb-empty .btn{margin-top:14px}
-.order-bar{position:fixed;z-index:45;left:50%;bottom:calc(var(--tabbar-h) + 20px + var(--safe-b));transform:translateX(-50%);width:min(calc(100% - 24px),520px);display:flex;align-items:center;gap:6px;padding:6px;border-radius:999px;background:var(--bg-raised-2);box-shadow:var(--shadow),inset 0 0 0 .75px var(--gold-ring);animation:ob-in .28s cubic-bezier(.2,.9,.25,1)}
+.order-bar{position:fixed;z-index:45;left:50%;bottom:calc(var(--tabbar-h) + 12px + var(--safe-b));transform:translateX(-50%);width:min(calc(100% - 24px),520px);display:flex;align-items:center;gap:8px;padding:8px;border-radius:20px;background:var(--bg-raised);box-shadow:0 18px 40px rgba(40,8,16,.24),inset 0 0 0 1px var(--sep-strong);animation:ob-in .28s cubic-bezier(.2,.9,.25,1)}
 @keyframes ob-in{from{opacity:0;transform:translate(-50%,14px)}}
-.ob-info{flex:1;min-width:0;display:flex;flex-direction:column;align-items:flex-start;justify-content:center;min-height:44px;padding:0 6px 0 12px;border:0;border-radius:999px;background:none;color:var(--label);font:inherit;text-align:left;cursor:pointer}
+.ob-info{flex:1;min-width:0;display:flex;flex-direction:column;align-items:flex-start;justify-content:center;min-height:44px;padding:0 6px 0 8px;border:0;border-radius:14px;background:none;color:var(--label);font:inherit;text-align:left;cursor:pointer}
 .ob-info:active{background:var(--bg-pressed)}
 .ob-title,.ob-sub{display:block;max-width:100%;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
-.ob-title{font-weight:600;font-size:.9375rem}
-.ob-sub{font-size:.75rem;color:var(--label-2);margin-top:1px}
-.order-bar .ob-btn{min-height:44px;padding:0 14px;font-size:.9375rem;flex:none}
+.ob-title{font-weight:700;font-size:.9375rem}
+.ob-sub{font-size:.75rem;color:var(--label-3);margin-top:2px}
+.order-bar .ob-btn{min-height:44px;padding:0 13px;border-radius:14px;font-size:.84375rem;flex:none}
 body.app.has-order .screen{padding-bottom:calc(var(--tabbar-h) + 108px + var(--safe-b))}
 body.has-order:not(:has(.sheet.open)) .toast{bottom:calc(var(--tabbar-h) + 96px + var(--safe-b))}
 .toast{width:max-content;border-radius:22px}
 .line-other{--line:var(--gold)}
 .route.line-zero{--line:var(--line-zero)}.route.line-light{--line:var(--line-light)}.route.line-mid{--line:var(--line-mid)}.route.line-strong{--line:var(--line-strong)}
 .sheet-panel:focus{outline:none}
-.dt-photo{display:block;width:100%;aspect-ratio:4/3;object-fit:cover;border-radius:var(--r-lg);background:var(--bg-raised-2);margin:2px 0 14px}
-.dt-name{font-size:1.75rem;line-height:1.15;margin:4px 0 10px;text-wrap:balance;overflow-wrap:anywhere}
+.dt-photo{display:block;width:100%;aspect-ratio:4/3;object-fit:cover;border-radius:20px;background:#2A0A14;margin:2px 0 16px;box-shadow:0 12px 26px rgba(84,24,38,.16)}
+.dt-name{font:600 2.25rem/1.04 var(--serif);margin:4px 0 10px;text-wrap:balance;overflow-wrap:anywhere}
 .dt-meta{display:flex;align-items:center;gap:10px;flex-wrap:wrap}
 .dt-meta .badge{height:26px;padding:0 11px;font-size:.8125rem}
 .dt-price{color:var(--label-2);font-weight:600;font-variant-numeric:tabular-nums}
 .dt-desc{color:var(--label-2);margin:12px 0 0;line-height:1.45;white-space:pre-line}
-.dt-warn{display:flex;gap:10px;align-items:flex-start;margin:14px 0 0;padding:12px 14px;border-radius:var(--r-md);background:color-mix(in srgb,var(--warn) 12%,transparent);color:var(--warn);font-size:.9375rem;line-height:1.35}
+.dt-warn{display:flex;gap:10px;align-items:flex-start;margin:14px 0 0;padding:12px 14px;border-radius:var(--r-md);background:var(--warn-tint);color:var(--warn);font-size:.9375rem;line-height:1.35}
 .dt-warn .ic{margin-top:1px}
 .dt-order{margin-top:16px}
 .dt-panel{padding:16px 14px}
@@ -1035,7 +1037,7 @@ body.has-order:not(:has(.sheet.open)) .toast{bottom:calc(var(--tabbar-h) + 96px 
 .rs-name{font-weight:500;overflow-wrap:anywhere}
 .rs-qty{font-weight:600;white-space:nowrap;font-variant-numeric:tabular-nums}
 .rs-stock{font-size:.8125rem;color:var(--label-2);margin-top:2px;font-variant-numeric:tabular-nums}
-.route-stop.short .station{background:var(--warn);box-shadow:inset 0 0 0 4px var(--warn),inset 0 0 0 6px var(--bg)}
+.route-stop.short .station{background:var(--warn);box-shadow:0 0 0 3px var(--warn-tint)}
 .route-stop.short .rs-stock{color:var(--warn);font-weight:600}
 .dt-text{white-space:pre-line;line-height:1.45;margin:0}
 .dt-actions{margin-top:24px}
@@ -1699,6 +1701,7 @@ loadAll();
         title:"Ингредиенты", app:"bar", tab:"more", back:{href:"/bar",label:"Ещё"}, docTitle:"Ингредиенты · VIA Бар",
         right:`<button class="icon-btn" type="button" data-open-sheet="ingredientSheet" aria-label="Добавить ингредиент">${icon("plus")}</button>`,
         sub:"Постоянные названия для рецептов и склада. Бренд и магазин указываются в закупках.",
+        extraCss:`#list .cell-title{font:600 1.125rem/1.15 var(--serif)}`,
         body:`<label class="search">${icon("search")}<input type="search" id="ingSearch" placeholder="Поиск ингредиента" autocomplete="off" aria-label="Поиск ингредиента"></label>
 <div class="section"><div class="list" id="list"><div class="skeleton"></div><div class="skeleton"></div><div class="skeleton"></div></div><p class="section-footer" id="listFooter"></p></div>
 <div class="sheet" id="ingredientSheet" hidden><div class="sheet-panel" role="dialog" aria-modal="true" aria-labelledby="ingSheetTitle">
@@ -2059,6 +2062,7 @@ $("#bottleDel").addEventListener("click",async()=>{if(!editing)return;
 });
 </script>`;
         const stockCss=`
+#stockView .cell-title{font:600 1.125rem/1.15 var(--serif)}
 .list label,label.cell{margin:0}
 .sheet-top{z-index:85}
 .sheet-head .strong{font-weight:700}
@@ -2094,114 +2098,208 @@ $("#bottleDel").addEventListener("click",async()=>{if(!editing)return;
 
       if (url.pathname === "/menu") {
         // Гостевое приложение VIA Bar: три вкладки (Меню · Заказ · Профиль) на одной странице.
+        // Дизайн «Слоновая кость и бордо»: плитки коктейлей по две в ряд, карточка с фото на всю ширину,
+        // заказ с маршрутом статусов, вход «Знакомимся» при первой отправке, бордовая карта гостя.
         const guestCss = `
 .pane[hidden]{display:none!important}
 .tabbar button.tab{border:0;font-family:inherit;cursor:pointer;padding:0;background:transparent}
-.brand-row{display:flex;align-items:center;justify-content:space-between;gap:12px;margin:-6px 0 14px}.brand-row .monogram{flex:none}
-.brand-sub{color:var(--label-2);margin:0}
-.menu-tools{display:flex;flex-direction:column;gap:10px;margin-bottom:6px}
-.menu-row{position:relative;display:flex;align-items:flex-start;gap:12px;padding:12px 14px}
-.menu-row+.menu-row::before{content:"";position:absolute;top:0;left:82px;right:0;height:.5px;background:var(--sep-strong)}
-.menu-open{display:flex;gap:12px;flex:1;min-width:0;align-items:flex-start;text-align:left;background:none;border:0;padding:0;color:inherit;font:inherit;cursor:pointer}
-.menu-open:active{opacity:.7}
-.menu-open .thumb{width:56px;height:70px}
-.menu-name{display:block;font-family:var(--serif);font-size:1.15rem;line-height:1.2;color:var(--label)}
-.menu-desc{display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;overflow:hidden;color:var(--label-2);font-size:.875rem;margin-top:3px;line-height:1.3}
-.menu-ing{display:block;color:var(--label-3);font-size:.8125rem;margin-top:3px;line-height:1.3}
-.menu-meta{display:flex;align-items:center;gap:10px;margin-top:6px;font-size:.8125rem;color:var(--label-2)}
-.menu-side{flex:none;align-self:center}
-.scale{display:inline-flex;gap:3px;align-items:center}
-.scale i{width:7px;height:7px;border-radius:50%;background:var(--line);display:block}
-.scale i.o{background:none;box-shadow:inset 0 0 0 1.5px var(--line)}
-.add-btn{width:44px;height:44px;border-radius:50%;border:0;background:var(--gold-soft);color:var(--gold);display:grid;place-items:center;cursor:pointer;box-shadow:inset 0 0 0 .75px var(--gold-ring)}
-.add-btn:active{transform:scale(.92)}
-.stepper.tall{height:44px}.stepper.tall button{height:44px}
-.sheet-photo{width:100%;aspect-ratio:4/3;object-fit:cover;border-radius:var(--r-lg);background:var(--bg-raised-2);display:block}
-.sheet-title{font-family:var(--serif);font-size:1.75rem;line-height:1.15;margin:14px 0 6px}
-.sheet-desc{color:var(--label-2);line-height:1.45;margin:8px 0 0}
-.sheet-actions{display:flex;align-items:center;justify-content:space-between;gap:12px;margin-top:20px}
-.route-body .cell-title{font-size:.9375rem}
-.order-group{margin-top:14px}
-.order-group .tracker{padding:14px 10px 12px}
-.order-head{display:flex;justify-content:space-between;align-items:baseline;gap:10px}
-.member-card{position:relative;overflow:hidden;border-radius:var(--r-xl);padding:20px;background:radial-gradient(120% 90% at 100% 0%,rgba(230,193,115,.16),transparent 55%),linear-gradient(160deg,#1C1813,#0E0C09);box-shadow:inset 0 0 0 1px var(--gold-ring),0 14px 34px rgba(0,0,0,.45)}
-.member-top{display:flex;align-items:center;gap:14px}
-.member-name{font-family:var(--serif);font-size:1.75rem;line-height:1.1;margin:0;color:var(--label)}
-.member-phone{color:var(--label-2);font-size:.9375rem;margin-top:4px}
-.member-stats{display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-top:20px;padding-top:16px;border-top:.5px solid var(--gold-ring)}
-.member-fav{margin-top:14px;padding-top:14px;border-top:.5px solid var(--gold-ring)}
-.member-fav span{display:block;font-size:.75rem;color:var(--label-2);text-transform:uppercase;letter-spacing:.06em}
-.member-fav b{display:block;margin-top:4px;font-family:var(--serif);font-weight:400;font-size:1.375rem;line-height:1.2;color:var(--gold);overflow-wrap:anywhere}
-.member-stats div{min-width:0}
-.member-stats b{display:block;font-size:1.0625rem;font-weight:600;color:var(--gold);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
-.member-stats span{display:block;font-size:.75rem;color:var(--label-2);margin-top:2px}
-.welcome{text-align:center;padding:26px 8px 8px}
-.welcome .monogram{margin:0 auto 12px;display:block}
-.welcome h2{font-family:var(--serif);font-weight:400;font-size:1.75rem;margin:0 0 8px}
-.welcome p{color:var(--label-2);margin:0 auto 22px;max-width:30ch}
-.stars{display:flex;gap:4px}
+.app-guest .screen{padding-bottom:calc(var(--tabbar-h) + 104px + var(--safe-b))}
+/* бренд и приветствие */
+.brand{display:grid;grid-template-columns:42px 1fr 42px;align-items:center;margin-top:6px}
+.brand .wordmark{grid-column:2}
+.avatar{grid-column:3;justify-self:end;width:40px;height:40px;border-radius:50%;border:0;display:grid;place-items:center;background:var(--btn-fill);color:var(--btn-ink);font:600 1.1875rem/1 var(--serif);cursor:pointer;padding:0;box-shadow:0 6px 14px rgba(80,18,34,.18)}
+.avatar .ic{width:20px;height:20px}
+.hello{margin-top:24px}
+.menu-tools{margin-top:18px}
+.menu-tools .chips{margin-top:12px}
+/* плитки меню */
+.menu-sec{display:flex;align-items:baseline;justify-content:space-between;gap:10px;margin:26px 2px 12px}
+.menu-sec h2{margin:0;font:600 1.5625rem/1.1 var(--serif)}
+.menu-sec span{font-size:.78125rem;font-weight:600;color:var(--label-3)}
+.grid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:22px 14px}
+@media (min-width:600px){.grid{grid-template-columns:repeat(3,minmax(0,1fr))}}
+.dk{min-width:0;display:flex;flex-direction:column}
+.dk-open{display:block;width:100%;text-align:left;background:none;border:0;padding:0;color:inherit;font:inherit;cursor:pointer}
+.dk-open:active .ph{transform:scale(.98)}
+.ph{position:relative;display:block;border-radius:20px;overflow:hidden;aspect-ratio:4/5;background:#2A0A14;box-shadow:0 12px 26px rgba(84,24,38,.16);transition:transform .15s ease}
+.ph img{width:100%;height:100%;object-fit:cover;display:block}
+.ph-empty{display:grid;place-items:center;color:var(--brass);background:var(--bg-raised-2);box-shadow:none}
+.ph-empty .ic{width:34px;height:34px}
+.dk-name{display:block;margin-top:12px;font:600 1.1875rem/1.12 var(--serif);color:var(--label)}
+.dk-ing{display:block;margin-top:4px;font-size:.75rem;line-height:1.35;color:var(--label-3);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.dk-ft{display:flex;align-items:center;justify-content:space-between;gap:8px;margin-top:auto;padding-top:10px;min-height:44px}
+.dk-ft>b{font-size:.9375rem;white-space:nowrap}
+.add-pill{position:relative;height:34px;border-radius:17px;padding:0 14px;border:0;display:inline-flex;align-items:center;font:inherit;font-weight:700;font-size:.8125rem;background:var(--btn-fill);color:var(--btn-ink);cursor:pointer;white-space:nowrap}
+.add-pill::after{content:"";position:absolute;left:0;right:0;top:-5px;bottom:-5px}
+.add-pill:active{transform:scale(.95)}
+.dk .stepper{min-width:90px}
+.dk.is-out .ph img{filter:grayscale(1);opacity:.5}
+.dk.is-out .dk-name{color:var(--label-2)}
+.dk.is-out .dk-ft>b{color:var(--label-3);font-weight:600}
+.tag{position:absolute;left:10px;bottom:10px;height:26px;border-radius:13px;padding:0 10px;display:flex;align-items:center;font-size:.71875rem;font-weight:700;background:rgba(255,250,242,.92);color:#5A1322}
+/* полоса заказа над вкладками */
+.cart-bar{position:fixed;z-index:45;left:max(14px,calc(50% - 346px));right:max(14px,calc(50% - 346px));bottom:calc(var(--tabbar-h) + 12px + var(--safe-b));min-height:60px;display:flex;align-items:center;gap:12px;padding:8px 9px 8px 18px;border-radius:20px;background:var(--btn-fill);color:var(--btn-ink);box-shadow:0 18px 34px rgba(60,12,24,.32)}
+.cart-bar .txt{flex:1;min-width:0;font-weight:700;font-size:.9375rem;line-height:1.2}
+.cart-bar .txt small{display:block;margin-top:2px;font-weight:500;font-size:.78125rem;opacity:.82;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.cart-bar .go{flex:none;height:42px;border-radius:14px;padding:0 14px;border:0;display:inline-flex;align-items:center;gap:6px;font:inherit;font-weight:700;font-size:.875rem;background:rgba(255,255,255,.14);color:inherit;cursor:pointer;white-space:nowrap}
+.cart-bar .go .ic{width:16px;height:16px}
+/* карточка коктейля */
+.cs-panel .sheet-body{padding:0}
+.cs-hero{position:relative;width:100%;aspect-ratio:1/1;max-height:min(56dvh,560px);background:#2A0A14;overflow:hidden}
+.cs-hero img{width:100%;height:100%;object-fit:cover;display:block}
+.cs-hero.is-out img{filter:grayscale(1);opacity:.6}
+.cs-x{position:absolute;top:14px;right:14px;z-index:3;width:40px;height:40px;border-radius:50%;border:0;display:grid;place-items:center;background:rgba(255,250,242,.9);color:#3A0F18;cursor:pointer;padding:0}
+.cs-x .ic{width:18px;height:18px}
+.cs-card{position:relative;margin-top:-30px;border-radius:30px 30px 0 0;background:var(--paint) no-repeat,var(--bg);padding:12px 22px 0}
+.cs-card .sheet-grabber{margin:0 auto 16px}
+.cs-meta{display:flex;align-items:center;justify-content:space-between;gap:12px;min-height:28px}
+.cs-str{display:inline-flex;align-items:center;gap:6px}
+.cs-str .label-caps{color:var(--brass);margin-left:4px}
+.cs-price{font:600 1.75rem/1 var(--serif);color:var(--accent)}
+.cs-name{margin:12px 0 0;font:600 2.5rem/1.02 var(--serif)}
+.cs-desc{margin:10px 0 0;font-size:.90625rem;line-height:1.55;color:var(--label-2)}
+.cs-comp{margin-top:20px}
+.ing-chips{display:flex;flex-wrap:wrap;gap:8px;margin-top:10px}
+.ing-chips span{min-height:32px;border-radius:16px;padding:6px 13px;display:inline-flex;align-items:center;background:var(--bg-raised);box-shadow:inset 0 0 0 1px var(--sep-strong);font-size:.8125rem;font-weight:600;color:var(--label-2)}
+.cs-act{position:sticky;bottom:0;z-index:2;display:flex;gap:12px;align-items:center;margin-top:16px;padding:16px 22px 18px;background:linear-gradient(180deg,rgba(246,239,229,0),var(--bg) 32%)}
+.cs-act .btn{flex:1}
+.cs-act .stepper{height:50px;min-width:122px;border-radius:16px}
+.cs-act .stepper button{width:44px;height:50px}
+.cs-out{flex:1;font-size:.8125rem;line-height:1.45;color:var(--label-2)}
+/* заказ */
+.pane-head{margin-top:6px}
+.oi{position:relative;display:flex;align-items:center;gap:12px;padding:14px 16px}
+.oi+.oi::before{content:"";position:absolute;top:0;left:16px;right:16px;height:1px;background:var(--sep)}
+.oi .body{flex:1;min-width:0}
+.oi .name-serif{display:block}
+.oi small{display:block;font-size:.78125rem;color:var(--label-3);margin-top:2px}
+.tot{display:flex;align-items:baseline;justify-content:space-between;padding:14px 16px 4px;border-top:1px solid var(--sep)}
+.tot b{font:600 1.875rem/1 var(--serif)}
+.send{display:flex;width:calc(100% - 32px);margin:12px 16px 16px}
+.live{padding:16px;margin-top:14px}
+.live-top{display:flex;align-items:flex-start;justify-content:space-between;gap:10px}
+.live .route{margin-top:14px}
+.route-body b{display:block;font-size:.875rem;font-weight:700;line-height:1.3}
+.route-body small{display:block;font-size:.78125rem;color:var(--label-3);margin-top:1px}
+.route-stop:not(.done):not(.current) .route-body b{color:var(--label-3)}
+.orders-list{margin-top:12px}
+.ord .name-serif{font-size:1.0625rem}
+.order-cancelled{display:flex;align-items:center;gap:8px;padding:10px 0 0;color:var(--danger);font-size:.8125rem;font-weight:600}
+.order-cancelled .ic{width:16px;height:16px;flex:none}
+/* профиль: карта гостя */
+.gcard{position:relative;margin-top:16px;min-height:224px;border-radius:24px;overflow:hidden;padding:20px 22px 18px;color:#F6ECDF;display:flex;flex-direction:column;background:radial-gradient(90% 120% at 100% 0%,rgba(214,120,110,.28),rgba(214,120,110,0) 60%),linear-gradient(145deg,#80243A 0%,#521425 55%,#33091A 100%);box-shadow:0 22px 44px rgba(64,12,26,.35),inset 0 0 0 1px rgba(227,195,128,.25)}
+.gcard .gl{position:absolute;right:-20px;top:0;width:250px;height:100%;fill:none;stroke:#E3C380;stroke-width:.6;opacity:.32;pointer-events:none}
+.gcard-top{position:relative;display:flex;justify-content:space-between;align-items:flex-start}
+.gcard .wordmark{text-align:left}
+.gcard .wordmark b{font-size:1.375rem;letter-spacing:.3em;margin-right:0;color:#E3C380}
+.gcard .wordmark span{color:rgba(246,236,223,.7);margin-top:5px}
+.gcard-top .monogram{width:46px;height:46px}
+.gcard-who{position:relative;margin-top:22px}
+.gcard-who b{display:block;font:600 2.125rem/1 var(--serif);overflow-wrap:anywhere}
+.gcard-who span{display:block;margin-top:6px;font-size:.8125rem;letter-spacing:.06em;color:rgba(246,236,223,.72)}
+.gcard-st{position:relative;display:grid;grid-template-columns:auto auto minmax(0,1fr);gap:20px;margin-top:auto;padding-top:22px}
+.gcard-st b{display:block;font-size:1.0625rem;font-weight:700;color:#F6ECDF;line-height:1.05;white-space:nowrap}
+.gcard-st b.fav{font:italic 600 1.1875rem/1.05 var(--serif);color:#E3C380;white-space:normal}
+.gcard-st span{display:block;margin-top:5px;font-size:.6875rem;line-height:1.2;color:rgba(246,236,223,.68)}
+.last{padding:16px}
+.last-r{display:flex;gap:12px;align-items:center}
+.last-r .body{flex:1;min-width:0}
+.last .btn{margin-top:14px;width:100%;min-height:46px}
+.rows-gap{margin-top:14px}
+.cell-title.acc{color:var(--accent)}
+.welcome{text-align:center;padding:24px 4px 8px}
+.welcome .monogram{margin:0 auto 14px}
+.welcome h2{font:600 2rem/1.1 var(--serif);margin:0 0 8px}
+.welcome p{color:var(--label-2);margin:0 auto 22px;max-width:30ch;line-height:1.5}
+.welcome .btn{width:100%}
+.welcome .btn+.btn{margin-top:10px}
+/* вход и регистрация */
+.auth-panel .sheet-body{padding:4px 22px 26px}
+.auth-x{position:absolute;top:10px;right:10px;z-index:2}
+.auth-title{margin:6px 0 0;font:600 2rem/1.05 var(--serif)}
+.auth-sub{margin:6px 0 16px;color:var(--label-2);font-size:.875rem;line-height:1.45}
+.auth-note{margin:-6px 0 14px;padding:10px 14px;border-radius:14px;background:var(--tint);color:var(--tint-ink);font-size:.8125rem;font-weight:600;line-height:1.4}
+.fbox{display:block;margin:12px 0 0;padding:9px 16px 8px;border-radius:16px;background:var(--bg-raised);box-shadow:inset 0 0 0 1px var(--sep-strong)}
+.fbox:focus-within{box-shadow:inset 0 0 0 1.6px var(--brass)}
+.fbox>span{display:block;margin:0;font-size:.71875rem;font-weight:600;color:var(--label-3)}
+.fbox input{display:block;width:100%;min-height:30px;margin-top:2px;padding:2px 0!important;border:0;background:transparent!important;box-shadow:none!important;border-radius:0!important;font:inherit;font-weight:600;font-size:max(16px,1rem);color:var(--label);outline:none}
+.auth-why{margin:12px 2px 0;font-size:.78125rem;color:var(--label-3);line-height:1.45}
+.form-alert{margin:10px 2px 0;font-size:.8125rem;font-weight:600;color:var(--danger)}
+.form-alert:empty{display:none}
+.auth-panel .btn-block{margin-top:16px}
+/* оценки */
+.stars{display:flex;gap:2px;margin:4px 0 2px -8px}
 .stars button{width:44px;height:44px;border:0;background:none;color:var(--label-3);display:grid;place-items:center;cursor:pointer;padding:0}
-.stars button[aria-checked=true]{color:var(--gold)}
+.stars button .ic{width:24px;height:24px}
+.stars button[aria-checked=true]{color:var(--brass)}
 .stars button[aria-checked=true] .ic{fill:currentColor}
-.stars-static{color:var(--gold);letter-spacing:2px}
-.review-item{padding:12px 14px}
-.review-item+.review-item{border-top:.5px solid var(--sep-strong)}
-.cart-bar{position:fixed;z-index:45;left:50%;transform:translateX(-50%);bottom:calc(var(--tabbar-h) + 18px + var(--safe-b));width:min(calc(100% - 24px),520px);display:flex;align-items:center;gap:10px;padding:8px 8px 8px 18px;border-radius:999px;background:var(--material-strong);-webkit-backdrop-filter:blur(22px);backdrop-filter:blur(22px);box-shadow:var(--shadow),inset 0 0 0 .5px var(--sep-strong)}
-.cart-bar .txt{flex:1;min-width:0;font-weight:600}
-.cart-bar .txt small{display:block;font-weight:400;color:var(--label-2);font-size:.8125rem}
-.app-guest .screen{padding-bottom:calc(var(--tabbar-h) + 110px + var(--safe-b))}
-.menu-row.is-out .thumb{opacity:.55}
-.menu-row.is-out .menu-name{color:var(--label-2)}
-.menu-row.is-out .menu-desc,.menu-row.is-out .menu-ing{color:var(--label-3)}
-.menu-row.is-out .scale{opacity:.5}
-.out-tag{display:inline-block;max-width:6.5em;text-align:center;font-size:.75rem;line-height:1.25;color:var(--label-2)}
-.sheet-photo.is-out{opacity:.55}
-.order-cancelled{display:flex;align-items:center;gap:8px;padding:12px 14px;color:var(--danger);font-size:.9375rem}
-.order-cancelled .ic{width:18px;height:18px;flex:none}
+.stars-static{color:var(--brass);letter-spacing:2px}
+.review-item{padding:14px 16px}
+.review-item+.review-item{border-top:1px solid var(--sep)}
+.review-head{display:flex;justify-content:space-between;align-items:baseline;gap:10px}
+.rev-form textarea{min-height:60px;margin-top:6px}
+.rev-form .btn{margin-top:10px}
 `;
+        // Гильош — тонкие золотые волны на карте гостя (как на ценных бумагах).
+        const guilloche = (() => {
+          const w = 230, h = 214;
+          let p = "";
+          for (let k = 0; k < 18; k++) {
+            let d = "";
+            for (let x = 0; x <= w; x += 3) d += (x ? "L" : "M") + x + " " + (h / 2 + Math.sin(x / 24 + k * 0.36) * (30 + k * 2.6) * Math.sin(x / 92 + 0.5)).toFixed(1);
+            p += `<path d="${d}"/>`;
+          }
+          return `<svg class="gl" viewBox="0 0 ${w} ${h}" preserveAspectRatio="none" aria-hidden="true">${p}</svg>`;
+        })();
         const guestTabs = `<nav class="tabbar" aria-label="Разделы">
-<button class="tab" type="button" data-pane="menu" aria-current="page">${icon("glass")}<span>Меню</span></button>
-<button class="tab" type="button" data-pane="order">${icon("receipt")}<span>Заказ</span><b class="tab-badge" id="cartBadge" hidden></b></button>
+<button class="tab" type="button" data-pane="menu" aria-current="page">${icon("coupe")}<span>Меню</span></button>
+<button class="tab" type="button" data-pane="order">${icon("chit")}<span>Заказ</span><b class="tab-badge" id="cartBadge" hidden></b></button>
 <button class="tab" type="button" data-pane="profile">${icon("person")}<span>Профиль</span></button>
 </nav>
-<div class="cart-bar" id="cartBar" hidden><div class="txt" id="cartBarText" role="status" aria-live="polite"></div><button class="btn btn-primary btn-sm" type="button" id="cartBarGo">К заказу</button></div>`;
+<div class="cart-bar" id="cartBar" hidden><div class="txt" id="cartBarText" role="status" aria-live="polite"></div><button class="go" type="button" id="cartBarGo">К заказу${icon("arrow")}</button></div>`;
         const guestSheets = `
-<div class="sheet" id="cocktailSheet" hidden><div class="sheet-panel" role="dialog" aria-modal="true" aria-labelledby="csTitle">
-<div class="sheet-grabber"></div><div class="sheet-head"><span class="left"></span><h2 id="csHead">Коктейль</h2><button class="btn btn-plain right" type="button" data-close-sheet>Готово</button></div>
+<div class="sheet" id="cocktailSheet" hidden><div class="sheet-panel cs-panel" role="dialog" aria-modal="true" aria-labelledby="csTitle">
 <div class="sheet-body" id="csBody"></div></div></div>
 
-<div class="sheet" id="authSheet" hidden><div class="sheet-panel" role="dialog" aria-modal="true" aria-labelledby="authTitle">
-<div class="sheet-grabber"></div><div class="sheet-head"><button class="btn btn-plain left" type="button" data-close-sheet>Отмена</button><h2 id="authTitle">Вход</h2><span class="right"></span></div>
+<div class="sheet" id="authSheet" hidden><div class="sheet-panel auth-panel" role="dialog" aria-modal="true" aria-labelledby="authTitle">
+<div class="sheet-grabber"></div><button class="icon-btn auth-x" type="button" data-close-sheet aria-label="Закрыть">${icon("close")}</button>
 <div class="sheet-body">
-<div class="segmented" role="tablist" aria-label="Вход или регистрация" style="margin-bottom:16px"><button type="button" role="tab" id="authTabLogin" aria-selected="true">Вход</button><button type="button" role="tab" id="authTabReg" aria-selected="false">Регистрация</button></div>
-<p class="footnote" id="authNote" style="margin:0 4px 12px"></p>
-<form id="loginForm" autocomplete="on"><div class="list">
-<label class="field"><span>Телефон</span><input name="phone" type="tel" inputmode="tel" autocomplete="tel" required placeholder="+7 900 123-45-67"></label>
-<label class="field"><span>PIN-код</span><input name="pin" type="password" inputmode="numeric" autocomplete="current-password" pattern="[0-9]{4,12}" required placeholder="4–12 цифр"></label>
-</div><p class="footnote" id="loginMsg" role="alert" style="margin:10px 4px 0"></p><button class="btn btn-primary btn-block" type="submit" style="margin-top:14px">Войти</button></form>
-<form id="regForm" autocomplete="on" hidden><div class="list">
-<label class="field"><span>Как вас зовут</span><input name="name" autocomplete="name" required minlength="2" maxlength="80" placeholder="Имя"></label>
-<label class="field"><span>Телефон</span><input name="phone" type="tel" inputmode="tel" autocomplete="tel" required placeholder="+7 900 123-45-67"></label>
-<label class="field"><span>Придумайте PIN-код</span><input name="pin" type="password" inputmode="numeric" autocomplete="new-password" pattern="[0-9]{4,12}" required placeholder="4–12 цифр"></label>
-</div><p class="section-footer">Телефон и PIN нужны, чтобы мы знали, кому нести коктейль, и чтобы ваша история сохранилась.</p><p class="footnote" id="regMsg" role="alert" style="margin:10px 4px 0"></p><button class="btn btn-primary btn-block" type="submit" style="margin-top:14px">Зарегистрироваться</button></form>
+<h2 class="auth-title" id="authTitle">Знакомимся</h2>
+<p class="auth-sub" id="authSub">Один раз — и мы будем знать, кому нести коктейль.</p>
+<p class="auth-note" id="authNote" hidden></p>
+<div class="segmented" role="tablist" aria-label="Вход или регистрация"><button type="button" role="tab" id="authTabLogin" aria-selected="false">Войти</button><button type="button" role="tab" id="authTabReg" aria-selected="true">Зарегистрироваться</button></div>
+<form id="loginForm" autocomplete="on" hidden>
+<label class="fbox"><span>Телефон</span><input name="phone" type="tel" inputmode="tel" autocomplete="tel" required placeholder="+7 900 123-45-67"></label>
+<label class="fbox"><span>PIN-код</span><input name="pin" type="password" inputmode="numeric" autocomplete="current-password" pattern="[0-9]{4,12}" required placeholder="4–12 цифр"></label>
+<p class="form-alert" id="loginMsg" role="alert"></p><button class="btn btn-primary btn-block" type="submit" id="loginBtn">Войти</button></form>
+<form id="regForm" autocomplete="on">
+<label class="fbox"><span>Имя</span><input name="name" autocomplete="name" required minlength="2" maxlength="80" placeholder="Как вас зовут"></label>
+<label class="fbox"><span>Телефон</span><input name="phone" type="tel" inputmode="tel" autocomplete="tel" required placeholder="+7 900 123-45-67"></label>
+<label class="fbox"><span>Придумайте PIN-код</span><input name="pin" type="password" inputmode="numeric" autocomplete="new-password" pattern="[0-9]{4,12}" required placeholder="4–12 цифр"></label>
+<p class="form-alert" id="regMsg" role="alert"></p><button class="btn btn-primary btn-block" type="submit" id="regBtn">Зарегистрироваться</button>
+<p class="auth-why">Телефон и PIN нужны, чтобы сохранилась ваша история заказов.</p></form>
 </div></div></div>
 
 <div class="sheet" id="reviewsSheet" hidden><div class="sheet-panel" role="dialog" aria-modal="true" aria-labelledby="revTitle">
-<div class="sheet-grabber"></div><div class="sheet-head"><span class="left"></span><h2 id="revTitle">Оценки</h2><button class="btn btn-plain right" type="button" data-close-sheet>Готово</button></div>
-<div class="sheet-body"><p class="footnote" style="margin:0 4px 12px">Оцените выпитые коктейли — нам важно знать, что понравилось.</p><div class="list" id="revList"><div class="skeleton"></div></div></div></div></div>`;
+<div class="sheet-grabber"></div><div class="sheet-head"><span class="left"></span><h2 id="revTitle">Мои оценки</h2><button class="btn btn-plain right" type="button" data-close-sheet>Готово</button></div>
+<div class="sheet-body"><p class="footnote" style="margin:0 2px 14px">Оцените выпитые коктейли — нам важно знать, что понравилось.</p><div class="list" id="revList"><div class="skeleton"></div></div></div></div></div>`;
         const guestBody = `
 <section class="pane" data-pane="menu" aria-label="Меню">
-<div class="brand-row"><p class="brand-sub">by Vladimir &amp; Anastasia</p>${monogram(52)}</div>
+<div class="brand"><span></span>${wordmark()}<button class="avatar" type="button" data-goto="profile" id="avatarBtn" aria-label="Профиль">${icon("person")}</button></div>
+<h1 class="large-title hello" id="hello">Добро пожаловать</h1>
+<p class="screen-sub" style="margin-bottom:0">Что приготовим сегодня?</p>
 <div class="menu-tools"><label class="search">${icon("search")}<input type="search" id="q" placeholder="Коктейль или ингредиент" autocomplete="off" aria-label="Поиск по меню"></label>
 <div class="chips" id="lineChips" role="group" aria-label="Крепость"></div></div>
-<div id="menuList"><div class="list" style="margin-top:20px"><div class="skeleton"></div><div class="skeleton"></div><div class="skeleton"></div></div></div>
+<div id="menuList"><div class="grid" style="margin-top:26px"><div class="skeleton" style="aspect-ratio:4/5"></div><div class="skeleton" style="aspect-ratio:4/5"></div></div></div>
 </section>
 <section class="pane" data-pane="order" aria-label="Заказ" hidden>
+<div class="pane-head"><h1 class="large-title">Ваш заказ</h1><p class="screen-sub" id="orderSub" style="margin-bottom:0"></p></div>
 <div id="cartBox"></div>
 <div id="ordersBox"></div>
 </section>
 <section class="pane" data-pane="profile" aria-label="Профиль" hidden>
-<div id="profileBox"><div class="skeleton" style="height:180px;border-radius:22px"></div></div>
+<div class="pane-head"><h1 class="large-title">Профиль</h1></div>
+<div id="profileBox"><div class="skeleton" style="height:224px;border-radius:24px;margin-top:16px"></div></div>
 </section>`;
         const guestScript = String.raw`<script>
 (function(){
@@ -2210,13 +2308,17 @@ const esc=s=>String(s??"").replace(/[&<>"']/g,c=>({"&":"&amp;","<":"&lt;",">":"&
 const norm=s=>String(s||"").toLocaleLowerCase("ru").replace(/ё/g,"е");
 const rub=n=>Number(n||0).toLocaleString("ru-RU",{maximumFractionDigits:0})+" ₽";
 const plural=(n,f)=>{const a=Math.abs(n)%100,b=a%10;return f[a>10&&a<20?2:b===1?0:b>=2&&b<=4?1:2]};
+const cocktailsWord=n=>n+" "+plural(n,["коктейль","коктейля","коктейлей"]);
 const toDate=s=>s?new Date(String(s).replace(" ","T")+(/[zZ]|[+-]\d\d:?\d\d$/.test(s)?"":"Z")):null;
-const when=s=>{const d=toDate(s);if(!d||isNaN(d))return"";const today=new Date();const t=d.toLocaleTimeString("ru-RU",{hour:"2-digit",minute:"2-digit"});return d.toDateString()===today.toDateString()?"сегодня в "+t:d.toLocaleDateString("ru-RU",{day:"numeric",month:"long"})+", "+t};
+const hm=d=>d.toLocaleTimeString("ru-RU",{hour:"2-digit",minute:"2-digit"});
+const when=s=>{const d=toDate(s);if(!d||isNaN(d))return"";const today=new Date();return d.toDateString()===today.toDateString()?"сегодня в "+hm(d):d.toLocaleDateString("ru-RU",{day:"numeric",month:"long"})+", "+hm(d)};
 const ic=n=>'<svg class="ic" aria-hidden="true"><use href="#i-'+n+'"/></svg>';
-const LINES=[{key:"Безалкогольный",cls:"line-zero",title:"Без градуса",dots:0,label:"без алкоголя"},{key:"Лёгкий",cls:"line-light",title:"Лёгкие",dots:1,label:"лёгкий"},{key:"Средний",cls:"line-mid",title:"Средние",dots:2,label:"средний"},{key:"Крепкий",cls:"line-strong",title:"Крепкие",dots:3,label:"крепкий"}];
+const LINES=[{key:"Безалкогольный",cls:"line-zero",title:"Без градуса",dots:0,label:"Без алкоголя"},{key:"Лёгкий",cls:"line-light",title:"Лёгкие",dots:1,label:"Лёгкий"},{key:"Средний",cls:"line-mid",title:"Средние",dots:2,label:"Средний"},{key:"Крепкий",cls:"line-strong",title:"Крепкие",dots:3,label:"Крепкий"}];
 const lineOf=c=>{const s=norm(c.strength);return LINES.find(l=>norm(l.key)===s)||(s.includes("безалк")?LINES[0]:s.includes("лег")?LINES[1]:s.includes("сред")?LINES[2]:s.includes("креп")?LINES[3]:null)};
-const scale=l=>l?'<span class="scale '+l.cls+'" role="img" aria-label="Крепость: '+l.label+'">'+(l.dots?'<i></i>'.repeat(l.dots):'<i class="o"></i>')+'</span>':"";
-const photo=c=>c.avatar_url||c.photo_url||"";
+// Крепость точками: заполнено столько, сколько «градусов» у линии (из трёх).
+const scale=l=>l?'<span class="scale" role="img" aria-label="Крепость: '+l.label.toLowerCase()+'">'+[0,1,2].map(i=>'<i'+(i<l.dots?' class="f"':"")+'></i>').join("")+'</span>':"";
+const tile=c=>c.avatar_url||c.photo_url||"";   // плитка меню 4:5 — кадр, выбранный в редакторе
+const hero=c=>c.photo_url||c.avatar_url||"";   // карточка — квадратное фото целиком
 const ingNames=c=>{const seen=new Map();(c.recipe_items||[]).forEach(i=>{const n=String(i.ingredient_name||i.name||"").trim();if(n&&!seen.has(norm(n)))seen.set(norm(n),n)});return [...seen.values()]};
 
 let cocktails=[],byId=new Map(),guest=null,stats=null,lineFilter="all",pane="menu",pendingSend=false,sending=false;
@@ -2234,12 +2336,21 @@ const saveCart=()=>{try{localStorage.setItem("via.cart",JSON.stringify(cart))}ca
 const cartItems=()=>Object.entries(cart).map(([id,q])=>({c:byId.get(Number(id)),q:Number(q)})).filter(x=>x.c&&x.q>0);
 const cartCount=()=>cartItems().reduce((n,x)=>n+x.q,0);
 const cartTotal=()=>cartItems().reduce((n,x)=>n+x.q*Number(x.c.price_rub||0),0);
+// Гость уже входил на этом телефоне — при первой отправке предлагаем «Войти», а не регистрацию.
+const known=()=>{try{return localStorage.getItem("via.known")==="1"}catch(e){return false}};
+const markKnown=()=>{try{localStorage.setItem("via.known","1")}catch(e){}};
+
+/* ——— приветствие ——— */
+function renderHello(){const h=new Date().getHours(),part=h>=5&&h<12?"Доброе утро":h>=12&&h<17?"Добрый день":h>=17&&h<23?"Добрый вечер":"Доброй ночи";
+const first=guest?String(guest.name||"").trim().split(/\s+/)[0]:"";
+$("#hello").innerHTML=esc(part)+(first?', <em>'+esc(first)+'</em>':"");
+const a=$("#avatarBtn");a.innerHTML=first?esc(first.charAt(0).toLocaleUpperCase("ru")):ic("person");a.setAttribute("aria-label",first?"Профиль: "+first:"Профиль")}
 
 /* ——— вкладки ——— */
-const TITLES={menu:"VIA Bar",order:"Заказ",profile:"Профиль"};
+const TITLES={menu:"VIA Bar",order:"Ваш заказ",profile:"Профиль"};
 function show(p,push){pane=p;document.querySelectorAll(".pane").forEach(s=>s.hidden=s.dataset.pane!==p);document.querySelectorAll(".tabbar .tab").forEach(t=>{if(t.dataset.pane===p)t.setAttribute("aria-current","page");else t.removeAttribute("aria-current")});
-$(".large-title").textContent=TITLES[p];$(".nav-title").textContent=TITLES[p];document.title=(p==="menu"?"VIA Bar — меню":TITLES[p]+" · VIA Bar");
-if(push!==false&&location.hash!=="#"+p)history.replaceState(null,"","#"+p);window.scrollTo(0,0);renderCartBar();
+$(".nav-title").textContent=TITLES[p];document.title=(p==="menu"?"VIA Bar — меню":TITLES[p]+" · VIA Bar");
+if(push!==false&&location.hash!=="#"+p)history.replaceState(null,"","#"+p);window.scrollTo(0,0);dispatchEvent(new Event("scroll"));renderCartBar();
 if(p==="order"){renderCart();refreshStats()}if(p==="profile"){renderProfile();refreshStats()}if(p==="menu"&&menuLoadedAt&&Date.now()-menuLoadedAt>20000)loadMenu(true)}
 document.querySelectorAll(".tabbar .tab").forEach(t=>t.onclick=()=>show(t.dataset.pane));
 addEventListener("hashchange",()=>{const h=location.hash.slice(1);if(TITLES[h]&&h!==pane)show(h,false)});
@@ -2248,21 +2359,32 @@ addEventListener("hashchange",()=>{const h=location.hash.slice(1);if(TITLES[h]&&
 // Сколько порций можно заказать: столько, на сколько хватает ингредиентов (не больше 20).
 const maxOf=c=>!c?0:c.available===false?0:c.available_portions==null?20:Math.max(0,Math.min(20,Number(c.available_portions)));
 const isOut=c=>!!c&&maxOf(c)<1;
-function stepperHtml(id,q,big){const c=byId.get(id);const n=esc(c?c.name:"коктейль"),max=maxOf(c);
-if(q<1&&isOut(c))return '<span class="out-tag">Нет в наличии</span>';
-return q>0?'<span class="stepper'+(big?" tall":"")+'" data-id="'+id+'"><button type="button" data-d="-1" aria-label="Убрать «'+n+'»">'+ic("minus")+'</button><output role="status" aria-label="«'+n+'» в заказе">'+q+'</output><button type="button" data-d="1" aria-label="Добавить «'+n+'»'+(q>=max?" — больше сейчас нет":"")+'"'+(q>=max?" disabled":"")+'>'+ic("plus")+'</button></span>':'<button class="add-btn" type="button" data-add="'+id+'" aria-label="Добавить «'+n+'» в заказ">'+ic("plus")+'</button>'}
+function stepperHtml(id,q){const c=byId.get(id);const n=esc(c?c.name:"коктейль"),max=maxOf(c);
+return '<span class="stepper" data-id="'+id+'"><button type="button" data-d="-1" aria-label="Убрать «'+n+'»">'+ic("minus")+'</button><output role="status" aria-label="«'+n+'» в заказе">'+q+'</output><button type="button" data-d="1" aria-label="Добавить «'+n+'»'+(q>=max?" — больше сейчас нет":"")+'"'+(q>=max?" disabled":"")+'>'+ic("plus")+'</button></span>'}
+// Низ плитки: «В заказ», счётчик или ничего (нет в наличии — метка на фото).
+function tileSide(id){const c=byId.get(id),q=Number(cart[id]||0);if(q>0)return stepperHtml(id,q);if(isOut(c))return "";
+return '<button class="add-pill" type="button" data-add="'+id+'" aria-label="Добавить «'+esc(c?c.name:"коктейль")+'» в заказ">В заказ</button>'}
+// Низ карточки коктейля.
+function sheetAct(id){const c=byId.get(id),q=Number(cart[id]||0),price=Number(c&&c.price_rub||0);
+if(q<1&&isOut(c))return '<p class="cs-out">Закончился один из ингредиентов. Докупим — и коктейль вернётся в меню.</p>';
+if(q<1)return '<button class="btn btn-primary" type="button" data-add="'+id+'">Добавить'+(price?" · "+rub(price):"")+'</button>';
+return stepperHtml(id,q)+'<button class="btn btn-primary" type="button" data-goto="order">К заказу'+(price?" · "+rub(price*q):"")+'</button>'}
 function renderChips(){const present=LINES.filter(l=>cocktails.some(c=>lineOf(c)===l));
-$("#lineChips").innerHTML=['<button class="chip" type="button" data-line="all" aria-pressed="'+(lineFilter==="all")+'">Все</button>'].concat(present.map(l=>'<button class="chip '+l.cls+'" type="button" data-line="'+l.cls+'" aria-pressed="'+(lineFilter===l.cls)+'"><span class="dot"></span>'+l.title+'</button>')).join("")}
+$("#lineChips").innerHTML=['<button class="chip" type="button" data-line="all" aria-pressed="'+(lineFilter==="all")+'">Все<small>'+cocktails.length+'</small></button>'].concat(present.map(l=>'<button class="chip" type="button" data-line="'+l.cls+'" aria-pressed="'+(lineFilter===l.cls)+'">'+l.title+'<small>'+cocktails.filter(c=>lineOf(c)===l).length+'</small></button>')).join("")}
+function drinkHtml(c){const id=Number(c.id),ings=ingNames(c),p=tile(c),price=Number(c.price_rub||0),out=isOut(c);
+return '<article class="dk'+(out?" is-out":"")+'" data-row="'+id+'"><button class="dk-open" type="button" data-open="'+id+'" aria-label="'+esc(c.name)+(out?", нет в наличии":"")+': подробнее">'
++(p?'<span class="ph"><img src="'+esc(p)+'" alt="" loading="lazy" decoding="async">':'<span class="ph ph-empty">'+ic("coupe"))+(out?'<span class="tag">Нет в наличии</span>':"")+'</span>'
++'<span class="dk-name">'+esc(c.name)+'</span>'+(ings.length?'<span class="dk-ing">'+esc(ings.join(" · "))+'</span>':"")+'</button>'
++'<div class="dk-ft"><b class="num">'+(price?rub(price):"")+'</b><span class="menu-side">'+tileSide(id)+'</span></div></article>'}
 function renderMenu(){const q=norm($("#q").value.trim());
 const match=c=>(lineFilter==="all"||(lineOf(c)||{}).cls===lineFilter)&&(!q||norm(c.name+" "+(c.description||"")+" "+ingNames(c).join(" ")).includes(q));
 const byStock=list=>list.filter(c=>!isOut(c)).concat(list.filter(isOut));
 const groups=LINES.map(l=>({l,items:byStock(cocktails.filter(c=>lineOf(c)===l&&match(c)))})).concat([{l:null,items:byStock(cocktails.filter(c=>!lineOf(c)&&match(c)))}]).filter(g=>g.items.length);
-if(!cocktails.length){$("#menuList").innerHTML='<div class="list" style="margin-top:20px"><div class="empty-state">'+ic("glass")+'<h3>Меню готовится</h3>Хозяева ещё не добавили коктейли.</div></div>';return}
-if(!groups.length){$("#menuList").innerHTML='<div class="list" style="margin-top:20px"><div class="empty-state">'+ic("search")+'<h3>Ничего не нашлось</h3>Попробуйте другое название или ингредиент.</div></div>';return}
-$("#menuList").innerHTML=groups.map(g=>'<div class="line-head '+(g.l?g.l.cls:"")+'">'+(g.l?'<span class="line-mark" aria-hidden="true"></span>':"")+'<h2>'+(g.l?g.l.title:"Другие")+'</h2><span class="count">'+g.items.length+'</span></div><div class="list '+(g.l?g.l.cls:"")+'">'+g.items.map(c=>{const id=Number(c.id),ings=ingNames(c),p=photo(c),price=Number(c.price_rub||0);
-const out=isOut(c);
-return '<div class="menu-row'+(out?" is-out":"")+'" data-row="'+id+'"><button class="menu-open" type="button" data-open="'+id+'" aria-label="'+esc(c.name)+(out?", нет в наличии":"")+': подробнее">'+(p?'<img class="thumb" src="'+esc(p)+'" alt="" loading="lazy" decoding="async">':'<span class="thumb thumb-ph">'+ic("glass")+'</span>')+'<span style="min-width:0;flex:1"><span class="menu-name">'+esc(c.name)+'</span>'+(c.description?'<span class="menu-desc">'+esc(c.description)+'</span>':"")+(ings.length?'<span class="menu-ing">'+esc(ings.slice(0,5).join(", "))+(ings.length>5?"…":"")+'</span>':"")+'<span class="menu-meta">'+scale(lineOf(c))+(price&&!out?'<span class="num">'+rub(price)+'</span>':"")+'</span></span></button><span class="menu-side">'+stepperHtml(id,Number(cart[id]||0))+'</span></div>'}).join("")+'</div>').join("")}
-function updateRow(id){document.querySelectorAll('[data-row="'+id+'"] .menu-side,[data-sheet-stepper="'+id+'"]').forEach(el=>{const big=el.hasAttribute("data-sheet-stepper");el.innerHTML=stepperHtml(id,Number(cart[id]||0),big)})}
+if(!cocktails.length){$("#menuList").innerHTML='<div class="card" style="margin-top:26px"><div class="empty-state">'+ic("coupe")+'<h3>Меню готовится</h3>Скоро здесь появятся коктейли.</div></div>';return}
+if(!groups.length){$("#menuList").innerHTML='<div class="card" style="margin-top:26px"><div class="empty-state">'+ic("search")+'<h3>Ничего не нашлось</h3>Попробуйте другое название или ингредиент.</div></div>';return}
+$("#menuList").innerHTML=groups.map(g=>'<div class="menu-sec"><h2>'+(g.l?g.l.title:"Другие")+'</h2><span>'+cocktailsWord(g.items.length)+'</span></div><div class="grid">'+g.items.map(drinkHtml).join("")+'</div>').join("")}
+function updateRow(id){document.querySelectorAll('[data-row="'+id+'"] .menu-side').forEach(el=>{el.innerHTML=el.closest(".oi")?stepperHtml(id,Number(cart[id]||0)):tileSide(id)});
+document.querySelectorAll('[data-sheet-act="'+id+'"]').forEach(el=>el.innerHTML=sheetAct(id))}
 function setQty(id,q){const max=maxOf(byId.get(id)),want=q;q=Math.max(0,Math.min(max,q));if(want>q&&want>Number(cart[id]||0))VIA.toast(max?"Больше сейчас не приготовим — хватит на "+max+" "+plural(max,["порцию","порции","порций"]):"Сейчас нет в наличии",true);if(q)cart[id]=q;else delete cart[id];saveCart();updateRow(id);renderCartBar();if(pane==="order")renderCart()}
 document.addEventListener("click",e=>{const add=e.target.closest("[data-add]");if(add){const id=Number(add.dataset.add);setQty(id,Number(cart[id]||0)+1);const nb=document.querySelector('[data-row="'+id+'"] .stepper button[data-d="1"]');if(nb&&add.closest(".menu-side"))nb.focus();return}
 const st=e.target.closest(".stepper[data-id] button[data-d]");if(st){const id=Number(st.closest(".stepper").dataset.id),d=Number(st.dataset.d);setQty(id,Number(cart[id]||0)+d);return}
@@ -2270,36 +2392,47 @@ const op=e.target.closest("[data-open]");if(op){openCocktail(Number(op.dataset.o
 const ch=e.target.closest("#lineChips .chip");if(ch){lineFilter=ch.dataset.line;renderChips();renderMenu()}});
 $("#q").addEventListener("input",renderMenu);
 
-function openCocktail(id){const c=byId.get(id);if(!c)return;const l=lineOf(c),ings=(c.recipe_items||[]),price=Number(c.price_rub||0),out=isOut(c);
-$("#csHead").textContent=c.name;
-$("#csBody").innerHTML=(c.photo_url||c.avatar_url?'<img class="sheet-photo'+(out?" is-out":"")+'" src="'+esc(c.photo_url||c.avatar_url)+'" alt="'+esc(c.name)+'">':"")+'<h3 class="sheet-title" id="csTitle">'+esc(c.name)+'</h3><div class="row" style="gap:8px">'+(l?'<span class="badge line '+l.cls+'">'+scale(l)+' '+l.title.replace(/ие$/,"ий")+'</span>':"")+(price&&!out?'<span class="badge num">'+rub(price)+'</span>':"")+(out?'<span class="badge danger">Нет в наличии</span>':"")+'</div>'+(c.description?'<p class="sheet-desc">'+esc(c.description)+'</p>':"")
-+(ings.length?'<div class="section"><div class="section-header"><h2>Состав</h2></div><div class="route '+(l?l.cls:"")+'" style="padding:4px 4px 0">'+ings.map(i=>'<div class="route-stop done"><span class="station"></span><div class="route-body"><span class="cell-title">'+esc(i.ingredient_name||i.name||"Ингредиент")+'</span></div></div>').join("")+'</div></div>':"")
-+'<div class="sheet-actions"><span class="footnote">'+(out?"Закончился один из ингредиентов. Докупим — и коктейль вернётся в меню.":guest?"Добавьте в заказ — мы приготовим.":"Чтобы заказать, войдите в профиль.")+'</span><span data-sheet-stepper="'+id+'">'+stepperHtml(id,Number(cart[id]||0),true)+'</span></div>';
-VIA.openSheet("cocktailSheet")}
+function openCocktail(id){const c=byId.get(id);if(!c)return;const l=lineOf(c),ings=ingNames(c),price=Number(c.price_rub||0),out=isOut(c),p=hero(c);
+$("#csBody").innerHTML='<div class="cs-hero'+(out?" is-out":"")+'">'+(p?'<img src="'+esc(p)+'" alt="'+esc(c.name)+'">':"")+'<button class="cs-x" type="button" data-close-sheet aria-label="Закрыть">'+ic("close")+'</button></div>'
++'<div class="cs-card"><div class="sheet-grabber"></div><div class="cs-meta"><span class="cs-str">'+(l?scale(l)+'<span class="label-caps">'+l.label+'</span>':"")+'</span>'+(out?'<span class="badge danger">Нет в наличии</span>':price?'<span class="cs-price num">'+rub(price)+'</span>':"")+'</div>'
++'<h3 class="cs-name" id="csTitle">'+esc(c.name)+'</h3>'+(c.description?'<p class="cs-desc">'+esc(c.description)+'</p>':"")
++(ings.length?'<div class="cs-comp"><span class="label-caps">Состав</span><div class="ing-chips">'+ings.map(n=>'<span>'+esc(n)+'</span>').join("")+'</div></div>':"")+'</div>'
++'<div class="cs-act" data-sheet-act="'+id+'">'+sheetAct(id)+'</div>';
+VIA.openSheet("cocktailSheet");$("#csBody").scrollTop=0}
 
 /* ——— заказ ——— */
-function renderCartBar(){const n=cartCount();const b=$("#cartBadge");b.textContent=n;b.hidden=!n;const bar=$("#cartBar");bar.hidden=!n||pane==="order";if(n)$("#cartBarText").innerHTML=n+" "+plural(n,["коктейль","коктейля","коктейлей"])+(cartTotal()?'<small class="num">'+rub(cartTotal())+'</small>':"")}
+function renderCartBar(){const n=cartCount();const b=$("#cartBadge");b.textContent=n;b.hidden=!n;const bar=$("#cartBar");bar.hidden=!n||pane==="order";
+if(n){const names=cartItems().map(x=>x.c.name+(x.q>1?" × "+x.q:"")).join(", ");$("#cartBarText").innerHTML=esc(cocktailsWord(n))+(cartTotal()?' · <span class="num">'+rub(cartTotal())+'</span>':"")+'<small>'+esc(names)+'</small>'}}
 $("#cartBarGo").onclick=()=>show("order");
 const STEP={pending:0,accepted:1,served:2};
-function tracker(status){const s=STEP[status]??0;return '<div class="tracker" aria-label="Статус: '+(["Заказан","Принят","Выдан"][s])+'">'+["Заказан","Принят","Выдан"].map((t,i)=>'<div class="tracker-stop '+(i<s||(s===2&&i===2)?"done":i===s?"current":"")+'"><span class="station"></span>'+t+'</div>').join("")+'</div>'}
-function renderCart(){const items=cartItems();
-$("#cartBox").innerHTML=items.length?'<div class="section"><div class="section-header"><h2>Новый заказ</h2><span class="num">'+cartCount()+'</span></div><div class="list">'+items.map(x=>{const id=Number(x.c.id),p=photo(x.c);return '<div class="cell" data-row="'+id+'">'+(p?'<img class="thumb" src="'+esc(p)+'" alt="" style="width:44px;height:44px">':'<span class="thumb thumb-ph" style="width:44px;height:44px">'+ic("glass")+'</span>')+'<span class="cell-body"><span class="cell-title">'+esc(x.c.name)+'</span>'+(Number(x.c.price_rub)?'<span class="cell-sub num">'+rub(x.c.price_rub)+'</span>':"")+'</span><span class="menu-side">'+stepperHtml(id,x.q)+'</span></div>'}).join("")
-+(cartTotal()?'<div class="cell"><span class="cell-body"><span class="cell-title">Итого</span></span><span class="cell-value num" style="color:var(--label);font-weight:600">'+rub(cartTotal())+'</span></div>':"")+'</div>'
-+'<button class="btn btn-primary btn-block" type="button" id="sendOrder" style="margin-top:14px"'+(sending?" disabled":"")+'>'+(sending?"Отправляем…":guest?"Отправить заказ":"Войти и отправить")+'</button><p class="section-footer">Заказ увидят Владимир и Анастасия — статус обновится здесь.</p></div>'
-:'<div class="section"><div class="list"><div class="empty-state">'+ic("glass")+'<h3>Пока ничего не выбрано</h3>Загляните в меню и нажмите «+» у коктейля.</div></div><button class="btn btn-tinted btn-block" type="button" data-goto="menu" style="margin-top:12px">Открыть меню</button></div>';
+const PILL={pending:["Заказан",""],accepted:["Принят","warn"],served:["Выдан","ok"],cancelled:["Отменён","danger"]};
+const pill=st=>{const p=PILL[st]||PILL.pending;return '<span class="badge '+p[1]+'">'+p[0]+'</span>'};
+// Маршрут заказа: Заказан → Принят → Выдан; станции до текущей — пройдены.
+function route(o){const s=STEP[o.status]??0,t=toDate(o.created_at);
+const stops=[["Заказан"+(t&&!isNaN(t)?" в "+hm(t):""),s===0?"Скоро примем заказ":""],["Принят",s===0?"Начнём готовить":s===1?"Готовим":""],["Выдан",s===1?"Скоро принесём":s===2?"Приятного вечера!":""]];
+return '<div class="route">'+stops.map((x,i)=>{const done=i<=s,cur=i===s+1;return '<div class="route-stop'+(done?" done":cur?" current":"")+'"><span class="station">'+(done?ic("check"):"")+'</span><div class="route-body"><b>'+esc(x[0])+'</b>'+(x[1]?'<small>'+esc(x[1])+'</small>':"")+'</div></div>'}).join("")+'</div>'}
+function renderCart(){const items=cartItems(),n=cartCount();
+$("#orderSub").textContent=n?cocktailsWord(n):"Пока ничего не выбрано";
+$("#cartBox").innerHTML=items.length?'<div class="card" style="margin-top:18px">'+items.map(x=>{const id=Number(x.c.id),p=tile(x.c);return '<div class="oi" data-row="'+id+'">'+(p?'<img class="thumb" src="'+esc(p)+'" alt="">':'<span class="thumb thumb-ph">'+ic("coupe")+'</span>')+'<span class="body"><span class="name-serif">'+esc(x.c.name)+'</span>'+(Number(x.c.price_rub)?'<small class="num">'+rub(x.c.price_rub)+'</small>':"")+'</span><span class="menu-side">'+stepperHtml(id,x.q)+'</span></div>'}).join("")
++(cartTotal()?'<div class="tot"><span class="label-caps">Итого</span><b class="num">'+rub(cartTotal())+'</b></div>':"")
++'<button class="btn btn-primary send" type="button" id="sendOrder"'+(sending?" disabled":"")+'>'+ic("send")+(sending?"Отправляем…":"Отправить заказ")+'</button></div>'
+:'<div class="card" style="margin-top:18px"><div class="empty-state">'+ic("coupe")+'<h3>Пока ничего не выбрано</h3>Загляните в меню и нажмите «В заказ» у коктейля.</div></div><button class="btn btn-tinted btn-block" type="button" data-goto="menu" style="margin-top:12px">Открыть меню</button>';
 const sb=$("#sendOrder");if(sb)sb.onclick=sendOrder;renderOrders()}
 function renderOrders(){const box=$("#ordersBox");if(!guest){box.innerHTML="";return}const h=(stats&&stats.history)||[];
-if(!h.length){box.innerHTML=stats?'<div class="section"><div class="section-header"><h2>Мои заказы</h2></div><div class="list"><div class="empty-state">Заказов пока не было.</div></div></div>':"";return}
+if(!h.length){box.innerHTML=stats?'<div class="section"><div class="section-header"><h2>Мои заказы</h2></div><div class="card"><div class="empty-state">Заказов пока не было.</div></div></div>':"";return}
 // Есть незавершённый заказ, а уведомления выключены — предлагаем сообщить, когда будет готов.
-const ask=pushState==="off"&&h.some(o=>o.status==="pending"||o.status==="accepted")?'<div class="section"><div class="list"><div class="cell has-icon"><span class="cell-icon">'+ic("bell")+'</span><span class="cell-body"><span class="cell-title">Написать, когда заказ будет готов?</span><span class="cell-sub">Пришлём уведомление на этот телефон</span></span><button class="btn btn-primary btn-sm" type="button" id="pushAsk">Включить</button></div></div></div>':"";
-// Сколько всего потрачено за всё время — здесь, в списке всех заказов
-box.innerHTML=ask+'<div class="section"><div class="section-header"><h2>Мои заказы</h2><span class="num">всего '+Number(stats.cocktails_count||0)+' '+plural(Number(stats.cocktails_count||0),["коктейль","коктейля","коктейлей"])+' · '+rub(stats.spent_rub)+'</span></div>'+h.map(o=>'<div class="list order-group"><div class="cell"><span class="cell-body"><span class="order-head"><span class="cell-title">Заказ №'+Number(o.id)+'</span><span class="cell-value num">'+rub(o.total_rub)+'</span></span><span class="cell-sub">'+esc(when(o.created_at))+'</span></span></div>'+(o.status==="cancelled"?'<div class="order-cancelled">'+ic("close")+'Отменён: в этот раз не получилось</div>':tracker(o.status))+'<div class="cell"><span class="cell-body"><span class="cell-sub" style="color:var(--label)">'+esc(o.items||"Состав не указан")+'</span></span></div></div>').join("")+'</div>'}
-document.addEventListener("click",e=>{const g=e.target.closest("[data-goto]");if(g)show(g.dataset.goto)});
+const ask=pushState==="off"&&h.some(o=>o.status==="pending"||o.status==="accepted")?'<div class="list" style="margin-top:14px"><div class="cell has-icon"><span class="cell-icon">'+ic("bell")+'</span><span class="cell-body"><span class="cell-title">Написать, когда заказ будет готов?</span><span class="cell-sub">Пришлём уведомление на этот телефон</span></span><button class="btn btn-primary btn-sm" type="button" id="pushAsk">Включить</button></div></div>':"";
+const live=h.filter(o=>o.status==="pending"||o.status==="accepted"),rest=h.filter(o=>!live.includes(o));
+// Сколько всего — за всё время, в заголовке списка всех заказов
+box.innerHTML='<div class="section"><div class="section-header"><h2>Мои заказы</h2><span class="num">'+cocktailsWord(Number(stats.cocktails_count||0))+' · '+rub(stats.spent_rub)+'</span></div>'+ask
++live.map(o=>'<div class="card live"><div class="live-top"><span class="name-serif">Заказ №'+Number(o.id)+(o.items?' · '+esc(o.items):"")+'</span>'+pill(o.status)+'</div>'+route(o)+'</div>').join("")
++(rest.length?'<div class="list orders-list">'+rest.map(o=>'<div class="cell ord"><span class="cell-body"><span class="name-serif">№'+Number(o.id)+(o.items?' · '+esc(o.items):"")+'</span><span class="cell-sub num">'+esc(when(o.created_at))+' · '+rub(o.total_rub)+'</span>'+(o.status==="cancelled"?'<span class="order-cancelled">'+ic("close")+'В этот раз не получилось — попробуйте ещё раз</span>':"")+'</span>'+pill(o.status)+'</div>').join("")+'</div>':"")+'</div>'}
+document.addEventListener("click",e=>{const g=e.target.closest("[data-goto]");if(g){if(g.closest(".sheet"))VIA.closeSheet(g.closest(".sheet"));show(g.dataset.goto)}});
 async function sendOrder(){if(sending)return;const items=cartItems().map(x=>({cocktail_id:Number(x.c.id),quantity:x.q}));if(!items.length)return;
-if(!guest){pendingSend=true;openAuth("login","Войдите или зарегистрируйтесь — и заказ сразу уйдёт в бар.");return}
+if(!guest){pendingSend=true;openAuth(known()?"login":"reg");return}
 sending=true;renderCart();
 try{const r=await fetch("/api/guest/order",{method:"POST",headers:{"content-type":"application/json"},body:JSON.stringify({items})});const d=await r.json().catch(()=>({}));
-if(r.status===401){guest=null;pendingSend=true;openAuth("login","Сессия закончилась — войдите ещё раз.");return}
+if(r.status===401){guest=null;pendingSend=true;renderHello();openAuth("login","Сессия закончилась — войдите ещё раз.");return}
 if(r.status===409){await loadMenu(true);throw new Error(d.error||"Чего-то из заказа сейчас нет")}
 if(!r.ok)throw new Error(d.error||"Не удалось отправить заказ");
 cart={};saveCart();cocktails.forEach(c=>updateRow(Number(c.id)));VIA.toast("Заказ №"+d.order_id+" отправлен в бар");await refreshStats(true);loadMenu(true)}
@@ -2307,19 +2440,23 @@ catch(e){VIA.toast(e.message||"Ошибка сети. Попробуйте ещ�
 finally{sending=false;renderCart();renderCartBar()}}
 
 /* ——— профиль ——— */
+const GUILLOCHE=${JSON.stringify(guilloche)},LOGO_GOLD=${JSON.stringify(monogram(46, "gold"))},LOGO=${JSON.stringify(monogram(132))},WM=${JSON.stringify(wordmark("Карта гостя"))};
+const chev=()=>ic("chevronRight").replace('class="ic"','class="ic cell-chevron"');
 function renderProfile(){const box=$("#profileBox");
-if(!guest){box.innerHTML='<div class="welcome">'+${JSON.stringify(monogram(132))}+'<h2>Добро пожаловать</h2><p>Войдите, чтобы заказывать коктейли, следить за заказом и оценивать выпитое.</p><div class="button-row" style="flex-direction:column"><button class="btn btn-primary btn-block" type="button" id="pLogin">Войти</button><button class="btn btn-tinted btn-block" type="button" id="pReg">Регистрация</button></div></div>';
-$("#pLogin").onclick=()=>openAuth("login");$("#pReg").onclick=()=>openAuth("reg");return}
-const s=stats||{},phone=String(guest.phone||""),last4=phone.replace(/\D/g,"").slice(-4),latest=(s.history||[])[0],li=s.latest_order_items||[];
+if(!guest){box.innerHTML='<div class="welcome">'+LOGO+'<h2>Добро пожаловать</h2><p>Войдите, чтобы заказывать коктейли, следить за заказом и оценивать выпитое.</p><button class="btn btn-primary" type="button" id="pLogin">Войти</button><button class="btn btn-gray" type="button" id="pReg">Зарегистрироваться</button></div>';
+// Вход из профиля — без отправки заказа (её включает только кнопка «Отправить заказ»).
+$("#pLogin").onclick=()=>{pendingSend=false;openAuth("login")};$("#pReg").onclick=()=>{pendingSend=false;openAuth("reg")};return}
+const s=stats||{},digits=String(guest.phone||"").replace(/\D/g,""),last4=digits.slice(-4),latest=(s.history||[])[0],li=s.latest_order_items||[];
 const lp=li.find(i=>i.photo_url);
-box.innerHTML='<div class="member-card"><div class="member-top">'+${JSON.stringify(monogram(64))}+'<div style="min-width:0"><h2 class="member-name">'+esc(guest.name)+'</h2><div class="member-phone num">'+(last4?"Телефон •• "+esc(last4):"")+'</div></div></div>'
-+'<div class="member-stats"><div><b class="num">'+Number(s.visit_cocktails||0)+'</b><span>'+plural(Number(s.visit_cocktails||0),["коктейль","коктейля","коктейлей"])+' за визит</span></div><div><b class="num">'+rub(s.visit_rub)+'</b><span>потрачено за визит</span></div></div>'
-// любимый коктейль — отдельной строкой во всю ширину, чтобы длинное название помещалось целиком
-+(s.favorite_cocktail?'<div class="member-fav"><span>Любимый коктейль</span><b>'+esc(s.favorite_cocktail)+'</b></div>':"")+'</div>'
-+(latest?'<div class="section"><div class="section-header"><h2>Последний заказ</h2><span>'+esc(when(latest.created_at))+'</span></div><div class="list"><div class="cell">'+(lp?'<img class="thumb" src="'+esc(lp.photo_url)+'" alt="">':'<span class="thumb thumb-ph">'+ic("glass")+'</span>')+'<span class="cell-body"><span class="cell-title">'+esc(latest.items||"—")+'</span><span class="cell-sub num">'+rub(latest.total_rub)+' · '+(latest.status==="cancelled"?"Отменён":["Заказан","Принят","Выдан"][STEP[latest.status]??0])+'</span></span></div>'+(li.length?'<button class="cell" type="button" id="repeatOrder" style="color:var(--gold);justify-content:center;font-weight:600">'+ic("refresh")+' Повторить заказ</button>':"")+'</div></div>':"")
-+'<div class="section"><div class="list"><button class="cell has-icon" type="button" data-goto="order"><span class="cell-icon">'+ic("receipt")+'</span><span class="cell-body"><span class="cell-title">Мои заказы</span><span class="cell-sub">'+Number(s.orders_count||0)+' '+plural(Number(s.orders_count||0),["заказ","заказа","заказов"])+(s.orders_count?' · '+Number(s.cocktails_count||0)+' '+plural(Number(s.cocktails_count||0),["коктейль","коктейля","коктейлей"])+' · '+rub(s.spent_rub):'')+'</span></span>'+ic("chevronRight").replace('class="ic"','class="ic cell-chevron"')+'</button><button class="cell has-icon" type="button" id="openReviews"><span class="cell-icon">'+ic("star")+'</span><span class="cell-body"><span class="cell-title">Мои оценки</span><span class="cell-sub">Оцените выпитые коктейли</span></span>'+ic("chevronRight").replace('class="ic"','class="ic cell-chevron"')+'</button>'
-+(pushState&&pushState!=="unsupported"?'<button class="cell has-icon" type="button" id="pushToggle"><span class="cell-icon">'+ic("bell")+'</span><span class="cell-body"><span class="cell-title">Уведомления о заказе</span><span class="cell-sub">'+esc(pushState==="off"?"Напишем, когда примем заказ и когда он будет готов":VIA.push.text[pushState]||"")+'</span></span><span class="cell-value">'+(pushState==="on"?"Вкл.":pushState==="off"?"Выкл.":"")+'</span></button>':"")+'</div></div>'
-+'<div class="section"><button class="btn btn-danger btn-block" type="button" id="logout">'+ic("logout")+'Выйти</button></div>';
+box.innerHTML='<div class="gcard">'+GUILLOCHE+'<div class="gcard-top">'+WM+LOGO_GOLD+'</div>'
++'<div class="gcard-who"><b>'+esc(guest.name)+'</b>'+(last4.length===4?'<span class="num">+7 ••• ••• '+last4.slice(0,2)+' '+last4.slice(2)+'</span>':"")+'</div>'
++'<div class="gcard-st"><div><b class="num">'+Number(s.visit_cocktails||0)+'</b><span>'+plural(Number(s.visit_cocktails||0),["коктейль","коктейля","коктейлей"])+'<br>за визит</span></div><div><b class="num">'+rub(s.visit_rub)+'</b><span>потрачено<br>за визит</span></div>'
++(s.favorite_cocktail?'<div><b class="fav">'+esc(s.favorite_cocktail)+'</b><span>любимый<br>коктейль</span></div>':"")+'</div></div>'
++(latest?'<div class="section"><div class="section-header"><h2>Последний заказ</h2><span>'+esc(when(latest.created_at))+'</span></div><div class="card last"><div class="last-r">'+(lp?'<img class="thumb" src="'+esc(lp.photo_url)+'" alt="">':'<span class="thumb thumb-ph">'+ic("coupe")+'</span>')+'<span class="body"><span class="name-serif" style="display:block">'+esc(latest.items||"—")+'</span><span class="cell-sub num">'+rub(latest.total_rub)+' · '+(PILL[latest.status]||PILL.pending)[0]+'</span></span></div>'+(li.length?'<button class="btn btn-outline" type="button" id="repeatOrder">'+ic("repeat")+'Повторить заказ</button>':"")+'</div></div>':"")
++'<div class="list rows-gap"><button class="cell has-icon" type="button" data-goto="order"><span class="cell-icon">'+ic("chit")+'</span><span class="cell-body"><span class="cell-title">Мои заказы</span><span class="cell-sub">'+Number(s.orders_count||0)+' '+plural(Number(s.orders_count||0),["заказ","заказа","заказов"])+(s.orders_count?' · '+cocktailsWord(Number(s.cocktails_count||0))+' · '+rub(s.spent_rub):'')+'</span></span>'+chev()+'</button>'
++'<button class="cell has-icon" type="button" id="openReviews"><span class="cell-icon">'+ic("star")+'</span><span class="cell-body"><span class="cell-title">Мои оценки</span><span class="cell-sub">Оцените выпитые коктейли</span></span>'+chev()+'</button>'
++(pushState&&pushState!=="unsupported"?'<button class="cell has-icon" type="button" id="pushToggle"><span class="cell-icon">'+ic("bell")+'</span><span class="cell-body"><span class="cell-title">Уведомления о заказе</span><span class="cell-sub">'+esc(pushState==="off"?"Напишем, когда примем заказ и когда он будет готов":VIA.push.text[pushState]||"")+'</span></span><span class="cell-value">'+(pushState==="on"?"Вкл.":pushState==="off"?"Выкл.":"")+'</span></button>':"")
++'<button class="cell has-icon" type="button" id="logout"><span class="cell-icon">'+ic("logout")+'</span><span class="cell-body"><span class="cell-title acc">Выйти</span></span></button></div>';
 // Повторить заказ: добавляем только то, что сейчас есть в наличии (не больше остатка).
 const rp=$("#repeatOrder");if(rp)rp.onclick=()=>{const added=[],out=[],less=[];
 li.forEach(i=>{const id=Number(i.cocktail_id),c=byId.get(id),want=Number(i.quantity||1),max=maxOf(c),name=(c&&c.name)||i.cocktail_name||"Коктейль";
@@ -2332,37 +2469,41 @@ const note=(out.length?" Нет в наличии: "+out.join(", ")+".":"")+(les
 VIA.toast("Добавили в заказ."+note,!!note,note?5000:2600);show("order")};
 $("#openReviews").onclick=openReviews;$("#logout").onclick=logout}
 
-async function refreshStats(force){if(!guest){renderOrders();return}try{const r=await fetch("/api/guest/stats");const d=await r.json();if(!d.guest){guest=null;stats=null}else stats=d}catch(e){}if(pane==="order")renderOrders();if(pane==="profile")renderProfile()}
+async function refreshStats(force){if(!guest){renderOrders();return}try{const r=await fetch("/api/guest/stats");const d=await r.json();if(!d.guest){guest=null;stats=null;renderHello()}else stats=d}catch(e){}if(pane==="order")renderOrders();if(pane==="profile")renderProfile()}
 setInterval(()=>{if(!document.hidden&&guest&&pane!=="menu")refreshStats()},15000);
 document.addEventListener("visibilitychange",()=>{if(!document.hidden&&guest&&pane!=="menu")refreshStats()});
 
 /* ——— вход и регистрация ——— */
-function authMode(m){const login=m==="login";$("#loginForm").hidden=!login;$("#regForm").hidden=login;$("#authTabLogin").setAttribute("aria-selected",String(login));$("#authTabReg").setAttribute("aria-selected",String(!login));$("#authTitle").textContent=login?"Вход":"Регистрация";$("#loginMsg").textContent="";$("#regMsg").textContent=""}
+function authMode(m){const login=m==="login",send=pendingSend;$("#loginForm").hidden=!login;$("#regForm").hidden=login;$("#authTabLogin").setAttribute("aria-selected",String(login));$("#authTabReg").setAttribute("aria-selected",String(!login));
+$("#authTitle").textContent=login?"С возвращением":"Знакомимся";
+$("#authSub").textContent=login?"Телефон и PIN-код, которые вы указали при регистрации.":"Один раз — и мы будем знать, кому нести коктейль.";
+$("#loginBtn").textContent=send?"Войти и отправить":"Войти";$("#regBtn").textContent=send?"Зарегистрироваться и отправить":"Зарегистрироваться";
+$("#loginMsg").textContent="";$("#regMsg").textContent=""}
 function openAuth(m,note){authMode(m||"login");$("#authNote").textContent=note||"";$("#authNote").hidden=!note;VIA.openSheet("authSheet");setTimeout(()=>{const f=(m==="reg"?$("#regForm"):$("#loginForm")).querySelector("input");if(f)f.focus()},320)}
 $("#authTabLogin").onclick=()=>authMode("login");$("#authTabReg").onclick=()=>authMode("reg");
-async function afterAuth(name){VIA.closeSheet("authSheet");await loadMe();
+async function afterAuth(name){markKnown();VIA.closeSheet("authSheet");await loadMe();
 // Уведомления уже включены на этом телефоне — привязываем их к вошедшему гостю.
 if(window.VIA&&VIA.push)VIA.push.state("guest").then(st=>{if(st==="on")return VIA.push.enable("guest")}).catch(()=>{});VIA.toast("Здравствуйте, "+(name||(guest&&guest.name)||"гость")+"!");if(pendingSend){pendingSend=false;show("order");sendOrder()}else if(pane!=="menu")show(pane,false)}
-$("#loginForm").onsubmit=async e=>{e.preventDefault();const f=new FormData(e.target),m=$("#loginMsg");m.textContent="Проверяем…";
-try{const r=await fetch("/api/guest/login",{method:"POST",headers:{"content-type":"application/json"},body:JSON.stringify({phone:f.get("phone"),pin:f.get("pin")})});const d=await r.json().catch(()=>({}));if(!r.ok)throw new Error(d.error||"Не удалось войти");e.target.reset();afterAuth(d.name)}catch(err){m.textContent=err.message||"Ошибка сети. Попробуйте ещё раз."}};
-$("#regForm").onsubmit=async e=>{e.preventDefault();const f=new FormData(e.target),m=$("#regMsg");m.textContent="Сохраняем…";
-try{const r=await fetch("/api/guest/register",{method:"POST",headers:{"content-type":"application/json"},body:JSON.stringify({name:f.get("name"),phone:f.get("phone"),pin:f.get("pin")})});const d=await r.json().catch(()=>({}));if(!r.ok)throw new Error(d.error||"Не удалось зарегистрироваться");const nm=f.get("name");e.target.reset();afterAuth(nm)}catch(err){m.textContent=err.message||"Ошибка сети. Попробуйте ещё раз."}};
-async function logout(){if(!confirm("Выйти из профиля?"))return;try{if(pushState==="on")await VIA.push.disable("guest")}catch(e){}try{await fetch("/api/guest/logout",{method:"POST"})}catch(e){}guest=null;stats=null;pushState="";renderProfile();renderCart();VIA.toast("Вы вышли из профиля")}
+$("#loginForm").onsubmit=async e=>{e.preventDefault();const f=new FormData(e.target),m=$("#loginMsg");m.textContent="";$("#loginBtn").disabled=true;
+try{const r=await fetch("/api/guest/login",{method:"POST",headers:{"content-type":"application/json"},body:JSON.stringify({phone:f.get("phone"),pin:f.get("pin")})});const d=await r.json().catch(()=>({}));if(!r.ok)throw new Error(d.error||"Не удалось войти");e.target.reset();afterAuth(d.name)}catch(err){m.textContent=err.message||"Ошибка сети. Попробуйте ещё раз."}finally{$("#loginBtn").disabled=false}};
+$("#regForm").onsubmit=async e=>{e.preventDefault();const f=new FormData(e.target),m=$("#regMsg");m.textContent="";$("#regBtn").disabled=true;
+try{const r=await fetch("/api/guest/register",{method:"POST",headers:{"content-type":"application/json"},body:JSON.stringify({name:f.get("name"),phone:f.get("phone"),pin:f.get("pin")})});const d=await r.json().catch(()=>({}));if(!r.ok)throw new Error(d.error||"Не удалось зарегистрироваться");const nm=f.get("name");e.target.reset();afterAuth(nm)}catch(err){m.textContent=err.message||"Ошибка сети. Попробуйте ещё раз."}finally{$("#regBtn").disabled=false}};
+async function logout(){if(!confirm("Выйти из профиля?"))return;try{if(pushState==="on")await VIA.push.disable("guest")}catch(e){}try{await fetch("/api/guest/logout",{method:"POST"})}catch(e){}guest=null;stats=null;pushState="";renderHello();renderProfile();renderCart();VIA.toast("Вы вышли из профиля")}
 
 /* ——— оценки ——— */
 async function openReviews(){VIA.openSheet("reviewsSheet");const box=$("#revList");box.innerHTML='<div class="skeleton"></div>';
 try{const r=await fetch("/api/guest/reviews");const d=await r.json();if(!r.ok)throw new Error(d.error||"Не удалось загрузить");const items=d.items||[];
 if(!items.length){box.innerHTML='<div class="empty-state">'+ic("star")+'<h3>Пока нечего оценить</h3>Оценить можно коктейль, который вам уже выдали.</div>';return}
-box.innerHTML=items.map(it=>'<div class="review-item" data-item="'+Number(it.order_item_id)+'"><div class="order-head"><span class="cell-title">'+esc(it.cocktail_name)+(Number(it.quantity)>1?" × "+Number(it.quantity):"")+'</span><span class="caption">Заказ №'+Number(it.order_id)+'</span></div>'
+box.innerHTML=items.map(it=>'<div class="review-item" data-item="'+Number(it.order_item_id)+'"><div class="review-head"><span class="name-serif">'+esc(it.cocktail_name)+(Number(it.quantity)>1?" × "+Number(it.quantity):"")+'</span><span class="caption">Заказ №'+Number(it.order_id)+'</span></div>'
 +(it.rating?'<div style="margin-top:6px"><span class="stars-static" aria-label="Оценка '+Number(it.rating)+' из 5">'+"★".repeat(Number(it.rating))+"☆".repeat(5-Number(it.rating))+'</span>'+(it.comment?'<div class="cell-sub">'+esc(it.comment)+'</div>':"")+'</div>'
-:'<form class="rev-form" style="margin-top:4px"><div class="stars" role="radiogroup" aria-label="Оценка «'+esc(it.cocktail_name)+'»">'+[1,2,3,4,5].map(n=>'<button type="button" role="radio" aria-checked="false" data-star="'+n+'" aria-label="'+n+" "+plural(n,["звезда","звезды","звёзд"])+'">'+ic("star")+'</button>').join("")+'</div><label class="field" style="padding:0"><span class="hidden">Комментарий</span><textarea name="comment" maxlength="500" placeholder="Пара слов о коктейле (необязательно)" aria-label="Комментарий" style="min-height:56px"></textarea></label><input type="hidden" name="rating"><button class="btn btn-tinted btn-sm" type="submit" disabled>Отправить оценку</button><p class="footnote" role="alert"></p></form>')+'</div>').join("")}
+:'<form class="rev-form"><div class="stars" role="radiogroup" aria-label="Оценка «'+esc(it.cocktail_name)+'»">'+[1,2,3,4,5].map(n=>'<button type="button" role="radio" aria-checked="false" data-star="'+n+'" aria-label="'+n+" "+plural(n,["звезда","звезды","звёзд"])+'">'+ic("star")+'</button>').join("")+'</div><textarea name="comment" maxlength="500" placeholder="Пара слов о коктейле (необязательно)" aria-label="Комментарий"></textarea><input type="hidden" name="rating"><button class="btn btn-primary btn-sm" type="submit" disabled>Отправить оценку</button><p class="form-alert" role="alert"></p></form>')+'</div>').join("")}
 catch(e){box.innerHTML='<div class="empty-state"><h3>Не удалось загрузить</h3>'+esc(e.message)+'</div>'}}
 $("#revList").addEventListener("click",e=>{const b=e.target.closest("[data-star]");if(!b)return;const f=b.closest("form"),n=Number(b.dataset.star);f.rating.value=n;f.querySelectorAll("[data-star]").forEach(x=>x.setAttribute("aria-checked",String(Number(x.dataset.star)<=n)));f.querySelector("button[type=submit]").disabled=false});
-$("#revList").addEventListener("submit",async e=>{e.preventDefault();const f=e.target,item=Number(f.closest("[data-item]").dataset.item),msg=f.querySelector("[role=alert]");msg.textContent="Сохраняем…";
+$("#revList").addEventListener("submit",async e=>{e.preventDefault();const f=e.target,item=Number(f.closest("[data-item]").dataset.item),msg=f.querySelector("[role=alert]");msg.textContent="";
 try{const r=await fetch("/api/guest/reviews",{method:"POST",headers:{"content-type":"application/json"},body:JSON.stringify({order_item_id:item,rating:Number(f.rating.value),comment:f.comment.value})});const d=await r.json().catch(()=>({}));if(!r.ok)throw new Error(d.error||"Не удалось сохранить");VIA.toast("Спасибо за оценку!");openReviews()}catch(err){msg.textContent=err.message}});
 
 /* ——— загрузка ——— */
-async function loadMe(){try{const r=await fetch("/api/guest/me");const d=await r.json();guest=d.guest||null}catch(e){guest=null}if(guest)await refreshStats();renderProfile();if(pane==="order")renderCart();if(guest)VIA.push.sync("guest").then(refreshPush)}
+async function loadMe(){try{const r=await fetch("/api/guest/me");const d=await r.json();guest=d.guest||null}catch(e){guest=null}if(guest){markKnown();await refreshStats()}renderHello();renderProfile();if(pane==="order")renderCart();if(guest)VIA.push.sync("guest").then(refreshPush)}
 // Меню вместе с наличием: коктейль, на который не хватает ингредиентов, заказать нельзя.
 let menuLoadedAt=0;
 async function loadMenu(quiet){try{const r=await fetch("/api/cocktails",{cache:"no-store"});if(!r.ok)throw 0;const x=await r.json();cocktails=Array.isArray(x)?x:[];byId=new Map(cocktails.map(c=>[Number(c.id),c]));menuLoadedAt=Date.now();
@@ -2370,20 +2511,20 @@ const gone=[];Object.keys(cart).forEach(id=>{const c=byId.get(Number(id)),max=ma
 if(gone.length)VIA.toast((gone.length>1?"Закончились: ":"Закончился: ")+gone.join(", ")+" — убрали из заказа",true);
 const focusRow=document.activeElement&&document.activeElement.closest&&document.activeElement.closest("[data-row]");
 renderChips();renderMenu();renderCartBar();if(pane==="order")renderCart();
-if(!$("#cocktailSheet").hidden){const sid=Number(($("#csBody [data-sheet-stepper]")||{dataset:{}}).dataset.sheetStepper);if(sid&&byId.has(sid)&&!quiet)openCocktail(sid);else if(sid)updateRow(sid)}
+if(!$("#cocktailSheet").hidden){const sid=Number(($("#csBody [data-sheet-act]")||{dataset:{}}).dataset.sheetAct);if(sid&&byId.has(sid)&&!quiet)openCocktail(sid);else if(sid)updateRow(sid)}
 if(focusRow){const el=document.querySelector('[data-row="'+focusRow.dataset.row+'"] button');if(el)el.focus({preventScroll:true})}}
-catch(e){if(quiet)return;$("#menuList").innerHTML='<div class="list" style="margin-top:20px"><div class="empty-state"><h3>Не удалось загрузить меню</h3>Проверьте интернет и обновите страницу.<div style="margin-top:14px"><button class="btn btn-tinted btn-sm" type="button" onclick="location.reload()">Обновить</button></div></div></div>'}}
+catch(e){if(quiet)return;$("#menuList").innerHTML='<div class="card" style="margin-top:26px"><div class="empty-state"><h3>Не удалось загрузить меню</h3>Проверьте интернет и обновите страницу.<div style="margin-top:14px"><button class="btn btn-tinted btn-sm" type="button" onclick="location.reload()">Обновить</button></div></div></div>'}}
 // Наличие меняется, пока гости заказывают, — меню тихо обновляется раз в минуту.
 setInterval(()=>{if(!document.hidden)loadMenu(true)},60000);
 document.addEventListener("visibilitychange",()=>{if(!document.hidden&&Date.now()-menuLoadedAt>20000)loadMenu(true)});
+renderHello();
 const start=location.hash.slice(1);
 Promise.all([loadMenu(),loadMe()]).then(()=>{if(TITLES[start]&&start!=="menu")show(start,false)});
 if(TITLES[start]&&start!=="menu")show(start,false);
 })();
 </script>`;
         return htmlResponse(renderDocument({
-          title:"VIA Bar", app:"guest", docTitle:"VIA Bar — меню",
-          right:`<button class="icon-btn" type="button" data-goto="profile" aria-label="Профиль">${icon("person")}</button>`,
+          title:"VIA Bar", app:"guest", docTitle:"VIA Bar — меню", heading:false,
           extraCss:guestCss, body:guestBody,
         }).replace("</main>",()=>"</main>"+guestTabs+guestSheets+guestScript));
       }
@@ -2396,6 +2537,11 @@ if(TITLES[start]&&start!=="menu")show(start,false);
         right:`<button class="icon-btn" type="button" id="addPurchase" aria-label="Новая закупка" aria-haspopup="dialog">${icon("plus")}</button>`,
         sub:"Чеки покупок для бара. Новая закупка сразу пополняет склад.",
         extraCss:`
+.sh-sum{padding:18px 18px 16px;display:flex;align-items:flex-end;justify-content:space-between;gap:12px}
+.sh-sum b{display:block;margin-top:8px;font:600 2.125rem/1 var(--serif);color:var(--accent);white-space:nowrap}
+.sh-range{text-align:right;font-size:.78125rem;color:var(--label-3);line-height:1.45}
+.sh-sum+.list{margin-top:12px}
+#history .cell-title{font:600 1.125rem/1.15 var(--serif)}
 .shop-filters{display:flex;align-items:center;gap:8px}
 .shop-filters .segmented{flex:1;min-width:0}
 .shop-filters .segmented button{position:relative;min-height:40px;padding:0 4px}
@@ -2566,12 +2712,12 @@ function render(){
   const n=rows.length;
   if(!n){summaryEl.hidden=true;footerEl.hidden=true;historyEl.innerHTML=emptyHtml();return}
   const total=rows.reduce((s,r)=>s+(Number(r.price_rub)||0),0);
-  let h='<div class="list"><div class="cell has-icon"><span class="cell-icon">'+ic("coin")+'</span><span class="cell-body"><span class="cell-title">Потрачено</span><span class="cell-sub">'+esc(rangeText(state.from,state.to))+' · '+n+' '+plural(n,"закупка","закупки","закупок")+'</span></span><span class="cell-value num">'+money(total)+'</span></div>';
+  let h='<div class="card sh-sum"><div><span class="label-caps">Потрачено</span><b class="num">'+money(total)+'</b></div><div class="sh-range">'+esc(rangeText(state.from,state.to))+'<br>'+n+' '+plural(n,"закупка","закупки","закупок")+'</div></div>';
   if(state.ing){
     const q=rows.reduce((s,r)=>s+(Number(r.purchased_qty)||0),0),u=rows[0].unit,rt=rate(total,q);
-    h+='<div class="cell has-icon"><span class="cell-icon">'+ic("bottle")+'</span><span class="cell-body"><span class="cell-title">Куплено</span><span class="cell-sub">'+esc(rows[0].ingredient_name)+(rt?' · в среднем '+rt+' ₽ за '+esc(unitOf(u)):'')+'</span></span><span class="cell-value num">'+qty(q,u)+'</span></div>';
+    h+='<div class="list"><div class="cell has-icon"><span class="cell-icon">'+ic("bottle")+'</span><span class="cell-body"><span class="cell-title">Куплено</span><span class="cell-sub">'+esc(rows[0].ingredient_name)+(rt?' · в среднем '+rt+' ₽ за '+esc(unitOf(u)):'')+'</span></span><span class="cell-value num">'+qty(q,u)+'</span></div></div>';
   }
-  summaryEl.innerHTML=h+'</div>';summaryEl.hidden=false;
+  summaryEl.innerHTML=h;summaryEl.hidden=false;
   const groups=[];let g=null;
   rows.forEach(r=>{const k=String(r.purchased_at||"").slice(0,10);if(!g||g.key!==k){g={key:k,items:[],sum:0};groups.push(g)}g.items.push(r);g.sum+=Number(r.price_rub)||0});
   historyEl.innerHTML=groups.map((x,i)=>'<section class="section" aria-labelledby="day'+i+'"><div class="section-header"><h2 id="day'+i+'">'+esc(dayTitle(x.key))+'</h2><span class="num">'+money(x.sum)+'</span></div><div class="list">'+x.items.map(rowHtml).join("")+'</div></section>').join("");
@@ -2835,7 +2981,19 @@ document.addEventListener("DOMContentLoaded",()=>{
       if (url.pathname === "/bar/statistics") return htmlResponse(renderDocument({
         title:"Статистика", app:"bar", tab:"more", back:{href:"/bar",label:"Ещё"}, docTitle:"Статистика · VIA Бар",
         sub:"Смены за стойкой: сколько заказов, коктейлей и на какую сумму.",
-        extraCss:".stat-actions{margin-top:12px}",
+        extraCss:`.stat-actions{margin-top:12px}
+.st-cur{padding:18px}
+.st-top{display:flex;align-items:center;justify-content:space-between;gap:10px}
+.st-h{font:600 1.5625rem/1.1 var(--serif)}
+.st-live{display:inline-flex;align-items:center;gap:7px;font-size:.8125rem;font-weight:700;color:var(--ok);white-space:nowrap}
+.st-live i{width:8px;height:8px;border-radius:50%;background:var(--ok);box-shadow:0 0 0 4px var(--ok-tint)}
+.st-kp{display:grid;grid-template-columns:1fr 1fr 1.3fr;margin-top:18px;padding-top:16px;border-top:1px solid var(--sep)}
+.st-kp div{min-width:0}.st-kp div+div{border-left:1px solid var(--sep);padding-left:14px}
+.st-kp b{display:block;font:600 1.875rem/1 var(--serif);color:var(--accent);white-space:nowrap}
+.st-kp span{display:block;margin-top:5px;font-size:.75rem;font-weight:600;color:var(--label-3)}
+.st-cur .btn{margin-top:18px}
+.st-note{margin:10px 2px 0;font-size:.78125rem;color:var(--label-3);line-height:1.45}
+#shifts .cell-title{font:600 1.125rem/1.15 var(--serif)}`,
         body:`<div class="section"><div class="section-header"><h2>Текущая смена</h2></div><div id="current"><div class="list"><div class="skeleton"></div><div class="skeleton"></div></div></div></div>
 <div class="section"><div class="section-header"><h2>Все смены</h2><span id="shiftCount" class="num"></span></div><div class="list" id="shifts"><div class="skeleton"></div><div class="skeleton"></div></div>
 <p class="section-footer">Учитываются принятые заказы со стойки и принятые или выданные заказы гостей за время смены.</p></div>`,
@@ -2849,7 +3007,6 @@ const fmt=s=>{const d=toDate(s);return d&&!isNaN(d)?d.toLocaleString("ru-RU",{da
 const fmtTime=s=>{const d=toDate(s);return d&&!isNaN(d)?d.toLocaleTimeString("ru-RU",{hour:"2-digit",minute:"2-digit"}):""};
 const dur=(a,b)=>{const x=toDate(a),y=b?toDate(b):new Date();if(!x||isNaN(x))return"—";let m=Math.max(0,Math.round((y-x)/60000));const h=Math.floor(m/60);m%=60;return(h?h+" ч ":"")+m+" мин"};
 const rub=n=>Number(n||0).toLocaleString("ru-RU",{maximumFractionDigits:0})+" ₽";
-const row=(title,value)=>'<div class="cell"><span class="cell-body"><span class="cell-title">'+title+'</span></span><span class="cell-value num">'+value+'</span></div>';
 let busy=false;
 async function act(method){
   if(busy)return;
@@ -2864,9 +3021,11 @@ async function load(){
     const r=await fetch("/api/bar/statistics");const d=await r.json();if(!r.ok)throw new Error(d.error||"Не удалось загрузить");
     const shifts=d.shifts||[];const open=shifts.find(x=>x.status==="open");
     $("#current").innerHTML=open
-      ?'<div class="list">'+'<div class="cell"><span class="cell-body"><span class="cell-title">Смена №'+Number(open.id)+'</span><span class="cell-sub">с '+esc(fmt(open.started_at))+'</span></span><span class="badge ok">Идёт</span></div>'
-        +row("Длительность",esc(dur(open.started_at)))+row("Заказов",Number(open.orders_count||0))+row("Коктейлей",Number(open.cocktails_count||0))+row("Выручка",rub(open.revenue_rub))+'</div>'
-        +'<div class="stat-actions"><button class="btn btn-gray btn-block" type="button" id="closeShift">Закрыть смену</button></div>'
+      ?(()=>{const oc=Number(open.orders_count||0),cc=Number(open.cocktails_count||0);
+        return '<div class="card st-cur"><div class="st-top"><span class="st-h">Смена №'+Number(open.id)+'</span><span class="st-live"><i></i>идёт '+esc(dur(open.started_at))+'</span></div>'
+        +'<div class="st-kp"><div><b class="num">'+oc+'</b><span>'+plural(oc,["заказ","заказа","заказов"])+'</span></div><div><b class="num">'+cc+'</b><span>'+plural(cc,["коктейль","коктейля","коктейлей"])+'</span></div><div><b class="num">'+rub(open.revenue_rub)+'</b><span>выручка</span></div></div>'
+        +'<button class="btn btn-outline btn-block" type="button" id="closeShift">Закрыть смену</button>'
+        +'<p class="st-note">Смена началась '+esc(fmt(open.started_at))+'. После закрытия у гостей обнулятся счётчики «за визит».</p></div>'})()
       :'<div class="list"><div class="empty-state"><svg class="ic" aria-hidden="true"><use href="#i-clock"/></svg><h3>Смена не открыта</h3>Она откроется сама с первым заказом за стойкой — или откройте её сейчас.</div></div>'
         +'<div class="stat-actions"><button class="btn btn-primary btn-block" type="button" id="openShift">Открыть смену</button></div>';
     const c=$("#closeShift"),o=$("#openShift");if(c)c.onclick=()=>act("PUT");if(o)o.onclick=()=>act("POST");
@@ -2902,29 +3061,36 @@ document.addEventListener("visibilitychange",()=>{if(!document.hidden)load()});
 .q-note .ic{width:16px;height:16px;margin-top:1px}
 .q-note[hidden]{display:none}
 .q-skel .skeleton{min-height:64px;border-radius:0}.q-skel .skeleton+.skeleton{border-top:.5px solid var(--sep-strong)}
-.q-card.is-pending{box-shadow:inset 0 0 0 1px var(--gold-ring)}
+.q-card{padding:16px;margin-top:14px}
+.q-top{display:flex;gap:12px;align-items:flex-start}
+.q-av{width:42px;height:42px;flex:none;border-radius:50%;display:grid;place-items:center;background:var(--btn-fill);color:var(--btn-ink);font:600 1.3125rem/1 var(--serif)}
+.q-who{flex:1;min-width:0}
+.q-name{margin:0;font:600 1.3125rem/1.1 var(--serif);overflow-wrap:anywhere}
+.q-when{display:block;margin-top:3px;font-size:.78125rem;color:var(--label-3);font-variant-numeric:tabular-nums}
+.q-phone{display:inline-flex;align-items:center;gap:5px;margin-top:3px;font-size:.78125rem;font-weight:700;color:var(--accent);font-variant-numeric:tabular-nums}
+.q-phone .ic{width:13px;height:13px}
+.q-track{margin:16px 2px 4px}
+.q-items{margin-top:12px;border-top:1px solid var(--sep)}
+.q-item{display:flex;align-items:center;gap:8px;width:100%;min-height:46px;padding:10px 0;border:0;border-bottom:1px solid var(--sep);background:none;color:var(--label);font:inherit;text-align:left;cursor:pointer}
+.q-item:active{opacity:.7}
+.q-iname{flex:1;min-width:0;font:600 1.125rem/1.15 var(--serif)}
+.q-item b{font-size:.9375rem;font-variant-numeric:tabular-nums}
+.q-item .ic{width:17px;height:17px;color:var(--label-3)}
+.q-act{display:flex;align-items:center;gap:10px;margin-top:14px}
+.q-sum{flex:1;min-width:72px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.q-sum b{display:block;font-size:1.1875rem;font-weight:700;font-variant-numeric:tabular-nums}
+.q-sum .cell-sub{margin-top:2px}
+.q-act .btn-sm{min-height:42px;padding:0 12px;font-size:.84375rem;gap:6px;flex:none}
+.q-act .btn-sm .ic{width:16px;height:16px}
+.q-reject:disabled{opacity:.5}
+.q-card .q-msg{margin:10px 0 0;padding:0}
 .q-order.is-fresh .q-card{animation:q-fresh 2.8s ease-out}
-@keyframes q-fresh{0%,35%{box-shadow:inset 0 0 0 1.5px var(--gold),0 0 0 5px var(--gold-soft)}}
+@keyframes q-fresh{0%,35%{box-shadow:var(--shadow),inset 0 0 0 1.5px var(--brass),0 0 0 5px var(--tint)}}
 .q-order.is-leaving{overflow:hidden;transition:opacity .3s ease,max-height .35s ease,margin-top .35s ease}
 .q-order.is-gone{opacity:0;max-height:0!important;margin-top:0}
-.q-head{align-items:flex-start;padding-top:12px;padding-bottom:12px}
-.q-head .cell-icon{margin-top:1px}
-.q-head .cell-title{font-weight:600;font-size:1.0625rem;margin:0}
-.q-head .badge{margin-top:6px}
-.q-initial{font-weight:700;font-size:.9375rem}
-.q-when,.q-phone{display:block;font-variant-numeric:tabular-nums}
-.q-track{display:block;padding:12px 2px 14px}
 .q-track ol,.rc-panel ol{list-style:none;margin:0;padding:0}
-.q-item{cursor:pointer;--sep-inset:36px}
-.q-item .cell-value{color:var(--label);font-weight:600}
 .q-dot{width:10px;height:10px;flex:none;border-radius:50%;background:var(--line,var(--label-3))}
-.q-act{gap:12px;padding-top:12px;padding-bottom:12px}
-.q-act .cell-title{font-size:1.0625rem}
-.q-act .btn{min-width:136px}
 .q-done{color:var(--ok);font-weight:600;display:inline-flex;align-items:center;gap:6px;min-height:50px}
-.q-reject{justify-content:center;color:var(--danger);font-weight:600;min-height:48px}
-.q-reject:disabled{color:var(--label-3)}
-.q-msg{margin:0;padding:0 14px 12px;color:var(--danger);font-size:.9375rem;line-height:1.35}
 .q-msg:empty{display:none}
 .q-drows{position:relative}
 .q-drow{gap:8px;padding-top:4px;padding-bottom:4px;--sep-inset:38px}
@@ -3105,15 +3271,15 @@ const trackerHtml=st=>'<ol class="tracker" aria-label="Статус заказа
 function orderHtml(o){
   const id=Number(o.id),pending=o.status==="pending",name=String(o.guest_name||"").trim()||"Гость",items=o.items||[];
   const count=items.reduce((s,i)=>s+Number(i.quantity||0),0);
-  return '<div class="list q-card'+(pending?" is-pending":"")+'">'+
-    '<div class="cell has-icon q-head"><span class="cell-icon q-initial" aria-hidden="true">'+esc(name.charAt(0).toLocaleUpperCase("ru"))+'</span><div class="cell-body"><h3 class="cell-title" id="q'+id+'t">'+esc(name)+'</h3><span class="cell-sub"><span class="q-when">'+esc(whenLine(o))+'</span>'+(o.guest_phone?'<span class="q-phone">'+esc(fmtPhone(o.guest_phone))+'</span>':"")+'</span></div>'+(pending?'<span class="badge">Новый</span>':"")+'</div>'+
-    '<div class="cell q-track">'+trackerHtml(o.status)+'</div>'+
-    items.map(i=>'<button type="button" class="cell q-item" data-recipe="'+Number(i.cocktail_id)+'" data-fk="i'+Number(i.cocktail_id)+'">'+dotHtml(i.cocktail_id)+'<span class="cell-body"><span class="vh">Рецепт: </span><span class="cell-title">'+esc(i.cocktail_name||"Коктейль")+'</span></span><span class="cell-value">× '+Number(i.quantity||0)+'</span>'+ic("chevronRight","cell-chevron")+'</button>').join("")+
-    '<div class="cell q-act"><span class="cell-body"><span class="cell-title price">'+fmtRub(o.total_rub)+'</span><span class="cell-sub">'+drinks(count)+'</span></span>'+
-    '<button type="button" class="btn btn-primary q-go" data-act="'+(pending?"accept":"serve")+'" data-fk="act">'+(pending?ic("check")+"Принять":ic("glass")+"Выдать")+'</button></div>'+
-    '<p class="q-msg" role="alert"></p>'+
+  return '<div class="card q-card'+(pending?" is-pending":"")+'">'+
+    '<div class="q-top"><span class="q-av" aria-hidden="true">'+esc(name.charAt(0).toLocaleUpperCase("ru"))+'</span><div class="q-who"><h3 class="q-name" id="q'+id+'t">'+esc(name)+'</h3><span class="q-when">'+esc(whenLine(o))+'</span>'+(o.guest_phone?'<a class="q-phone" href="tel:'+esc(o.guest_phone)+'">'+ic("phone")+esc(fmtPhone(o.guest_phone))+'</a>':"")+'</div>'+(pending?'<span class="badge">Новый</span>':'<span class="badge warn">Принят</span>')+'</div>'+
+    '<div class="q-track">'+trackerHtml(o.status)+'</div>'+
+    '<div class="q-items">'+items.map(i=>'<button type="button" class="q-item" data-recipe="'+Number(i.cocktail_id)+'" data-fk="i'+Number(i.cocktail_id)+'"><span class="vh">Рецепт: </span><span class="q-iname">'+esc(i.cocktail_name||"Коктейль")+'</span><b>× '+Number(i.quantity||0)+'</b>'+ic("chevronRight")+'</button>').join("")+'</div>'+
+    '<div class="q-act"><div class="q-sum"><b class="price">'+fmtRub(o.total_rub)+'</b><span class="cell-sub">'+drinks(count)+'</span></div>'+
     // Не из чего приготовить — заказ можно отклонить: гость увидит «Отменён», бронь снимется.
-    (pending?'<button type="button" class="cell q-reject" data-fk="reject">Отклонить</button>':"")+
+    (pending?'<button type="button" class="btn btn-gray btn-sm q-reject" data-fk="reject">Отклонить</button>':"")+
+    '<button type="button" class="btn btn-primary btn-sm q-go" data-act="'+(pending?"accept":"serve")+'" data-fk="act">'+(pending?ic("check")+"Принять":ic("coupe")+"Выдать")+'</button></div>'+
+    '<p class="q-msg" role="alert"></p>'+
   '</div>';
 }
 function renderGuests(){
