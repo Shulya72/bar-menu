@@ -173,7 +173,7 @@ const refreshCocktailPrice = async (env, cocktailId) => {
   return {cost:price,price};
 };
 
-const BUILD_VERSION = "2026-10-21-ivory-v3";
+const BUILD_VERSION = "2026-10-21-ivory-v4";
 
 const calculateCocktailStrength = (recipeItems) => {
   let alcoholMl = 0;
@@ -2150,7 +2150,7 @@ $("#bottleDel").addEventListener("click",async()=>{if(!editing)return;
 .cs-hero img{width:100%;height:100%;object-fit:cover;display:block}
 .cs-x{position:absolute;top:14px;right:14px;z-index:3;width:40px;height:40px;border-radius:50%;border:0;display:grid;place-items:center;background:rgba(255,250,242,.9);color:#3A0F18;cursor:pointer;padding:0}
 .cs-x .ic{width:18px;height:18px}
-.cs-card{position:relative;margin-top:-30px;border-radius:30px 30px 0 0;background:var(--paint) no-repeat,var(--bg);padding:12px 22px 0}
+.cs-card{position:relative;z-index:2;margin-top:-30px;border-radius:30px 30px 0 0;background:var(--paint) no-repeat,var(--bg);padding:12px 22px 0}
 .cs-card .sheet-grabber{margin:0 auto 16px}
 .cs-meta{display:flex;align-items:center;justify-content:space-between;gap:12px;min-height:28px}
 .cs-str{display:inline-flex;align-items:center;gap:6px}
