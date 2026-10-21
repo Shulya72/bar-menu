@@ -4,7 +4,9 @@ import { renderDocument, htmlResponse, icon, monogram, wordmark } from "./design
 // один раз: результат отмечается в app_migrations, а внутри экземпляра Worker'а
 // запоминается промисом. Чтобы изменить схему — добавь команду в SCHEMA_SQL и
 // поменяй SCHEMA_VERSION: новая версия применится один раз при следующем запросе.
-const SCHEMA_VERSION="schema-2026-10-18-push-diag";
+const SCHEMA_VERSION="schema-2026-10-21-guest-shift";
+// Время самого раннего заказа гостя, принятого после закрытия последней смены (или NULL).
+const ORPHAN_GUEST_SQL="SELECT MIN(COALESCE(accepted_at,created_at)) FROM orders WHERE status IN ('accepted','served') AND COALESCE(accepted_at,created_at)>(SELECT MAX(closed_at) FROM bar_shifts WHERE status='closed')";
 const SCHEMA_SQL=[
   "CREATE TABLE IF NOT EXISTS app_migrations (name TEXT PRIMARY KEY, applied_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP)",
   // Основные таблицы — для новой пустой базы (раньше их создавал schema.sql). На рабочей базе
@@ -67,6 +69,11 @@ const SCHEMA_SQL=[
   // (один раз, при этой миграции); хозяева включат уведомления заново после входа.
   "DELETE FROM push_subscriptions WHERE role='bar' AND NOT EXISTS (SELECT 1 FROM app_migrations WHERE name='schema-2026-10-18-bar-auth')",
   "CREATE TABLE IF NOT EXISTS guest_reviews (id INTEGER PRIMARY KEY AUTOINCREMENT,guest_id INTEGER NOT NULL,order_item_id INTEGER NOT NULL UNIQUE,order_id INTEGER NOT NULL,cocktail_id INTEGER NOT NULL,rating INTEGER NOT NULL CHECK(rating BETWEEN 1 AND 5),comment TEXT NOT NULL DEFAULT '',created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP)",
+  // Один раз (при этой миграции): раньше принятие заказа гостя не открывало смену, и заказы,
+  // принятые после закрытия последней смены, не попадали ни в одну. Смена считается открытой
+  // с первого такого заказа — так, как сделал бы новый код.
+  `UPDATE bar_shifts SET started_at=(${ORPHAN_GUEST_SQL}) WHERE id=(SELECT id FROM bar_shifts WHERE status='open' ORDER BY id DESC LIMIT 1) AND started_at>(${ORPHAN_GUEST_SQL}) AND NOT EXISTS (SELECT 1 FROM app_migrations WHERE name='schema-2026-10-21-guest-shift')`,
+  `INSERT INTO bar_shifts(status,started_at) SELECT 'open',m FROM (SELECT (${ORPHAN_GUEST_SQL}) m) WHERE m IS NOT NULL AND NOT EXISTS (SELECT 1 FROM bar_shifts WHERE status='open') AND NOT EXISTS (SELECT 1 FROM app_migrations WHERE name='schema-2026-10-21-guest-shift')`,
 ];
 const migrateSchema=async env=>{
   try{
@@ -173,7 +180,7 @@ const refreshCocktailPrice = async (env, cocktailId) => {
   return {cost:price,price};
 };
 
-const BUILD_VERSION = "2026-10-21-ivory-v4.2";
+const BUILD_VERSION = "2026-10-21-ivory-v4.3";
 
 const calculateCocktailStrength = (recipeItems) => {
   let alcoholMl = 0;
@@ -357,6 +364,8 @@ export const acceptGuestOrderWithStock=async(env,id)=>{
   if(shortages.length)return [{error:"Недостаточно ингредиентов: "+shortages.join(", ")+". Можно отклонить заказ или докупить."},409];
   const done=await env.DB.batch([
     ...planBarOrderConsumption(env,id,required,lotsRes.results||[],{ref:"guest",log:false,guard:"EXISTS(SELECT 1 FROM orders WHERE id=? AND status='pending')",guardArgs:[id]}),
+    // Смена закрыта — принятый заказ гостя открывает её, как первый коктейль за стойкой.
+    env.DB.prepare("INSERT INTO bar_shifts(status) SELECT 'open' WHERE NOT EXISTS (SELECT 1 FROM bar_shifts WHERE status='open') AND EXISTS (SELECT 1 FROM orders WHERE id=? AND status='pending')").bind(id),
     env.DB.prepare(PRICE_UPDATE_SQL),
     env.DB.prepare("UPDATE orders SET status='accepted',accepted_at=CURRENT_TIMESTAMP WHERE id=? AND status='pending'").bind(id),
   ]);
@@ -567,7 +576,7 @@ export default {
         return json({ok:true,order_id:order.id,total_cocktails:draft.total_cocktails,total_price:totalPrice});
       }
       if (url.pathname === "/api/bar/statistics" && request.method === "GET") {
-        const {results}=await env.DB.prepare("SELECT s.id,s.status,s.started_at,s.closed_at,COUNT(DISTINCT CASE WHEN o.status='accepted' THEN o.id END)+(SELECT COUNT(*) FROM orders go WHERE go.status IN ('accepted','served') AND go.created_at>=s.started_at AND (s.closed_at IS NULL OR go.created_at<=s.closed_at)) orders_count,COALESCE(SUM(CASE WHEN o.status='accepted' THEN oi.quantity ELSE 0 END),0)+(SELECT COALESCE(SUM(gi.quantity),0) FROM orders go JOIN order_items gi ON gi.order_id=go.id WHERE go.status IN ('accepted','served') AND go.created_at>=s.started_at AND (s.closed_at IS NULL OR go.created_at<=s.closed_at)) cocktails_count,COALESCE(SUM(CASE WHEN o.status='accepted' THEN oi.quantity*oi.price_rub ELSE 0 END),0)+(SELECT COALESCE(SUM(go.total_rub),0) FROM orders go WHERE go.status IN ('accepted','served') AND go.created_at>=s.started_at AND (s.closed_at IS NULL OR go.created_at<=s.closed_at)) revenue_rub FROM bar_shifts s LEFT JOIN bar_orders o ON o.shift_id=s.id LEFT JOIN bar_order_items oi ON oi.order_id=o.id GROUP BY s.id ORDER BY s.id DESC LIMIT 100").all();return json({shifts:results||[]});
+        const {results}=await env.DB.prepare("SELECT s.id,s.status,s.started_at,s.closed_at,COUNT(DISTINCT CASE WHEN o.status='accepted' THEN o.id END)+(SELECT COUNT(*) FROM orders go WHERE go.status IN ('accepted','served') AND COALESCE(go.accepted_at,go.created_at)>=s.started_at AND (s.closed_at IS NULL OR COALESCE(go.accepted_at,go.created_at)<=s.closed_at)) orders_count,COALESCE(SUM(CASE WHEN o.status='accepted' THEN oi.quantity ELSE 0 END),0)+(SELECT COALESCE(SUM(gi.quantity),0) FROM orders go JOIN order_items gi ON gi.order_id=go.id WHERE go.status IN ('accepted','served') AND COALESCE(go.accepted_at,go.created_at)>=s.started_at AND (s.closed_at IS NULL OR COALESCE(go.accepted_at,go.created_at)<=s.closed_at)) cocktails_count,COALESCE(SUM(CASE WHEN o.status='accepted' THEN oi.quantity*oi.price_rub ELSE 0 END),0)+(SELECT COALESCE(SUM(go.total_rub),0) FROM orders go WHERE go.status IN ('accepted','served') AND COALESCE(go.accepted_at,go.created_at)>=s.started_at AND (s.closed_at IS NULL OR COALESCE(go.accepted_at,go.created_at)<=s.closed_at)) revenue_rub FROM bar_shifts s LEFT JOIN bar_orders o ON o.shift_id=s.id LEFT JOIN bar_order_items oi ON oi.order_id=o.id GROUP BY s.id ORDER BY s.id DESC LIMIT 100").all();return json({shifts:results||[]});
       }
 
       if (url.pathname === "/api/products" && request.method === "GET") {
@@ -3016,7 +3025,7 @@ async function load(){
         +'<div class="st-kp"><div><b class="num">'+oc+'</b><span>'+plural(oc,["заказ","заказа","заказов"])+'</span></div><div><b class="num">'+cc+'</b><span>'+plural(cc,["коктейль","коктейля","коктейлей"])+'</span></div><div><b class="num">'+rub(open.revenue_rub)+'</b><span>выручка</span></div></div>'
         +'<button class="btn btn-outline btn-block" type="button" id="closeShift">Закрыть смену</button>'
         +'<p class="st-note">Смена началась '+esc(fmt(open.started_at))+'. После закрытия у гостей обнулятся счётчики «за визит».</p></div>'})()
-      :'<div class="list"><div class="empty-state"><svg class="ic" aria-hidden="true"><use href="#i-clock"/></svg><h3>Смена не открыта</h3>Она откроется сама с первым заказом за стойкой — или откройте её сейчас.</div></div>'
+      :'<div class="list"><div class="empty-state"><svg class="ic" aria-hidden="true"><use href="#i-clock"/></svg><h3>Смена не открыта</h3>Она откроется сама с первым заказом за стойкой или когда вы примете заказ гостя. Можно открыть и сейчас.</div></div>'
         +'<div class="stat-actions"><button class="btn btn-primary btn-block" type="button" id="openShift">Открыть смену</button></div>';
     const c=$("#closeShift"),o=$("#openShift");if(c)c.onclick=()=>act("PUT");if(o)o.onclick=()=>act("POST");
     $("#shiftCount").textContent=shifts.length?shifts.length+" "+plural(shifts.length,["смена","смены","смен"]):"";
