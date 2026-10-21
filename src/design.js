@@ -339,10 +339,13 @@ export const SHELL_JS = `<script>
   VIA.closeSheet=function(id){var s=typeof id==="string"?document.getElementById(id):id;if(!s)return;s.classList.remove("open");document.documentElement.style.overflow="";setTimeout(function(){if(!s.classList.contains("open"))s.hidden=true},320)};
   document.addEventListener("click",function(e){var c=e.target.closest("[data-close-sheet]");if(c){VIA.closeSheet(c.closest(".sheet"));return}var o=e.target.closest("[data-open-sheet]");if(o){VIA.openSheet(o.getAttribute("data-open-sheet"));return}if(e.target.classList&&e.target.classList.contains("sheet"))VIA.closeSheet(e.target)});
   document.addEventListener("keydown",function(e){if(e.key==="Escape"){var s=document.querySelector(".sheet.open");if(s)VIA.closeSheet(s)}});
+  // Свайп вниз закрывает шторку, только если протянуть на треть экрана (у низкой шторки — на половину
+  // её высоты); короче — пружинит обратно, чтобы случайное движение пальцем её не закрывало.
+  var pullLim=function(p){return Math.min(innerHeight/3,p.offsetHeight/2)};
   // Свайп вниз по шапке шторки закрывает её
   var drag=null;document.addEventListener("pointerdown",function(e){var h=e.target.closest(".sheet-grabber,.sheet-head");if(!h||e.target.closest("button,a,input"))return;var p=h.closest(".sheet-panel");drag={p:p,y:e.clientY,dy:0};p.style.transition="none";try{h.setPointerCapture(e.pointerId)}catch(_){}});
   document.addEventListener("pointermove",function(e){if(!drag)return;drag.dy=Math.max(0,e.clientY-drag.y);drag.p.style.transform="translateY("+drag.dy+"px)"});
-  var end=function(){if(!drag)return;var p=drag.p;p.style.transition="";p.style.transform="";if(drag.dy>110)VIA.closeSheet(p.closest(".sheet"));drag=null};
+  var end=function(){if(!drag)return;var p=drag.p;p.style.transition="";p.style.transform="";if(drag.dy>pullLim(p))VIA.closeSheet(p.closest(".sheet"));drag=null};
   document.addEventListener("pointerup",end);document.addEventListener("pointercancel",end);
   // Шторку можно смахнуть вниз за любое место, когда её содержимое прокручено к самому верху,
   // как в приложениях iPhone. Иначе iPhone оттягивает только содержимое (фото уезжает вниз),
@@ -356,7 +359,7 @@ export const SHELL_JS = `<script>
     if(td.first){td.first=false;var dx=t.clientX-td.x,dy=t.clientY-td.y;
       if(dy>0&&Math.abs(dy)>=Math.abs(dx)&&td.sc.scrollTop<=0){td.on=true;td.y=t.clientY;td.p.style.transition="none"}else{td=null;return}}
     if(!td.on)return;e.preventDefault();td.dy=Math.max(0,t.clientY-td.y);td.p.style.transform="translateY("+td.dy+"px)"},{passive:false});
-  var tend=function(){var d=td;td=null;if(!d||!d.on)return;d.p.style.transition="";d.p.style.transform="";if(d.dy>110)VIA.closeSheet(d.p.closest(".sheet"))};
+  var tend=function(){var d=td;td=null;if(!d||!d.on)return;d.p.style.transition="";d.p.style.transform="";if(d.dy>pullLim(d.p))VIA.closeSheet(d.p.closest(".sheet"))};
   document.addEventListener("touchend",tend);document.addEventListener("touchcancel",tend);
   // Офлайн-режим: сервис-воркер (/sw.js) хранит копию страниц и данных на устройстве.
   VIA.setOffline=function(on){var p=document.getElementById("viaOffline");if(!p){if(!on)return;p=document.createElement("div");p.id="viaOffline";p.className="offline-pill";p.setAttribute("role","status");p.textContent="Нет интернета — сохранённая версия";var m=document.querySelector("main.screen");if(m)m.prepend(p);else document.body.prepend(p)}p.hidden=!on};
