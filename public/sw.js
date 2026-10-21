@@ -3,19 +3,20 @@
 // свежая версия (а копия на телефоне обновляется), без интернета — последняя
 // сохранённая. Заказы, закупки и правки склада без интернета не отправляются:
 // страница покажет «нет связи», как и раньше.
-const STATIC = "via-static-3"; // шрифты, иконки, логотип — меняются только с версией
+const STATIC = "via-static-4"; // шрифты, иконки, логотип — меняются только с версией (-4: «Слоновая кость и бордо»)
 // -2: после защиты панели входом старые копии барменских страниц стираются со всех устройств.
-const PAGES = "via-pages-2";
+const PAGES = "via-pages-3"; // -3: новый дизайн — старые копии страниц не показываем
 const DATA = "via-data-2";
 const PHOTOS = "via-photos";
 const KEEP = [STATIC, PAGES, DATA, PHOTOS];
 
 const STATIC_FILES = [
-  "/fonts/prata-cyrillic-400.woff2",
-  "/fonts/prata-latin-400.woff2",
-  "/brand/via-logo.webp?v=2",
-  "/icons/favicon-64.png?v=2",
-  "/icons/apple-touch-icon.png?v=2",
+  "/fonts/manrope-cyrillic-500-normal.woff2",
+  "/fonts/manrope-cyrillic-700-normal.woff2",
+  "/fonts/cormorant-garamond-cyrillic-600-normal.woff2",
+  "/brand/via-logo-bordeaux.webp?v=3",
+  "/icons/favicon-64.png?v=3",
+  "/icons/apple-touch-icon.png?v=3",
 ];
 // Файлы приложения (*.webmanifest) не кэшируются: iPhone при добавлении на экран
 // «Домой» должен получить их свежими.
@@ -76,8 +77,8 @@ self.addEventListener("push", (e) => {
       body: d.body || "",
       tag: d.tag || undefined,
       data: { url: d.url || "/" },
-      icon: "/icons/apple-touch-icon.png?v=2",
-      badge: "/icons/favicon-64.png?v=2",
+      icon: "/icons/apple-touch-icon.png?v=3",
+      badge: "/icons/favicon-64.png?v=3",
     }),
   );
 });
@@ -269,17 +270,18 @@ async function offlinePage(url) {
   saved.sort((a, b) => order.indexOf(a) - order.indexOf(b));
   const links = saved.map((p) => `<a href="${p}">${NAMES[p]}</a>`).join("");
   const html = `<!doctype html><html lang="ru" data-offline><head><meta charset="utf-8">
-<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover"><meta name="color-scheme" content="dark"><meta name="theme-color" content="#0A0908">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover"><meta name="color-scheme" content="light"><meta name="theme-color" content="#F6EFE5">
 <title>Нет связи · VIA Bar</title><style>
-@font-face{font-family:Prata;src:url(/fonts/prata-cyrillic-400.woff2) format("woff2");unicode-range:U+0400-04FF}
-@font-face{font-family:Prata;src:url(/fonts/prata-latin-400.woff2) format("woff2");unicode-range:U+0000-00FF}
-*{box-sizing:border-box}body{margin:0;min-height:100dvh;background:#0A0908;color:#F5EFE3;font:17px/1.45 -apple-system,BlinkMacSystemFont,"SF Pro Text",system-ui,sans-serif;display:grid;place-items:center;padding:calc(24px + env(safe-area-inset-top)) 20px calc(24px + env(safe-area-inset-bottom))}
+@font-face{font-family:"Cormorant Garamond";font-weight:600;src:url(/fonts/cormorant-garamond-cyrillic-600-normal.woff2) format("woff2");unicode-range:U+0400-04FF}
+@font-face{font-family:Manrope;font-weight:500;src:url(/fonts/manrope-cyrillic-500-normal.woff2) format("woff2");unicode-range:U+0400-04FF}
+@font-face{font-family:Manrope;font-weight:700;src:url(/fonts/manrope-cyrillic-700-normal.woff2) format("woff2");unicode-range:U+0400-04FF}
+*{box-sizing:border-box}body{margin:0;min-height:100dvh;background:radial-gradient(120% 420px at 50% -60px,#FFFBF5 0,rgba(255,251,245,0) 70%) no-repeat,#F6EFE5;color:#2A0E16;font:500 16px/1.45 Manrope,-apple-system,BlinkMacSystemFont,"SF Pro Text",system-ui,sans-serif;display:grid;place-items:center;padding:calc(24px + env(safe-area-inset-top)) 20px calc(24px + env(safe-area-inset-bottom))}
 main{width:min(100%,420px);text-align:center}img{width:112px;height:112px;display:block;margin:0 auto 18px}
-h1{font-family:Prata,Georgia,serif;font-weight:400;font-size:2rem;line-height:1.15;margin:0 0 10px}p{color:#B9B0A0;margin:0 0 22px}
-nav{display:flex;flex-direction:column;gap:10px}a{display:flex;align-items:center;justify-content:center;min-height:50px;border-radius:999px;background:rgba(230,193,115,.14);color:#E6C173;font-weight:600;text-decoration:none;box-shadow:inset 0 0 0 .75px rgba(230,193,115,.35)}
-button{margin-top:14px;min-height:50px;width:100%;border:0;border-radius:999px;background:linear-gradient(180deg,#F0CF86,#C99A4B);color:#1A1307;font:inherit;font-weight:700}
+h1{font:600 2.25rem/1.04 "Cormorant Garamond",Georgia,serif;margin:0 0 10px}p{color:#5E464B;margin:0 0 22px}
+nav{display:flex;flex-direction:column;gap:10px}a{display:flex;align-items:center;justify-content:center;min-height:50px;border-radius:16px;background:rgba(110,26,43,.08);color:#6E1A2B;font-weight:700;text-decoration:none}
+button{margin-top:14px;min-height:50px;width:100%;border:0;border-radius:16px;background:linear-gradient(180deg,#7C2335,#5F1626);color:#FBF2E4;font:inherit;font-weight:700;box-shadow:0 10px 22px rgba(80,18,34,.18)}
 </style></head><body><main>
-<img src="/brand/via-logo.webp?v=2" alt="VIA Bar" width="112" height="112">
+<img src="/brand/via-logo-bordeaux.webp?v=3" alt="VIA Bar" width="112" height="112">
 <h1>Нет связи с сайтом</h1>
 <p>Эта страница ещё не сохранена на телефоне. Если интернет есть, а сайт не открывается, — возможно, оператор ограничивает доступ: попробуйте с VPN.${links ? " Без связи доступно:" : ""}</p>
 ${links ? `<nav aria-label="Сохранённые страницы">${links}</nav>` : ""}
