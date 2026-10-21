@@ -2147,6 +2147,8 @@ $("#bottleDel").addEventListener("click",async()=>{if(!editing)return;
 .cs-panel .sheet-body{padding:0}
 .cs-hero{position:relative;width:100%;aspect-ratio:1/1;max-height:min(56dvh,560px);background:#2A0A14;overflow:hidden}
 .cs-hero img{width:100%;height:100%;object-fit:cover;display:block}
+/* верхний край фото мягко растворяется в размытом фоне за карточкой, а не обрывается резкой линией */
+.cs-hero::before{content:"";position:absolute;left:0;right:0;top:0;height:64px;z-index:2;pointer-events:none;background:linear-gradient(180deg,rgba(246,239,229,.86),rgba(246,239,229,.5) 22%,rgba(246,239,229,.18) 55%,rgba(246,239,229,0));-webkit-backdrop-filter:blur(10px);backdrop-filter:blur(10px);-webkit-mask-image:linear-gradient(180deg,#000 30%,transparent);mask-image:linear-gradient(180deg,#000 30%,transparent)}
 .cs-x{position:absolute;top:14px;right:14px;z-index:3;width:40px;height:40px;border-radius:50%;border:0;display:grid;place-items:center;background:rgba(255,250,242,.9);color:#3A0F18;cursor:pointer;padding:0}
 .cs-x .ic{width:18px;height:18px}
 .cs-card{position:relative;z-index:2;margin-top:-30px;border-radius:30px 30px 0 0;background:var(--paint) no-repeat,var(--bg);padding:12px 22px 0}
