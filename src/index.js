@@ -173,7 +173,7 @@ const refreshCocktailPrice = async (env, cocktailId) => {
   return {cost:price,price};
 };
 
-const BUILD_VERSION = "2026-10-21-ivory-v4.1";
+const BUILD_VERSION = "2026-10-21-ivory-v4.2";
 
 const calculateCocktailStrength = (recipeItems) => {
   let alcoholMl = 0;
@@ -2096,6 +2096,10 @@ $("#bottleDel").addEventListener("click",async()=>{if(!editing)return;
 .avatar{grid-column:3;justify-self:end;width:40px;height:40px;border-radius:50%;border:0;display:grid;place-items:center;background:var(--btn-fill);color:var(--btn-ink);font:600 1.1875rem/1 var(--serif);cursor:pointer;padding:0;box-shadow:0 6px 14px rgba(80,18,34,.18)}
 .avatar .ic{width:20px;height:20px}
 .hello{margin-top:24px}
+/* на телефоне имя всегда отдельной строкой: приветствие одинаково утром и вечером, с коротким и длинным именем;
+   на планшете и компьютере места хватает — одна строка */
+.hello em{display:block;overflow-wrap:anywhere}
+@media (min-width:600px){.hello em{display:inline}}
 .menu-tools{margin-top:18px}
 .menu-tools .chips{margin-top:12px}
 /* плитки меню */
