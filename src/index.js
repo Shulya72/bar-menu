@@ -2147,13 +2147,15 @@ $("#bottleDel").addEventListener("click",async()=>{if(!editing)return;
 .cs-panel .sheet-body{padding:0}
 .cs-hero{position:relative;width:100%;aspect-ratio:1/1;max-height:min(56dvh,560px);background:#2A0A14;overflow:hidden}
 .cs-hero img{width:100%;height:100%;object-fit:cover;display:block}
-/* «прозрачное» размытие по верху фото, как у краёв экрана в iPhone: три слоя, к краю сильнее; цвета фото не трогаем.
-   У скруглённых углов слои гаснут — иначе размытие подхватило бы светлый фон за углом. */
-.cs-blur{position:absolute;left:0;right:0;top:0;height:88px;z-index:2;pointer-events:none}
-.cs-blur i{position:absolute;inset:0}
-.cs-blur i:nth-child(1){-webkit-backdrop-filter:blur(2px);backdrop-filter:blur(2px);-webkit-mask-image:linear-gradient(180deg,#000 55%,transparent),linear-gradient(90deg,transparent,#000 36px,#000 calc(100% - 36px),transparent);mask-image:linear-gradient(180deg,#000 55%,transparent),linear-gradient(90deg,transparent,#000 36px,#000 calc(100% - 36px),transparent);-webkit-mask-composite:source-in;mask-composite:intersect}
-.cs-blur i:nth-child(2){-webkit-backdrop-filter:blur(5px);backdrop-filter:blur(5px);-webkit-mask-image:linear-gradient(180deg,#000 30%,transparent 70%),linear-gradient(90deg,transparent,#000 36px,#000 calc(100% - 36px),transparent);mask-image:linear-gradient(180deg,#000 30%,transparent 70%),linear-gradient(90deg,transparent,#000 36px,#000 calc(100% - 36px),transparent);-webkit-mask-composite:source-in;mask-composite:intersect}
-.cs-blur i:nth-child(3){-webkit-backdrop-filter:blur(12px);backdrop-filter:blur(12px);-webkit-mask-image:linear-gradient(180deg,#000 10%,transparent 42%),linear-gradient(90deg,transparent,#000 36px,#000 calc(100% - 36px),transparent);mask-image:linear-gradient(180deg,#000 10%,transparent 42%),linear-gradient(90deg,transparent,#000 36px,#000 calc(100% - 36px),transparent);-webkit-mask-composite:source-in;mask-composite:intersect}
+/* Верхний край карточки сливается с размытым фоном: полоса от верха экрана до края карточки (+12px) размывает
+   и фон, и сам край фото — граница растворяется. Три слоя, к верху сильнее; крестик (край+14px) остаётся чётким.
+   --cs-edge — где верх карточки (считается при открытии), --scrim — полоса гаснет вместе с фоном, пока карточку тянут. */
+#cocktailSheet .cs-edge{position:absolute;left:0;right:0;top:0;height:calc(var(--cs-edge,8dvh) + 12px);z-index:2;pointer-events:none;opacity:var(--scrim,1);transition:opacity .34s cubic-bezier(.2,.9,.25,1)}
+#cocktailSheet.dragging .cs-edge{transition:none}
+.cs-edge i{position:absolute;inset:0}
+.cs-edge i:nth-child(1){-webkit-backdrop-filter:blur(4px);backdrop-filter:blur(4px);-webkit-mask-image:linear-gradient(180deg,#000 calc(100% - 8px),transparent);mask-image:linear-gradient(180deg,#000 calc(100% - 8px),transparent)}
+.cs-edge i:nth-child(2){-webkit-backdrop-filter:blur(9px);backdrop-filter:blur(9px);-webkit-mask-image:linear-gradient(180deg,#000 calc(100% - 24px),transparent calc(100% - 6px));mask-image:linear-gradient(180deg,#000 calc(100% - 24px),transparent calc(100% - 6px))}
+.cs-edge i:nth-child(3){-webkit-backdrop-filter:blur(18px);backdrop-filter:blur(18px);-webkit-mask-image:linear-gradient(180deg,#000 calc(100% - 52px),transparent calc(100% - 22px));mask-image:linear-gradient(180deg,#000 calc(100% - 52px),transparent calc(100% - 22px))}
 .cs-x{position:absolute;top:14px;right:14px;z-index:3;width:40px;height:40px;border-radius:50%;border:0;display:grid;place-items:center;background:rgba(255,250,242,.9);color:#3A0F18;cursor:pointer;padding:0}
 .cs-x .ic{width:18px;height:18px}
 .cs-card{position:relative;z-index:2;margin-top:-30px;border-radius:30px 30px 0 0;background:var(--paint) no-repeat,var(--bg);padding:12px 22px 0}
@@ -2264,7 +2266,7 @@ $("#bottleDel").addEventListener("click",async()=>{if(!editing)return;
 </nav>
 <div class="cart-bar" id="cartBar" hidden><div class="txt" id="cartBarText" role="status" aria-live="polite"></div><button class="go" type="button" id="cartBarGo">К заказу${icon("arrow")}</button></div>`;
         const guestSheets = `
-<div class="sheet" id="cocktailSheet" hidden><div class="sheet-panel cs-panel" role="dialog" aria-modal="true" aria-labelledby="csTitle">
+<div class="sheet" id="cocktailSheet" hidden><div class="cs-edge" aria-hidden="true"><i></i><i></i><i></i></div><div class="sheet-panel cs-panel" role="dialog" aria-modal="true" aria-labelledby="csTitle">
 <div class="sheet-body" id="csBody"></div></div></div>
 
 <div class="sheet" id="authSheet" hidden><div class="sheet-panel auth-panel" role="dialog" aria-modal="true" aria-labelledby="authTitle">
@@ -2399,12 +2401,15 @@ const ch=e.target.closest("#lineChips .chip");if(ch){lineFilter=ch.dataset.line;
 $("#q").addEventListener("input",renderMenu);
 
 function openCocktail(id){const c=byId.get(id);if(!c)return;const l=lineOf(c),ings=ingNames(c),price=Number(c.price_rub||0),out=isOut(c),p=hero(c);
-$("#csBody").innerHTML='<div class="cs-hero'+(out?" is-out":"")+'">'+(p?'<img src="'+esc(p)+'" alt="'+esc(c.name)+'">':"")+'<div class="cs-blur" aria-hidden="true"><i></i><i></i><i></i></div><button class="cs-x" type="button" data-close-sheet aria-label="Закрыть">'+ic("close")+'</button></div>'
+$("#csBody").innerHTML='<div class="cs-hero'+(out?" is-out":"")+'">'+(p?'<img src="'+esc(p)+'" alt="'+esc(c.name)+'">':"")+'<button class="cs-x" type="button" data-close-sheet aria-label="Закрыть">'+ic("close")+'</button></div>'
 +'<div class="cs-card"><div class="sheet-grabber"></div><div class="cs-meta"><span class="cs-str">'+(l?scale(l)+'<span class="label-caps">'+l.label+'</span>':"")+'</span>'+(out?'<span class="badge danger">Нет в наличии</span>':price?'<span class="cs-price num">'+rub(price)+'</span>':"")+'</div>'
 +'<h3 class="cs-name" id="csTitle">'+esc(c.name)+'</h3>'+(c.description?'<p class="cs-desc">'+esc(c.description)+'</p>':"")
 +(ings.length?'<div class="cs-comp"><span class="label-caps">Состав</span><div class="ing-chips">'+ings.map(n=>'<span>'+esc(n)+'</span>').join("")+'</div></div>':"")+'</div>'
 +'<div class="cs-act" data-sheet-act="'+id+'">'+sheetAct(id)+'</div>';
-VIA.openSheet("cocktailSheet");$("#csBody").scrollTop=0}
+VIA.openSheet("cocktailSheet");$("#csBody").scrollTop=0;csEdge()}
+// Верх карточки на экране — для полосы размытия .cs-edge (у высокой карточки 8% экрана, у низкой ниже).
+function csEdge(){const s=$("#cocktailSheet"),pn=s.querySelector(".sheet-panel");if(!s.hidden)s.style.setProperty("--cs-edge",Math.max(0,s.clientHeight-pn.offsetHeight)+"px")}
+if(window.ResizeObserver)new ResizeObserver(csEdge).observe($("#cocktailSheet .sheet-panel"));addEventListener("resize",csEdge);
 
 /* ——— заказ ——— */
 function renderCartBar(){const n=cartCount();const b=$("#cartBadge");b.textContent=n;b.hidden=!n;const bar=$("#cartBar");bar.hidden=!n||pane==="order";
