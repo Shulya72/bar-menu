@@ -159,7 +159,7 @@ a{color:var(--accent);text-decoration:none}
 .tab[aria-current=page]::before{content:"";position:absolute;top:0;left:50%;width:26px;height:2px;margin-left:-13px;border-radius:2px;background:var(--brass)}
 .tab:active{opacity:.6}
 .tab-badge{position:absolute;top:5px;left:calc(50% + 6px);min-width:18px;height:18px;padding:0 5px;border-radius:9px;background:var(--btn-solid);color:var(--btn-ink);font-size:.65625rem;font-weight:700;line-height:18px;text-align:center}
-@media (prefers-reduced-transparency:reduce){.navbar.scrolled,.tabbar{background:var(--material-strong);-webkit-backdrop-filter:none;backdrop-filter:none}}
+@media (prefers-reduced-transparency:reduce){.navbar.scrolled,.tabbar{background:var(--material-strong);-webkit-backdrop-filter:none;backdrop-filter:none}.sheet::before{background:rgba(246,239,229,.92);-webkit-backdrop-filter:none;backdrop-filter:none}}
 
 /* ——— Карточки и сгруппированные списки ——— */
 .section{margin:26px 0 0}
@@ -288,9 +288,12 @@ a.cell:active,button.cell:active,.cell.tappable:active{background:var(--bg-press
 ::placeholder{color:var(--label-3);opacity:1;font-weight:500}
 
 /* ——— Шторка (sheet) ——— */
-.sheet{position:fixed;inset:0;z-index:80;display:flex;align-items:flex-end;justify-content:center;background:rgba(20,6,10,.42);opacity:0;pointer-events:none;transition:opacity .25s ease}
+.sheet{position:fixed;inset:0;z-index:80;display:flex;align-items:flex-end;justify-content:center;opacity:0;pointer-events:none;transition:opacity .25s ease}
+/* за шторкой — размытая страница в цвет слоновой кости (--bg); пока шторку тянут вниз, размытие уходит (--scrim) */
+.sheet::before{content:"";position:absolute;inset:0;background:rgba(246,239,229,.5);-webkit-backdrop-filter:blur(16px) saturate(120%);backdrop-filter:blur(16px) saturate(120%);opacity:var(--scrim,1);transition:opacity .34s cubic-bezier(.2,.9,.25,1)}
+.sheet.dragging::before{transition:none}
 .sheet.open{opacity:1;pointer-events:auto}
-.sheet-panel{position:relative;width:100%;max-width:720px;max-height:92dvh;display:flex;flex-direction:column;background:var(--paint) no-repeat,var(--bg);border-radius:30px 30px 0 0;box-shadow:0 -12px 40px rgba(42,14,22,.22);transform:translateY(100%);transition:transform .34s cubic-bezier(.2,.9,.25,1);padding-bottom:var(--safe-b);overflow:hidden}
+.sheet-panel{position:relative;z-index:1;width:100%;max-width:720px;max-height:92dvh;display:flex;flex-direction:column;background:var(--paint) no-repeat,var(--bg);border-radius:30px 30px 0 0;box-shadow:0 -12px 40px rgba(42,14,22,.22);transform:translateY(100%);transition:transform .34s cubic-bezier(.2,.9,.25,1);padding-bottom:var(--safe-b);overflow:hidden}
 .sheet.open .sheet-panel{transform:none}
 .sheet-grabber,.sheet-head{touch-action:none}
 .sheet-grabber{width:40px;height:5px;border-radius:3px;background:var(--sep-strong);margin:8px auto 0;flex:none}
@@ -335,14 +338,20 @@ export const SHELL_JS = `<script>
   var nav=document.querySelector(".navbar");
   if(nav){var on=function(){var lt=[].find.call(document.querySelectorAll(".large-title"),function(e){return e.offsetParent});nav.classList.toggle("scrolled",window.scrollY>(lt?lt.offsetTop+lt.offsetHeight-44:4))};on();addEventListener("scroll",on,{passive:true})}
   window.VIA=window.VIA||{};
-  VIA.openSheet=function(id){var s=typeof id==="string"?document.getElementById(id):id;if(!s)return;s.hidden=false;requestAnimationFrame(function(){s.classList.add("open")});document.documentElement.style.overflow="hidden";var f=s.querySelector("[autofocus]");if(f)setTimeout(function(){f.focus()},300)};
-  VIA.closeSheet=function(id){var s=typeof id==="string"?document.getElementById(id):id;if(!s)return;s.classList.remove("open");document.documentElement.style.overflow="";setTimeout(function(){if(!s.classList.contains("open"))s.hidden=true},320)};
+  VIA.openSheet=function(id){var s=typeof id==="string"?document.getElementById(id):id;if(!s)return;s.style.removeProperty("--scrim");s.hidden=false;requestAnimationFrame(function(){s.classList.add("open")});document.documentElement.style.overflow="hidden";var f=s.querySelector("[autofocus]");if(f)setTimeout(function(){f.focus()},300)};
+  VIA.closeSheet=function(id){var s=typeof id==="string"?document.getElementById(id):id;if(!s)return;s.classList.remove("open");document.documentElement.style.overflow="";setTimeout(function(){if(!s.classList.contains("open")){s.hidden=true;s.style.removeProperty("--scrim")}},320)};
   document.addEventListener("click",function(e){var c=e.target.closest("[data-close-sheet]");if(c){VIA.closeSheet(c.closest(".sheet"));return}var o=e.target.closest("[data-open-sheet]");if(o){VIA.openSheet(o.getAttribute("data-open-sheet"));return}if(e.target.classList&&e.target.classList.contains("sheet"))VIA.closeSheet(e.target)});
   document.addEventListener("keydown",function(e){if(e.key==="Escape"){var s=document.querySelector(".sheet.open");if(s)VIA.closeSheet(s)}});
-  // Свайп вниз по шапке шторки закрывает её
-  var drag=null;document.addEventListener("pointerdown",function(e){var h=e.target.closest(".sheet-grabber,.sheet-head");if(!h||e.target.closest("button,a,input"))return;var p=h.closest(".sheet-panel");drag={p:p,y:e.clientY,dy:0};p.style.transition="none";try{h.setPointerCapture(e.pointerId)}catch(_){}});
-  document.addEventListener("pointermove",function(e){if(!drag)return;drag.dy=Math.max(0,e.clientY-drag.y);drag.p.style.transform="translateY("+drag.dy+"px)"});
-  var end=function(){if(!drag)return;var p=drag.p;p.style.transition="";p.style.transform="";if(drag.dy>110)VIA.closeSheet(p.closest(".sheet"));drag=null};
+  // Жест «смахнуть вниз»: шторка едет за пальцем, размытие за ней гаснет. Закрывается, только если
+  // протянуть на треть экрана (у низкой шторки — на половину её высоты); короче — пружинит обратно,
+  // чтобы случайное движение пальцем её не закрывало.
+  var pull={start:function(d){d.s=d.p.closest(".sheet");d.lim=Math.min(innerHeight/3,d.p.offsetHeight/2);d.p.style.transition="none";d.s.classList.add("dragging")},
+    move:function(d){d.p.style.transform="translateY("+d.dy+"px)";d.s.style.setProperty("--scrim",Math.max(0,1-d.dy/(d.lim*1.4)).toFixed(3))},
+    end:function(d){d.s.classList.remove("dragging");d.p.style.transition="";d.p.style.transform="";if(d.dy>d.lim)VIA.closeSheet(d.s);else d.s.style.removeProperty("--scrim")}};
+  // Мышью — за шапку шторки
+  var drag=null;document.addEventListener("pointerdown",function(e){var h=e.target.closest(".sheet-grabber,.sheet-head");if(!h||e.target.closest("button,a,input"))return;drag={p:h.closest(".sheet-panel"),y:e.clientY,dy:0};pull.start(drag);try{h.setPointerCapture(e.pointerId)}catch(_){}});
+  document.addEventListener("pointermove",function(e){if(!drag)return;drag.dy=Math.max(0,e.clientY-drag.y);pull.move(drag)});
+  var end=function(){if(!drag)return;pull.end(drag);drag=null};
   document.addEventListener("pointerup",end);document.addEventListener("pointercancel",end);
   // Шторку можно смахнуть вниз за любое место, когда её содержимое прокручено к самому верху,
   // как в приложениях iPhone. Иначе iPhone оттягивает только содержимое (фото уезжает вниз),
@@ -354,9 +363,9 @@ export const SHELL_JS = `<script>
     td={p:p,sc:e.target.closest(".sheet-body")||p,x:e.touches[0].clientX,y:e.touches[0].clientY,dy:0,on:false,first:true}},{passive:true});
   document.addEventListener("touchmove",function(e){if(!td)return;var t=e.touches[0];
     if(td.first){td.first=false;var dx=t.clientX-td.x,dy=t.clientY-td.y;
-      if(dy>0&&Math.abs(dy)>=Math.abs(dx)&&td.sc.scrollTop<=0){td.on=true;td.y=t.clientY;td.p.style.transition="none"}else{td=null;return}}
-    if(!td.on)return;e.preventDefault();td.dy=Math.max(0,t.clientY-td.y);td.p.style.transform="translateY("+td.dy+"px)"},{passive:false});
-  var tend=function(){var d=td;td=null;if(!d||!d.on)return;d.p.style.transition="";d.p.style.transform="";if(d.dy>110)VIA.closeSheet(d.p.closest(".sheet"))};
+      if(dy>0&&Math.abs(dy)>=Math.abs(dx)&&td.sc.scrollTop<=0){td.on=true;td.y=t.clientY;pull.start(td)}else{td=null;return}}
+    if(!td.on)return;e.preventDefault();td.dy=Math.max(0,t.clientY-td.y);pull.move(td)},{passive:false});
+  var tend=function(){var d=td;td=null;if(!d||!d.on)return;pull.end(d)};
   document.addEventListener("touchend",tend);document.addEventListener("touchcancel",tend);
   // Офлайн-режим: сервис-воркер (/sw.js) хранит копию страниц и данных на устройстве.
   VIA.setOffline=function(on){var p=document.getElementById("viaOffline");if(!p){if(!on)return;p=document.createElement("div");p.id="viaOffline";p.className="offline-pill";p.setAttribute("role","status");p.textContent="Нет интернета — сохранённая версия";var m=document.querySelector("main.screen");if(m)m.prepend(p);else document.body.prepend(p)}p.hidden=!on};
