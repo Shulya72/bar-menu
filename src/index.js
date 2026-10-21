@@ -173,7 +173,7 @@ const refreshCocktailPrice = async (env, cocktailId) => {
   return {cost:price,price};
 };
 
-const BUILD_VERSION = "2026-10-21-ivory-v1";
+const BUILD_VERSION = "2026-10-21-ivory-v2";
 
 const calculateCocktailStrength = (recipeItems) => {
   let alcoholMl = 0;

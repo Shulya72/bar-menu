@@ -297,7 +297,7 @@ a.cell:active,button.cell:active,.cell.tappable:active{background:var(--bg-press
 .sheet-head{display:grid;grid-template-columns:1fr auto 1fr;align-items:center;min-height:50px;padding:0 10px;flex:none}
 .sheet-head h2{grid-column:2;margin:0;font:700 .9375rem/1.2 var(--sans);text-align:center}
 .sheet-head .left{grid-column:1;justify-self:start}.sheet-head .right{grid-column:3;justify-self:end}
-.sheet-body{overflow-y:auto;overscroll-behavior:contain;padding:4px 20px 24px;-webkit-overflow-scrolling:touch}
+.sheet-body{overflow-y:auto;overscroll-behavior:none;padding:4px 20px 24px;-webkit-overflow-scrolling:touch}
 
 /* ——— Состояния ——— */
 .empty-state{text-align:center;padding:34px 20px;color:var(--label-2);font-size:.875rem;line-height:1.5}
@@ -344,6 +344,20 @@ export const SHELL_JS = `<script>
   document.addEventListener("pointermove",function(e){if(!drag)return;drag.dy=Math.max(0,e.clientY-drag.y);drag.p.style.transform="translateY("+drag.dy+"px)"});
   var end=function(){if(!drag)return;var p=drag.p;p.style.transition="";p.style.transform="";if(drag.dy>110)VIA.closeSheet(p.closest(".sheet"));drag=null};
   document.addEventListener("pointerup",end);document.addEventListener("pointercancel",end);
+  // Шторку можно смахнуть вниз за любое место, когда её содержимое прокручено к самому верху,
+  // как в приложениях iPhone. Иначе iPhone оттягивает только содержимое (фото уезжает вниз),
+  // а рамка шторки остаётся на месте. Решаем по первому движению пальца: вниз у верха — тянем
+  // шторку, иначе — обычная прокрутка.
+  var td=null;
+  document.addEventListener("touchstart",function(e){var p=e.target.closest(".sheet.open .sheet-panel");td=null;
+    if(!p||e.touches.length!==1||e.target.closest(".sheet-grabber,.sheet-head,input,textarea,select,canvas"))return;
+    td={p:p,sc:e.target.closest(".sheet-body")||p,x:e.touches[0].clientX,y:e.touches[0].clientY,dy:0,on:false,first:true}},{passive:true});
+  document.addEventListener("touchmove",function(e){if(!td)return;var t=e.touches[0];
+    if(td.first){td.first=false;var dx=t.clientX-td.x,dy=t.clientY-td.y;
+      if(dy>0&&Math.abs(dy)>=Math.abs(dx)&&td.sc.scrollTop<=0){td.on=true;td.y=t.clientY;td.p.style.transition="none"}else{td=null;return}}
+    if(!td.on)return;e.preventDefault();td.dy=Math.max(0,t.clientY-td.y);td.p.style.transform="translateY("+td.dy+"px)"},{passive:false});
+  var tend=function(){var d=td;td=null;if(!d||!d.on)return;d.p.style.transition="";d.p.style.transform="";if(d.dy>110)VIA.closeSheet(d.p.closest(".sheet"))};
+  document.addEventListener("touchend",tend);document.addEventListener("touchcancel",tend);
   // Офлайн-режим: сервис-воркер (/sw.js) хранит копию страниц и данных на устройстве.
   VIA.setOffline=function(on){var p=document.getElementById("viaOffline");if(!p){if(!on)return;p=document.createElement("div");p.id="viaOffline";p.className="offline-pill";p.setAttribute("role","status");p.textContent="Нет интернета — сохранённая версия";var m=document.querySelector("main.screen");if(m)m.prepend(p);else document.body.prepend(p)}p.hidden=!on};
   if(document.documentElement.hasAttribute("data-offline")||navigator.onLine===false)VIA.setOffline(true);
