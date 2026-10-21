@@ -2147,8 +2147,13 @@ $("#bottleDel").addEventListener("click",async()=>{if(!editing)return;
 .cs-panel .sheet-body{padding:0}
 .cs-hero{position:relative;width:100%;aspect-ratio:1/1;max-height:min(56dvh,560px);background:#2A0A14;overflow:hidden}
 .cs-hero img{width:100%;height:100%;object-fit:cover;display:block}
-/* верхний край фото мягко растворяется в размытом фоне за карточкой, а не обрывается резкой линией */
-.cs-hero::before{content:"";position:absolute;left:0;right:0;top:0;height:64px;z-index:2;pointer-events:none;background:linear-gradient(180deg,rgba(246,239,229,.86),rgba(246,239,229,.5) 22%,rgba(246,239,229,.18) 55%,rgba(246,239,229,0));-webkit-backdrop-filter:blur(10px);backdrop-filter:blur(10px);-webkit-mask-image:linear-gradient(180deg,#000 30%,transparent);mask-image:linear-gradient(180deg,#000 30%,transparent)}
+/* «прозрачное» размытие по верху фото, как у краёв экрана в iPhone: три слоя, к краю сильнее; цвета фото не трогаем.
+   У скруглённых углов слои гаснут — иначе размытие подхватило бы светлый фон за углом. */
+.cs-blur{position:absolute;left:0;right:0;top:0;height:88px;z-index:2;pointer-events:none}
+.cs-blur i{position:absolute;inset:0}
+.cs-blur i:nth-child(1){-webkit-backdrop-filter:blur(2px);backdrop-filter:blur(2px);-webkit-mask-image:linear-gradient(180deg,#000 55%,transparent),linear-gradient(90deg,transparent,#000 36px,#000 calc(100% - 36px),transparent);mask-image:linear-gradient(180deg,#000 55%,transparent),linear-gradient(90deg,transparent,#000 36px,#000 calc(100% - 36px),transparent);-webkit-mask-composite:source-in;mask-composite:intersect}
+.cs-blur i:nth-child(2){-webkit-backdrop-filter:blur(5px);backdrop-filter:blur(5px);-webkit-mask-image:linear-gradient(180deg,#000 30%,transparent 70%),linear-gradient(90deg,transparent,#000 36px,#000 calc(100% - 36px),transparent);mask-image:linear-gradient(180deg,#000 30%,transparent 70%),linear-gradient(90deg,transparent,#000 36px,#000 calc(100% - 36px),transparent);-webkit-mask-composite:source-in;mask-composite:intersect}
+.cs-blur i:nth-child(3){-webkit-backdrop-filter:blur(12px);backdrop-filter:blur(12px);-webkit-mask-image:linear-gradient(180deg,#000 10%,transparent 42%),linear-gradient(90deg,transparent,#000 36px,#000 calc(100% - 36px),transparent);mask-image:linear-gradient(180deg,#000 10%,transparent 42%),linear-gradient(90deg,transparent,#000 36px,#000 calc(100% - 36px),transparent);-webkit-mask-composite:source-in;mask-composite:intersect}
 .cs-x{position:absolute;top:14px;right:14px;z-index:3;width:40px;height:40px;border-radius:50%;border:0;display:grid;place-items:center;background:rgba(255,250,242,.9);color:#3A0F18;cursor:pointer;padding:0}
 .cs-x .ic{width:18px;height:18px}
 .cs-card{position:relative;z-index:2;margin-top:-30px;border-radius:30px 30px 0 0;background:var(--paint) no-repeat,var(--bg);padding:12px 22px 0}
@@ -2394,7 +2399,7 @@ const ch=e.target.closest("#lineChips .chip");if(ch){lineFilter=ch.dataset.line;
 $("#q").addEventListener("input",renderMenu);
 
 function openCocktail(id){const c=byId.get(id);if(!c)return;const l=lineOf(c),ings=ingNames(c),price=Number(c.price_rub||0),out=isOut(c),p=hero(c);
-$("#csBody").innerHTML='<div class="cs-hero'+(out?" is-out":"")+'">'+(p?'<img src="'+esc(p)+'" alt="'+esc(c.name)+'">':"")+'<button class="cs-x" type="button" data-close-sheet aria-label="Закрыть">'+ic("close")+'</button></div>'
+$("#csBody").innerHTML='<div class="cs-hero'+(out?" is-out":"")+'">'+(p?'<img src="'+esc(p)+'" alt="'+esc(c.name)+'">':"")+'<div class="cs-blur" aria-hidden="true"><i></i><i></i><i></i></div><button class="cs-x" type="button" data-close-sheet aria-label="Закрыть">'+ic("close")+'</button></div>'
 +'<div class="cs-card"><div class="sheet-grabber"></div><div class="cs-meta"><span class="cs-str">'+(l?scale(l)+'<span class="label-caps">'+l.label+'</span>':"")+'</span>'+(out?'<span class="badge danger">Нет в наличии</span>':price?'<span class="cs-price num">'+rub(price)+'</span>':"")+'</div>'
 +'<h3 class="cs-name" id="csTitle">'+esc(c.name)+'</h3>'+(c.description?'<p class="cs-desc">'+esc(c.description)+'</p>':"")
 +(ings.length?'<div class="cs-comp"><span class="label-caps">Состав</span><div class="ing-chips">'+ings.map(n=>'<span>'+esc(n)+'</span>').join("")+'</div></div>':"")+'</div>'
