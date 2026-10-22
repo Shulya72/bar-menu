@@ -180,7 +180,7 @@ const refreshCocktailPrice = async (env, cocktailId) => {
   return {cost:price,price};
 };
 
-const BUILD_VERSION = "2026-10-22-ivory-v4.5";
+const BUILD_VERSION = "2026-10-22-ivory-v4.6";
 
 const calculateCocktailStrength = (recipeItems) => {
   let alcoholMl = 0;
@@ -844,16 +844,22 @@ export default {
         let rv={n:0,avg:0,ids:""};
         try{const r=await env.DB.prepare("SELECT COUNT(*) n,AVG(rating) avg,(SELECT GROUP_CONCAT(id) FROM (SELECT id FROM guest_reviews ORDER BY id DESC LIMIT 100)) ids FROM guest_reviews").first();rv={n:Number(r?.n||0),avg:Number(r?.avg||0),ids:String(r?.ids||"")}}catch(e){}
         let devices=0;try{devices=Number((await env.DB.prepare("SELECT COUNT(*) n FROM bar_sessions").first())?.n||0)}catch(e){}
+        // Цены в меню гостей: бармен может скрыть их на вечер (см. worker.js, guest_prices).
+        let pricesHidden=false;try{pricesHidden=(await env.DB.prepare("SELECT value FROM app_kv WHERE key='guest_prices'").first())?.value==="hidden"}catch(e){}
         const devSub="Панель открыта на "+devices+" "+(devices%10===1&&devices%100!==11?"устройстве":"устройствах");
         const rvSub=rv.n?rv.n+" "+(rv.n%10===1&&rv.n%100!==11?"отзыв":[2,3,4].includes(rv.n%10)&&![12,13,14].includes(rv.n%100)?"отзыва":"отзывов")+" · ★ "+rv.avg.toFixed(1).replace(".",","):"Пока нет — гости оценивают выданные коктейли";
         return htmlResponse(renderDocument({
         title:"Ещё", app:"bar", tab:"more", docTitle:"Ещё · VIA Бар",
-        extraCss:`.section{margin-top:22px}.section-header{margin:0 4px 9px}.section-header h2{font:700 .6875rem/1 var(--sans);letter-spacing:.14em;text-transform:uppercase;color:var(--label-3)}#logoutAll .cell-icon{background:var(--danger-tint);color:var(--danger)}.cell .badge{flex:none}.cell .danger-text{color:var(--danger)}.form-msg{margin:12px 4px 0;color:var(--danger)}.form-msg:empty{display:none}.sr-only{position:absolute;width:1px;height:1px;overflow:hidden;clip:rect(0 0 0 0);white-space:nowrap}`,
+        extraCss:`.section{margin-top:22px}.section-header{margin:0 4px 9px}.section-header h2{font:700 .6875rem/1 var(--sans);letter-spacing:.14em;text-transform:uppercase;color:var(--label-3)}#logoutAll .cell-icon{background:var(--danger-tint);color:var(--danger)}.cell .badge{flex:none}.cell .danger-text{color:var(--danger)}.form-msg{margin:12px 4px 0;color:var(--danger)}.form-msg:empty{display:none}.sr-only{position:absolute;width:1px;height:1px;overflow:hidden;clip:rect(0 0 0 0);white-space:nowrap}
+.sw{position:relative;flex:none;width:51px;height:31px;border:0;border-radius:16px;padding:0;background:var(--sep-strong);cursor:pointer;transition:background .2s}
+.sw::after{content:"";position:absolute;top:2px;left:2px;width:27px;height:27px;border-radius:50%;background:#fff;box-shadow:0 2px 5px rgba(42,14,22,.22);transition:transform .2s cubic-bezier(.2,.9,.25,1)}
+.sw[aria-checked="true"]{background:var(--accent)}.sw[aria-checked="true"]::after{transform:translateX(20px)}.sw:disabled{opacity:.6}`,
         body:`<div class="section"><div class="section-header"><h2>Бар</h2></div><div class="list">
 <a class="cell has-icon" href="/bar/ingredients"><span class="cell-icon">${icon("leaf")}</span><span class="cell-body"><span class="cell-title">Ингредиенты</span><span class="cell-sub">Справочник для рецептов и склада</span></span>${icon("chevronRight","cell-chevron")}</a>
 <a class="cell has-icon" href="/bar/statistics"><span class="cell-icon">${icon("chart")}</span><span class="cell-body"><span class="cell-title">Статистика</span><span class="cell-sub">Смены, заказы и выручка</span></span>${icon("chevronRight","cell-chevron")}</a>
 </div></div>
 <div class="section"><div class="section-header"><h2>Гости</h2></div><div class="list">
+<div class="cell has-icon"><span class="cell-icon">${icon("coin")}</span><span class="cell-body"><span class="cell-title" id="pricesTitle">Цены в меню гостей</span><span class="cell-sub" id="pricesSub">${pricesHidden?"Скрыты — гости видят меню без цен":"Гости видят цены коктейлей"}</span></span><button class="sw" type="button" role="switch" id="pricesSw" aria-labelledby="pricesTitle" aria-checked="${pricesHidden?"false":"true"}"></button></div>
 <a class="cell has-icon" href="/bar/reviews" id="reviewsCell" data-ids="${rv.ids}"><span class="cell-icon">${icon("star")}</span><span class="cell-body"><span class="cell-title">Отзывы гостей</span><span class="cell-sub">${rvSub}</span></span><span class="badge" id="reviewsNew" hidden></span>${icon("chevronRight","cell-chevron")}</a>
 <a class="cell has-icon" href="/menu"><span class="cell-icon">${icon("coupe")}</span><span class="cell-body"><span class="cell-title">Гостевое меню</span><span class="cell-sub">Так видят бар гости</span></span>${icon("chevronRight","cell-chevron")}</a>
 <a class="cell has-icon" href="/"><span class="cell-icon">${icon("home")}</span><span class="cell-body"><span class="cell-title">Главная</span></span>${icon("chevronRight","cell-chevron")}</a>
@@ -876,6 +882,12 @@ export default {
 <p class="form-msg" id="pinMsg" role="alert"></p>
 <p class="section-footer">Устройства, где уже выполнен вход, останутся в панели. Новый код понадобится при следующем входе.</p></form></div></div></div>`,
       }).replace("</main>",()=>`</main><script>
+// Цены в меню гостей: тумблер сохраняется сразу; у гостей меню обновится в течение минуты.
+document.addEventListener("DOMContentLoaded",function(){var sw=document.getElementById("pricesSw"),ps=document.getElementById("pricesSub");if(!sw)return;
+sw.addEventListener("click",function(){var show=sw.getAttribute("aria-checked")!=="true";sw.disabled=true;
+fetch("/api/bar/guest-prices",{method:"POST",headers:{"content-type":"application/json"},body:JSON.stringify({hidden:!show})}).then(function(r){if(!r.ok)throw new Error("Не получилось — проверьте интернет");
+sw.setAttribute("aria-checked",show?"true":"false");ps.textContent=show?"Гости видят цены коктейлей":"Скрыты — гости видят меню без цен";VIA.toast(show?"Цены снова видны гостям":"Цены скрыты: гости увидят меню без цен")})
+.catch(function(e){VIA.toast(e.message||"Не получилось",true,4000)}).then(function(){sw.disabled=false})})});
 document.addEventListener("DOMContentLoaded",function(){var sub=document.getElementById("pushSub"),btn=document.getElementById("pushBtn"),cur="";
 function paint(st){cur=st;sub.textContent=VIA.push.text[st]||"";btn.hidden=!(st==="on"||st==="off");btn.textContent=st==="on"?"Выключить":"Включить"}
 var test=document.getElementById("pushTest");
@@ -2197,6 +2209,7 @@ $("#bottleDel").addEventListener("click",async()=>{if(!editing)return;
 .gcard-who b{display:block;font:600 2.125rem/1 var(--serif);overflow-wrap:anywhere}
 .gcard-who span{display:block;margin-top:6px;font-size:.8125rem;letter-spacing:.06em;color:rgba(246,236,223,.72)}
 .gcard-st{position:relative;display:grid;grid-template-columns:auto auto minmax(0,1fr);gap:20px;margin-top:auto;padding-top:22px}
+.gcard-st.no-money{grid-template-columns:auto minmax(0,1fr)}
 .gcard-st b{display:block;font-size:1.0625rem;font-weight:700;color:#F6ECDF;line-height:1.05;white-space:nowrap}
 .gcard-st b.fav{font:italic 600 1.1875rem/1.05 var(--serif);color:#E3C380;white-space:normal}
 .gcard-st span{display:block;margin-top:5px;font-size:.6875rem;line-height:1.2;color:rgba(246,236,223,.68)}
@@ -2306,6 +2319,8 @@ const $=s=>document.querySelector(s);
 const esc=s=>String(s??"").replace(/[&<>"']/g,c=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[c]));
 const norm=s=>String(s||"").toLocaleLowerCase("ru").replace(/ё/g,"е");
 const rub=n=>Number(n||0).toLocaleString("ru-RU",{maximumFractionDigits:0})+" ₽";
+// Сумма с приставкой (« · 520 ₽») или ничего — когда бармен скрыл цены, сервер присылает вместо сумм null.
+const money=(n,pre)=>n==null?"":(pre||"")+rub(n);
 const plural=(n,f)=>{const a=Math.abs(n)%100,b=a%10;return f[a>10&&a<20?2:b===1?0:b>=2&&b<=4?1:2]};
 const cocktailsWord=n=>n+" "+plural(n,["коктейль","коктейля","коктейлей"]);
 const toDate=s=>s?new Date(String(s).replace(" ","T")+(/[zZ]|[+-]\d\d:?\d\d$/.test(s)?"":"Z")):null;
@@ -2423,9 +2438,9 @@ if(!h.length){box.innerHTML=stats?'<div class="section"><div class="section-head
 const ask=pushState==="off"&&h.some(o=>o.status==="pending"||o.status==="accepted")?'<div class="list" style="margin-top:14px"><div class="cell has-icon"><span class="cell-icon">'+ic("bell")+'</span><span class="cell-body"><span class="cell-title">Написать, когда заказ будет готов?</span><span class="cell-sub">Пришлём уведомление на этот телефон</span></span><button class="btn btn-primary btn-sm" type="button" id="pushAsk">Включить</button></div></div>':"";
 const live=h.filter(o=>o.status==="pending"||o.status==="accepted"),rest=h.filter(o=>!live.includes(o));
 // Сколько всего — за всё время, в заголовке списка всех заказов
-box.innerHTML='<div class="section"><div class="section-header"><h2>Мои заказы</h2><span class="num">'+cocktailsWord(Number(stats.cocktails_count||0))+' · '+rub(stats.spent_rub)+'</span></div>'+ask
+box.innerHTML='<div class="section"><div class="section-header"><h2>Мои заказы</h2><span class="num">'+cocktailsWord(Number(stats.cocktails_count||0))+money(stats.spent_rub,' · ')+'</span></div>'+ask
 +live.map(o=>'<div class="card live"><div class="live-top"><span class="name-serif">Заказ №'+Number(o.id)+(o.items?' · '+esc(o.items):"")+'</span>'+pill(o.status)+'</div>'+route(o)+'</div>').join("")
-+(rest.length?'<div class="list orders-list">'+rest.map(o=>'<div class="cell ord"><span class="cell-body"><span class="name-serif">№'+Number(o.id)+(o.items?' · '+esc(o.items):"")+'</span><span class="cell-sub num">'+esc(when(o.created_at))+' · '+rub(o.total_rub)+'</span>'+(o.status==="cancelled"?'<span class="order-cancelled">'+ic("close")+'В этот раз не получилось — попробуйте ещё раз</span>':"")+'</span>'+pill(o.status)+'</div>').join("")+'</div>':"")+'</div>'}
++(rest.length?'<div class="list orders-list">'+rest.map(o=>'<div class="cell ord"><span class="cell-body"><span class="name-serif">№'+Number(o.id)+(o.items?' · '+esc(o.items):"")+'</span><span class="cell-sub num">'+esc(when(o.created_at))+money(o.total_rub,' · ')+'</span>'+(o.status==="cancelled"?'<span class="order-cancelled">'+ic("close")+'В этот раз не получилось — попробуйте ещё раз</span>':"")+'</span>'+pill(o.status)+'</div>').join("")+'</div>':"")+'</div>'}
 document.addEventListener("click",e=>{const g=e.target.closest("[data-goto]");if(g){if(g.closest(".sheet"))VIA.closeSheet(g.closest(".sheet"));show(g.dataset.goto)}});
 async function sendOrder(){if(sending)return;const items=cartItems().map(x=>({cocktail_id:Number(x.c.id),quantity:x.q}));if(!items.length)return;
 if(!guest){pendingSend=true;openAuth(known()?"login":"reg");return}
@@ -2449,10 +2464,10 @@ const s=stats||{},digits=String(guest.phone||"").replace(/\D/g,""),last4=digits.
 const lp=li.find(i=>i.photo_url);
 box.innerHTML='<div class="gcard">'+GUILLOCHE+'<div class="gcard-top">'+WM+LOGO_GOLD+'</div>'
 +'<div class="gcard-who"><b>'+esc(guest.name)+'</b>'+(last4.length===4?'<span class="num">+7 ••• ••• '+last4.slice(0,2)+' '+last4.slice(2)+'</span>':"")+'</div>'
-+'<div class="gcard-st"><div><b class="num">'+Number(s.visit_cocktails||0)+'</b><span>'+plural(Number(s.visit_cocktails||0),["коктейль","коктейля","коктейлей"])+'<br>за визит</span></div><div><b class="num">'+rub(s.visit_rub)+'</b><span>потрачено<br>за визит</span></div>'
++'<div class="gcard-st'+(s.visit_rub==null?' no-money':'')+'"><div><b class="num">'+Number(s.visit_cocktails||0)+'</b><span>'+plural(Number(s.visit_cocktails||0),["коктейль","коктейля","коктейлей"])+'<br>за визит</span></div>'+(s.visit_rub==null?'':'<div><b class="num">'+rub(s.visit_rub)+'</b><span>потрачено<br>за визит</span></div>')
 +(s.favorite_cocktail?'<div><b class="fav">'+esc(s.favorite_cocktail)+'</b><span>любимый<br>коктейль</span></div>':"")+'</div></div>'
-+(latest?'<div class="section"><div class="section-header"><h2>Последний заказ</h2><span>'+esc(when(latest.created_at))+'</span></div><div class="card last"><div class="last-r">'+(lp?'<img class="thumb" src="'+esc(lp.photo_url)+'" alt="">':'<span class="thumb thumb-ph">'+ic("coupe")+'</span>')+'<span class="body"><span class="name-serif" style="display:block">'+esc(latest.items||"—")+'</span><span class="cell-sub num">'+rub(latest.total_rub)+' · '+(PILL[latest.status]||PILL.pending)[0]+'</span></span></div>'+(li.length?'<button class="btn btn-outline" type="button" id="repeatOrder">'+ic("repeat")+'Повторить заказ</button>':"")+'</div></div>':"")
-+'<div class="list rows-gap"><button class="cell has-icon" type="button" data-goto="order"><span class="cell-icon">'+ic("chit")+'</span><span class="cell-body"><span class="cell-title">Мои заказы</span><span class="cell-sub">'+Number(s.orders_count||0)+' '+plural(Number(s.orders_count||0),["заказ","заказа","заказов"])+(s.orders_count?' · '+cocktailsWord(Number(s.cocktails_count||0))+' · '+rub(s.spent_rub):'')+'</span></span>'+chev()+'</button>'
++(latest?'<div class="section"><div class="section-header"><h2>Последний заказ</h2><span>'+esc(when(latest.created_at))+'</span></div><div class="card last"><div class="last-r">'+(lp?'<img class="thumb" src="'+esc(lp.photo_url)+'" alt="">':'<span class="thumb thumb-ph">'+ic("coupe")+'</span>')+'<span class="body"><span class="name-serif" style="display:block">'+esc(latest.items||"—")+'</span><span class="cell-sub num">'+money(latest.total_rub,'')+(latest.total_rub==null?'':' · ')+(PILL[latest.status]||PILL.pending)[0]+'</span></span></div>'+(li.length?'<button class="btn btn-outline" type="button" id="repeatOrder">'+ic("repeat")+'Повторить заказ</button>':"")+'</div></div>':"")
++'<div class="list rows-gap"><button class="cell has-icon" type="button" data-goto="order"><span class="cell-icon">'+ic("chit")+'</span><span class="cell-body"><span class="cell-title">Мои заказы</span><span class="cell-sub">'+Number(s.orders_count||0)+' '+plural(Number(s.orders_count||0),["заказ","заказа","заказов"])+(s.orders_count?' · '+cocktailsWord(Number(s.cocktails_count||0))+money(s.spent_rub,' · '):'')+'</span></span>'+chev()+'</button>'
 +'<button class="cell has-icon" type="button" id="openReviews"><span class="cell-icon">'+ic("star")+'</span><span class="cell-body"><span class="cell-title">Мои оценки</span><span class="cell-sub">Оцените выпитые коктейли</span></span>'+chev()+'</button>'
 +(pushState&&pushState!=="unsupported"?'<button class="cell has-icon" type="button" id="pushToggle"><span class="cell-icon">'+ic("bell")+'</span><span class="cell-body"><span class="cell-title">Уведомления о заказе</span><span class="cell-sub">'+esc(pushState==="off"?"Напишем, когда примем заказ и когда он будет готов":VIA.push.text[pushState]||"")+'</span></span><span class="cell-value">'+(pushState==="on"?"Вкл.":pushState==="off"?"Выкл.":"")+'</span></button>':"")
 +'<button class="cell has-icon" type="button" id="logout"><span class="cell-icon">'+ic("logout")+'</span><span class="cell-body"><span class="cell-title acc">Выйти</span></span></button></div>';
@@ -2505,7 +2520,7 @@ try{const r=await fetch("/api/guest/reviews",{method:"POST",headers:{"content-ty
 async function loadMe(){try{const r=await fetch("/api/guest/me");const d=await r.json();guest=d.guest||null}catch(e){guest=null}if(guest){markKnown();await refreshStats()}renderHello();renderProfile();if(pane==="order")renderCart();if(guest)VIA.push.sync("guest").then(refreshPush)}
 // Меню вместе с наличием: коктейль, на который не хватает ингредиентов, заказать нельзя.
 let menuLoadedAt=0;
-async function loadMenu(quiet){try{const r=await fetch("/api/cocktails",{cache:"no-store"});if(!r.ok)throw 0;const x=await r.json();cocktails=Array.isArray(x)?x:[];byId=new Map(cocktails.map(c=>[Number(c.id),c]));menuLoadedAt=Date.now();
+async function loadMenu(quiet){try{const r=await fetch("/api/cocktails?for=menu",{cache:"no-store"});if(!r.ok)throw 0;const x=await r.json();cocktails=Array.isArray(x)?x:[];byId=new Map(cocktails.map(c=>[Number(c.id),c]));menuLoadedAt=Date.now();
 const gone=[];Object.keys(cart).forEach(id=>{const c=byId.get(Number(id)),max=maxOf(c);if(!c||max<1){if(c)gone.push(c.name);delete cart[id]}else if(cart[id]>max)cart[id]=max});saveCart();
 if(gone.length)VIA.toast((gone.length>1?"Закончились: ":"Закончился: ")+gone.join(", ")+" — убрали из заказа",true);
 const focusRow=document.activeElement&&document.activeElement.closest&&document.activeElement.closest("[data-row]");
