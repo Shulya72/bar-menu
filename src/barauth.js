@@ -55,20 +55,51 @@ export const deviceLabel = (r) => {
   const ua = r.headers.get("user-agent") || "";
   return /iPhone/.test(ua) ? "iPhone" : /iPad/.test(ua) ? "iPad" : /Android/.test(ua) ? "Android" : /Macintosh/.test(ua) ? "Mac" : /Windows/.test(ua) ? "Windows" : "Устройство";
 };
+// Что за устройство — по строке браузера (User-Agent); для списка «Устройства» в «Ещё».
+// Приложение с экрана «Домой» на iPhone/iPad не пишет о себе «Safari» — так его и отличаем.
+const uaOf = (r) => (r.headers.get("user-agent") || "").slice(0, 300);
+export const deviceInfo = (ua) => {
+  ua = String(ua || "");
+  const ios = /iPhone|iPad|iPod/.test(ua),
+    tablet = /iPad/.test(ua) || (/Android/.test(ua) && !/Mobile/.test(ua));
+  const kind = /iPhone|iPod/.test(ua) || (/Android/.test(ua) && /Mobile/.test(ua)) ? "phone" : tablet ? "tablet" : "computer";
+  const device = /iPhone/.test(ua) ? "iPhone" : /iPad/.test(ua) ? "iPad" : /Android/.test(ua) ? (tablet ? "Планшет Android" : "Телефон Android")
+    : /Macintosh/.test(ua) ? "Mac" : /Windows/.test(ua) ? "Компьютер Windows" : /CrOS/.test(ua) ? "Chromebook" : /Linux/.test(ua) ? "Компьютер Linux" : "Устройство";
+  const v = /OS (\d+)[_.](\d+)/.exec(ua), a = /Android (\d+(?:\.\d+)?)/.exec(ua);
+  const os = ios && v ? (/iPad/.test(ua) ? "iPadOS " : "iOS ") + v[1] + (v[2] !== "0" ? "." + v[2] : "") : a ? "Android " + a[1]
+    : /Macintosh/.test(ua) ? "macOS" : /Windows/.test(ua) ? "Windows" : "";
+  const where = /YaBrowser/.test(ua) ? "Яндекс Браузер" : /Edg(e|A|iOS)?\//.test(ua) ? "Edge" : /OPR\/|Opera/.test(ua) ? "Opera"
+    : /CriOS|Chrome\//.test(ua) ? "Chrome" : /FxiOS|Firefox\//.test(ua) ? "Firefox" : ios && !/Safari\//.test(ua) ? "Приложение с экрана «Домой»"
+    : /Safari\//.test(ua) ? "Safari" : "";
+  return { kind, device, os, where };
+};
 export async function barSession(r, e) {
   const t = tokenOf(r);
   if (t.length < 40) return null;
-  const s = await e.DB.prepare(
-    "SELECT id,last_seen_at < datetime('now','-1 day') stale FROM bar_sessions WHERE token_hash=? AND last_seen_at > datetime('now','-365 days')",
-  )
-    .bind(await sha256(t))
-    .first();
-  if (s?.stale) await e.DB.prepare("UPDATE bar_sessions SET last_seen_at=CURRENT_TIMESTAMP WHERE id=?").bind(s.id).run();
-  return s || null;
+  const h = await sha256(t),
+    ua = uaOf(r);
+  // Отметка «когда заходили» — не чаще раза в час (и когда сменился браузер/система).
+  try {
+    const s = await e.DB.prepare(
+      "SELECT id,(last_seen_at < datetime('now','-1 hour') OR ua IS NOT ?) stale FROM bar_sessions WHERE token_hash=? AND last_seen_at > datetime('now','-365 days')",
+    )
+      .bind(ua, h)
+      .first();
+    if (s?.stale) await e.DB.prepare("UPDATE bar_sessions SET last_seen_at=CURRENT_TIMESTAMP,ua=? WHERE id=?").bind(ua, s.id).run();
+    return s || null;
+  } catch {
+    // Колонки ua ещё нет (схема не обновилась) — вход всё равно работает.
+    return (await e.DB.prepare("SELECT id FROM bar_sessions WHERE token_hash=? AND last_seen_at > datetime('now','-365 days')").bind(h).first()) || null;
+  }
 }
 const newSession = async (r, e) => {
   const t = b64u(crypto.getRandomValues(new Uint8Array(32)));
-  await e.DB.prepare("INSERT INTO bar_sessions(token_hash,label) VALUES(?,?)").bind(await sha256(t), deviceLabel(r)).run();
+  const h = await sha256(t);
+  try {
+    await e.DB.prepare("INSERT INTO bar_sessions(token_hash,label,ua) VALUES(?,?,?)").bind(h, deviceLabel(r), uaOf(r)).run();
+  } catch {
+    await e.DB.prepare("INSERT INTO bar_sessions(token_hash,label) VALUES(?,?)").bind(h, deviceLabel(r)).run();
+  }
   return `${COOKIE}=${t}; HttpOnly; Secure; SameSite=Lax; Path=/; Max-Age=${YEAR}`;
 };
 const CLEAR_COOKIE = `${COOKIE}=; HttpOnly; Secure; SameSite=Lax; Path=/; Max-Age=0`;
@@ -108,6 +139,22 @@ export const needsBarAuth = (p, m) => isBarPage(p) || (p.startsWith("/api/") && 
 export async function barAuthApi(r, e, u) {
   const p = u.pathname,
     ip = ipOf(r);
+  // «Ещё → Устройства»: где открыта панель. Токены и строку браузера не отдаём — только описание.
+  if (p === "/api/bar/auth/devices" && r.method === "GET") {
+    const s = await barSession(r, e);
+    if (!s) return authRequired();
+    await e.DB.prepare("DELETE FROM bar_sessions WHERE last_seen_at <= datetime('now','-365 days')").run();
+    const { results } = await e.DB.prepare(
+      "SELECT s.id,s.label,s.ua,s.name,s.created_at,s.last_seen_at,EXISTS(SELECT 1 FROM push_subscriptions p WHERE p.role='bar' AND p.bar_session_id=s.id) push FROM bar_sessions s ORDER BY s.id=? DESC,s.last_seen_at DESC,s.id DESC",
+    )
+      .bind(s.id)
+      .all();
+    const devices = (results || []).map((x) => {
+      const d = x.ua ? deviceInfo(x.ua) : { kind: /Mac|Windows|Устройство/.test(x.label || "") ? "computer" : /iPad/.test(x.label || "") ? "tablet" : "phone", device: x.label || "Устройство", os: "", where: "" };
+      return { id: x.id, name: x.name || "", ...d, created_at: x.created_at, last_seen_at: x.last_seen_at, push: !!x.push, mine: x.id === s.id };
+    });
+    return json({ devices });
+  }
   if (p === "/api/bar/auth" && r.method === "GET") {
     const s = await barSession(r, e);
     const devices = s ? Number((await e.DB.prepare("SELECT COUNT(*) n FROM bar_sessions").first())?.n || 0) : undefined;
@@ -154,6 +201,27 @@ export async function barAuthApi(r, e, u) {
     }
     await setPin(e, pin);
     return json({ ok: true });
+  }
+  // Отключить одно устройство: его вход и уведомления бармена на нём. Своё — кнопкой «Выйти на этом телефоне».
+  if (p === "/api/bar/auth/devices/revoke") {
+    const id = Number(b.id);
+    if (!Number.isInteger(id) || id <= 0) return json({ error: "Не найдено" }, 400);
+    if (id === s.id) return json({ error: "Это устройство — выйдите кнопкой «Выйти на этом телефоне»" }, 400);
+    const [del] = await e.DB.batch([
+      e.DB.prepare("DELETE FROM bar_sessions WHERE id=?").bind(id),
+      e.DB.prepare("DELETE FROM push_subscriptions WHERE role='bar' AND bar_session_id=?").bind(id),
+    ]);
+    if (!del.meta?.changes) return json({ error: "Устройство уже отключено" }, 404);
+    const n = Number((await e.DB.prepare("SELECT COUNT(*) n FROM bar_sessions").first())?.n || 0);
+    return json({ ok: true, devices: n });
+  }
+  if (p === "/api/bar/auth/devices/name") {
+    const id = Number(b.id),
+      name = String(b.name || "").replace(/[\u0000-\u001f\u007f]/g, "").replace(/\s+/g, " ").trim().slice(0, 40);
+    if (!Number.isInteger(id) || id <= 0) return json({ error: "Не найдено" }, 400);
+    const res = await e.DB.prepare("UPDATE bar_sessions SET name=? WHERE id=?").bind(name || null, id).run();
+    if (!res.meta?.changes) return json({ error: "Устройство уже отключено" }, 404);
+    return json({ ok: true, name });
   }
   if (p === "/api/bar/auth/logout") {
     // «На всех устройствах»: закрываем все сессии и уведомления бармена (с чужого
