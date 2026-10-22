@@ -308,6 +308,21 @@ a.cell:active,button.cell:active,.cell.tappable:active{background:var(--bg-press
 .sheet-head h2{grid-column:2;margin:0;font:700 .9375rem/1.2 var(--sans);text-align:center}
 .sheet-head .left{grid-column:1;justify-self:start}.sheet-head .right{grid-column:3;justify-self:end}
 .sheet-body{overflow-y:auto;overscroll-behavior:none;padding:4px 20px 24px;-webkit-overflow-scrolling:touch}
+/* Планшет и шире: шторка — окно по центру экрана (на телефоне — снизу, как раньше). */
+@media (min-width:768px){
+.sheet{align-items:center;padding:24px}
+.sheet-panel{max-width:620px;max-height:min(88dvh,900px);border-radius:28px;padding-bottom:0;box-shadow:0 24px 60px rgba(42,14,22,.26);transform:translateY(28px) scale(.98);opacity:0;transition:transform .32s cubic-bezier(.2,.9,.25,1),opacity .22s ease}
+.sheet.open .sheet-panel{transform:none;opacity:1}
+.sheet .sheet-grabber{display:none}
+}
+/* Планшет горизонтально и компьютер: страницы со списками (body.wide — меню, рецепты, склад, закупки, заказы,
+   ингредиенты) растягиваются до 1180px, их списки (.two-col) идут в две колонки. Страницы-настройки — узкой колонкой. */
+@media (min-width:1024px){
+body.wide .screen{max-width:1180px;padding-left:max(32px,env(safe-area-inset-left));padding-right:max(32px,env(safe-area-inset-right))}
+.list.two-col{display:grid;grid-template-columns:repeat(2,minmax(0,1fr))}
+.list.two-col>:nth-child(2)::before{display:none}
+.list.two-col>:nth-child(odd):not(:last-child){box-shadow:inset -1px 0 0 var(--sep)}
+}
 
 /* ——— Состояния ——— */
 .empty-state{text-align:center;padding:34px 20px;color:var(--label-2);font-size:.875rem;line-height:1.5}
@@ -505,7 +520,7 @@ const headTags = (title, app) => `<meta charset="utf-8">
 
 // Полный HTML-документ приложения.
 // app: "bar" | "guest" | null; tab: активная вкладка бармена; back: {href,label}.
-export const renderDocument = ({ title, docTitle, app = null, tab = null, back = null, right = "", body, extraCss = "", sub = "", navbar = true, tabs = true, heading = true }) => {
+export const renderDocument = ({ title, docTitle, app = null, tab = null, back = null, right = "", body, extraCss = "", sub = "", navbar = true, tabs = true, heading = true, wide = false }) => {
   const nav = !navbar ? "" : `<header class="navbar">${back ? `<div class="nav-left"><a class="nav-back" href="${back.href}">${icon("chevronLeft")}<span>${back.label}</span></a></div>` : ""}<div class="nav-title">${title}</div><div class="nav-right">${right}</div></header>`;
   return `<!doctype html>
 <html lang="ru">
@@ -513,7 +528,7 @@ export const renderDocument = ({ title, docTitle, app = null, tab = null, back =
 ${headTags(docTitle || `${title} · VIA Bar`, app)}
 <style>${DESIGN_CSS}${extraCss}</style>
 </head>
-<body class="${app ? "app app-" + app : ""}">
+<body class="${app ? "app app-" + app : ""}${wide ? " wide" : ""}">
 ${app === "bar" && tabs ? BAR_GUARD_JS : ""}
 ${ICON_SPRITE}
 ${nav}

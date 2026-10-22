@@ -180,7 +180,7 @@ const refreshCocktailPrice = async (env, cocktailId) => {
   return {cost:price,price};
 };
 
-const BUILD_VERSION = "2026-10-22-ivory-v4.7";
+const BUILD_VERSION = "2026-10-22-ivory-v4.8";
 
 const calculateCocktailStrength = (recipeItems) => {
   let alcoholMl = 0;
@@ -975,7 +975,7 @@ try{localStorage.setItem("via.reviews.seen",String(max))}catch(e){}})();
       // ═══════ route-block: /bar/recipes ═══════ (agents: edit only inside your own block)
 
       if (url.pathname === "/bar/recipes") return htmlResponse(renderDocument({
-        title:"Рецепты", app:"bar", tab:"recipes", docTitle:"Рецепты · VIA Бар",
+        title:"Рецепты", app:"bar", tab:"recipes", docTitle:"Рецепты · VIA Бар", wide:true,
         right:`<button class="icon-btn" type="button" id="newCocktailBtn" aria-label="Новый коктейль">${icon("plus")}</button>`,
         sub:"Книга бара: из неё собирается гостевое меню.",
         extraCss:`
@@ -1226,7 +1226,7 @@ function renderList(){
   }
   const shown=cocktails.filter(c=>matches(c,q));
   const groups=LINES.concat([OTHER]).map(L=>({L,items:shown.filter(c=>lineOf(c)===L)})).filter(g=>g.items.length);
-  box.innerHTML=groups.length?groups.map(g=>'<section class="rb-line '+g.L.cls+'" aria-labelledby="lh-'+g.L.cls+'"><div class="line-head"><span class="line-mark" aria-hidden="true"></span><h2 id="lh-'+g.L.cls+'">'+g.L.title+'</h2><span class="count">'+g.items.length+'</span></div><div class="list">'+g.items.map(rowHtml).join("")+'</div></section>').join("")
+  box.innerHTML=groups.length?groups.map(g=>'<section class="rb-line '+g.L.cls+'" aria-labelledby="lh-'+g.L.cls+'"><div class="line-head"><span class="line-mark" aria-hidden="true"></span><h2 id="lh-'+g.L.cls+'">'+g.L.title+'</h2><span class="count">'+g.items.length+'</span></div><div class="list two-col">'+g.items.map(rowHtml).join("")+'</div></section>').join("")
     :'<div class="list"><div class="empty-state">'+ic("search")+'<h3>Ничего не нашлось</h3><p>Попробуйте другое название или ингредиент.</p></div></div>';
   $("#searchStatus").textContent=q?(shown.length?"Найдено: "+shown.length:"Ничего не найдено"):"";
   $("#listFooter").textContent=q?"":"В книге "+cocktails.length+" "+plural(cocktails.length,["коктейль","коктейля","коктейлей"]);
@@ -1705,12 +1705,12 @@ loadAll();
       // ═══════ route-block: /bar/ingredients ═══════ (agents: edit only inside your own block)
 
       if (url.pathname === "/bar/ingredients") return htmlResponse(renderDocument({
-        title:"Ингредиенты", app:"bar", tab:"more", back:{href:"/bar",label:"Ещё"}, docTitle:"Ингредиенты · VIA Бар",
+        title:"Ингредиенты", app:"bar", tab:"more", back:{href:"/bar",label:"Ещё"}, docTitle:"Ингредиенты · VIA Бар", wide:true,
         right:`<button class="icon-btn" type="button" data-open-sheet="ingredientSheet" aria-label="Добавить ингредиент">${icon("plus")}</button>`,
         sub:"Постоянные названия для рецептов и склада. Бренд и магазин указываются в закупках.",
         extraCss:`#list .cell-title{font:600 1.125rem/1.15 var(--serif)}`,
         body:`<label class="search">${icon("search")}<input type="search" id="ingSearch" placeholder="Поиск ингредиента" autocomplete="off" aria-label="Поиск ингредиента"></label>
-<div class="section"><div class="list" id="list"><div class="skeleton"></div><div class="skeleton"></div><div class="skeleton"></div></div><p class="section-footer" id="listFooter"></p></div>
+<div class="section"><div class="list two-col" id="list"><div class="skeleton"></div><div class="skeleton"></div><div class="skeleton"></div></div><p class="section-footer" id="listFooter"></p></div>
 <div class="sheet" id="ingredientSheet" hidden><div class="sheet-panel" role="dialog" aria-modal="true" aria-labelledby="ingSheetTitle">
 <div class="sheet-grabber"></div>
 <div class="sheet-head"><button class="btn btn-plain left" type="button" data-close-sheet>Отмена</button><h2 id="ingSheetTitle">Новый ингредиент</h2><button class="btn btn-plain right" type="submit" form="ingredientForm" style="font-weight:700">Готово</button></div>
@@ -1805,13 +1805,13 @@ load();
             if(!items.length&&!nq)
               h='<div class="empty-state">'+ui.ic("box")+'<h3>Склад пока пуст</h3><p>Добавьте бутылки из шкафа — или внесите покупку в <a href="/bar/shop">«Закупках»</a>.</p><button type="button" class="btn btn-primary" data-add-query>'+ui.ic("plus")+'Добавить бутылку</button></div>';
             if(low.length||out.length){
-              h+='<section class="section" aria-labelledby="restockHead"><div class="section-header"><h2 id="restockHead">Пора докупить</h2></div><div class="list">'
+              h+='<section class="section" aria-labelledby="restockHead"><div class="section-header"><h2 id="restockHead">Пора докупить</h2></div><div class="list two-col">'
                 +out.map(i=>'<button type="button" class="cell" data-add="'+Number(i.id)+'"><span class="cell-body"><span class="cell-title">'+e(i.name)+'</span><span class="cell-sub">Нужен для: '+e(usage[i.id].names.join(", "))+'</span></span><span class="badge danger">нет</span>'+chev+'</button>').join("")
                 +low.map(p=>'<button type="button" class="cell" data-id="'+Number(p.ingredient_id)+'" aria-haspopup="dialog"><span class="cell-body"><span class="cell-title">'+e(p.ingredient_name)+'</span><span class="cell-sub">'+ui.qty(p.stock,p.unit)+' — хватит '+ui.portions(ui.servings(p,usage[p.ingredient_id]))+'</span></span><span class="badge warn">мало</span>'+chev+'</button>').join("")
                 +'</div><p class="section-footer">'+[low.length?"«Мало» — хватит на "+LOW+" порции или меньше.":"",out.length?"«Нет» — закончилось, коктейли с ним гостям недоступны.":""].filter(Boolean).join(" ")+'</p></section>';
             }
             if(shown.length){
-              h+='<section class="section" aria-labelledby="stockHead"><div class="section-header"><h2 id="stockHead">В шкафу</h2><span class="num">'+shown.length+'</span></div><div class="list">'
+              h+='<section class="section" aria-labelledby="stockHead"><div class="section-header"><h2 id="stockHead">В шкафу</h2><span class="num">'+shown.length+'</span></div><div class="list two-col">'
                 +shown.map(p=>{const n=(p.details||[]).length;return '<button type="button" class="cell" data-id="'+Number(p.ingredient_id)+'" aria-haspopup="dialog"><span class="cell-body"><span class="cell-title">'+e(p.ingredient_name)+'</span><span class="cell-sub">'+(n?ui.packs(n,p.unit)+' · ':'')+'в среднем '+ui.rate(p.unit_price,p.unit)+(ui.isLow(p,usage[p.ingredient_id])?' · <span class="low">мало</span>':'')+'</span></span><span class="cell-value num">'+ui.qty(p.on_hand,p.unit)+'</span>'+chev+'</button>'}).join("")
                 +'</div><p class="section-footer">Справа — сколько всего осталось во всех бутылках. По средней цене считается цена коктейля.</p></section>';
             }else if(nq&&!out.length){
@@ -2092,7 +2092,7 @@ $("#bottleDel").addEventListener("click",async()=>{if(!editing)return;
 .empty-state p{margin:0 0 16px}
 .empty-state .caption{overflow-wrap:anywhere}`;
         return htmlResponse(renderDocument({
-          title:"Склад", app:"bar", tab:"stock", docTitle:"Склад · VIA Бар",
+          title:"Склад", app:"bar", tab:"stock", docTitle:"Склад · VIA Бар", wide:true,
           right:`<button class="icon-btn" type="button" id="addOpen" aria-label="Добавить бутылку">${icon("plus")}</button>`,
           sub:`<span id="stockSummary">${stockLoadError?"Бутылки в шкафу и их остатки":ui.summary(stockItems)}</span>`,
           extraCss:stockCss,
@@ -2129,6 +2129,8 @@ $("#bottleDel").addEventListener("click",async()=>{if(!editing)return;
 .menu-sec span{font-size:.78125rem;font-weight:600;color:var(--label-3)}
 .grid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:22px 14px}
 @media (min-width:600px){.grid{grid-template-columns:repeat(3,minmax(0,1fr))}}
+/* компьютер и планшет горизонтально: 4 плитки в ряд; «Заказ» и «Профиль» — узкой колонкой по центру */
+@media (min-width:1024px){.grid{grid-template-columns:repeat(4,minmax(0,1fr));gap:28px 20px}.pane[data-pane=order],.pane[data-pane=profile]{max-width:720px;margin-left:auto;margin-right:auto}}
 .dk{min-width:0;display:flex;flex-direction:column}
 .dk-open{display:block;width:100%;text-align:left;background:none;border:0;padding:0;color:inherit;font:inherit;cursor:pointer}
 .dk-open:active .ph{transform:scale(.98)}
@@ -2178,6 +2180,18 @@ $("#bottleDel").addEventListener("click",async()=>{if(!editing)return;
 .cs-act .btn{flex:1}
 .cs-act .stepper{height:50px;min-width:122px;border-radius:16px}
 .cs-act .stepper button{width:44px;height:50px}
+/* Компьютер и планшет горизонтально: карточка — окно, фото слева во всю высоту, описание и кнопка справа.
+   Крестик остаётся в разметке фото, но сдвинут к правому краю окна (фото — ровно половина окна). */
+@media (min-width:1024px){
+#cocktailSheet .sheet-panel{max-width:980px;height:min(86dvh,620px)}
+#csBody{flex:1;min-height:0;display:grid;grid-template-columns:minmax(0,1fr) minmax(0,1fr);grid-template-rows:minmax(0,1fr) auto;overflow:hidden}
+#csBody .cs-hero{grid-row:1/3;aspect-ratio:auto;max-height:none;height:100%;overflow:visible}
+#csBody .cs-hero img{position:absolute;inset:0}
+#csBody .cs-x{right:auto;left:calc(200% - 54px)}
+#csBody .cs-card{margin-top:0;border-radius:0;overflow-y:auto;padding:30px 30px 0}
+#csBody .cs-meta{margin-right:48px}
+#csBody .cs-act{position:static;margin-top:0;padding:16px 30px 26px}
+}
 .cs-out{flex:1;font-size:.8125rem;line-height:1.45;color:var(--label-2)}
 /* заказ */
 .pane-head{margin-top:6px}
@@ -2540,7 +2554,7 @@ if(TITLES[start]&&start!=="menu")show(start,false);
 })();
 </script>`;
         return htmlResponse(renderDocument({
-          title:"VIA Bar", app:"guest", docTitle:"VIA Bar — меню", heading:false,
+          title:"VIA Bar", app:"guest", docTitle:"VIA Bar — меню", heading:false, wide:true,
           extraCss:guestCss, body:guestBody,
         }).replace("</main>",()=>"</main>"+guestTabs+guestSheets+guestScript));
       }
@@ -2549,7 +2563,7 @@ if(TITLES[start]&&start!=="menu")show(start,false);
       // ═══════ route-block: /bar/shop ═══════ (agents: edit only inside your own block)
 
       if (url.pathname === "/bar/shop") return htmlResponse(renderDocument({
-        title:"Закупки", app:"bar", tab:"shop", docTitle:"Закупки · VIA Бар",
+        title:"Закупки", app:"bar", tab:"shop", docTitle:"Закупки · VIA Бар", wide:true,
         right:`<button class="icon-btn" type="button" id="addPurchase" aria-label="Новая закупка" aria-haspopup="dialog">${icon("plus")}</button>`,
         sub:"Чеки покупок для бара. Новая закупка сразу пополняет склад.",
         extraCss:`
@@ -2736,7 +2750,7 @@ function render(){
   summaryEl.innerHTML=h;summaryEl.hidden=false;
   const groups=[];let g=null;
   rows.forEach(r=>{const k=String(r.purchased_at||"").slice(0,10);if(!g||g.key!==k){g={key:k,items:[],sum:0};groups.push(g)}g.items.push(r);g.sum+=Number(r.price_rub)||0});
-  historyEl.innerHTML=groups.map((x,i)=>'<section class="section" aria-labelledby="day'+i+'"><div class="section-header"><h2 id="day'+i+'">'+esc(dayTitle(x.key))+'</h2><span class="num">'+money(x.sum)+'</span></div><div class="list">'+x.items.map(rowHtml).join("")+'</div></section>').join("");
+  historyEl.innerHTML=groups.map((x,i)=>'<section class="section" aria-labelledby="day'+i+'"><div class="section-header"><h2 id="day'+i+'">'+esc(dayTitle(x.key))+'</h2><span class="num">'+money(x.sum)+'</span></div><div class="list two-col">'+x.items.map(rowHtml).join("")+'</div></section>').join("");
   footerEl.textContent=(n>=500?"Показаны последние 500 закупок — более ранние найдутся через фильтр по датам. ":"")+"Коснитесь чека, чтобы исправить или удалить его. Остатки на складе от этого не изменятся.";
   footerEl.hidden=false;
 }
@@ -3062,7 +3076,7 @@ document.addEventListener("visibilitychange",()=>{if(!document.hidden)load()});
       // Заказы: очередь гостевых заказов (принять → выдать) и заказ за стойкой
       // (черновик с резервом ингредиентов → принять со списанием). Рецепт — в шторке.
       if (url.pathname === "/bar/orders") return htmlResponse(renderDocument({
-        title:"Заказы", app:"bar", tab:"orders", docTitle:"Заказы · VIA Бар",
+        title:"Заказы", app:"bar", tab:"orders", docTitle:"Заказы · VIA Бар", wide:true,
         right:`<button class="icon-btn" type="button" id="refreshBtn" aria-label="Обновить заказы">${icon("refresh")}</button>`,
         extraCss:`
 .toast{width:max-content;border-radius:22px}
@@ -3104,6 +3118,8 @@ document.addEventListener("visibilitychange",()=>{if(!document.hidden)load()});
 @keyframes q-fresh{0%,35%{box-shadow:var(--shadow),inset 0 0 0 1.5px var(--brass),0 0 0 5px var(--tint)}}
 .q-order.is-leaving{overflow:hidden;transition:opacity .3s ease,max-height .35s ease,margin-top .35s ease}
 .q-order.is-gone{opacity:0;max-height:0!important;margin-top:0}
+/* компьютер и планшет горизонтально: заказы гостей — карточками в две колонки */
+@media (min-width:1024px){#guestList{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:0 20px;align-items:start}#guestList>:not(.q-order){grid-column:1/-1}}
 .q-track ol,.rc-panel ol{list-style:none;margin:0;padding:0}
 .q-dot{width:10px;height:10px;flex:none;border-radius:50%;background:var(--line,var(--label-3))}
 .q-done{color:var(--ok);font-weight:600;display:inline-flex;align-items:center;gap:6px;min-height:50px}
