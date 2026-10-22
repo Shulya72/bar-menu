@@ -180,7 +180,7 @@ const refreshCocktailPrice = async (env, cocktailId) => {
   return {cost:price,price};
 };
 
-const BUILD_VERSION = "2026-10-22-ivory-v4.6";
+const BUILD_VERSION = "2026-10-22-ivory-v4.7";
 
 const calculateCocktailStrength = (recipeItems) => {
   let alcoholMl = 0;
@@ -2144,6 +2144,8 @@ $("#bottleDel").addEventListener("click",async()=>{if(!editing)return;
 .add-pill::after{content:"";position:absolute;left:0;right:0;top:-5px;bottom:-5px}
 .add-pill:active{transform:scale(.95)}
 .dk .stepper{min-width:90px}
+/* цены скрыты (Ещё → Цены в меню гостей): «В заказ» и счётчик — на всю ширину плитки, по центру */
+.dk-ft.no-price .menu-side{flex:1;min-width:0}.dk-ft.no-price .add-pill{width:100%;justify-content:center}.dk-ft.no-price .stepper{width:100%;justify-content:space-between}
 /* Нет в наличии: фото под тёплой тёмной маской цвета «чернил» сайта, цвет коктейля виден */
 .dk.is-out .ph::after,.cs-hero.is-out::after{content:"";position:absolute;inset:0;z-index:1;background:linear-gradient(180deg,rgba(42,14,22,.38),rgba(42,14,22,.56));pointer-events:none}
 .dk.is-out .dk-name{color:var(--label-2)}
@@ -2389,7 +2391,7 @@ function drinkHtml(c){const id=Number(c.id),ings=ingNames(c),p=tile(c),price=Num
 return '<article class="dk'+(out?" is-out":"")+'" data-row="'+id+'"><button class="dk-open" type="button" data-open="'+id+'" aria-label="'+esc(c.name)+(out?", нет в наличии":"")+': подробнее">'
 +(p?'<span class="ph"><img src="'+esc(p)+'" alt="" loading="lazy" decoding="async">':'<span class="ph ph-empty">'+ic("coupe"))+(out?'<span class="tag">Нет в наличии</span>':"")+'</span>'
 +'<span class="dk-name">'+esc(c.name)+'</span>'+(ings.length?'<span class="dk-ing">'+esc(ings.join(" · "))+'</span>':"")+'</button>'
-+'<div class="dk-ft"><b class="num">'+(price?rub(price):"")+'</b><span class="menu-side">'+tileSide(id)+'</span></div></article>'}
++'<div class="dk-ft'+(price?'':' no-price')+'">'+(price?'<b class="num">'+rub(price)+'</b>':'')+'<span class="menu-side">'+tileSide(id)+'</span></div></article>'}
 function renderMenu(){const q=norm($("#q").value.trim());
 const match=c=>(lineFilter==="all"||(lineOf(c)||{}).cls===lineFilter)&&(!q||norm(c.name+" "+(c.description||"")+" "+ingNames(c).join(" ")).includes(q));
 const byStock=list=>list.filter(c=>!isOut(c)).concat(list.filter(isOut));
