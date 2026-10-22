@@ -180,7 +180,7 @@ const refreshCocktailPrice = async (env, cocktailId) => {
   return {cost:price,price};
 };
 
-const BUILD_VERSION = "2026-10-22-ivory-v4.10";
+const BUILD_VERSION = "2026-10-22-ivory-v4.11";
 
 const calculateCocktailStrength = (recipeItems) => {
   let alcoholMl = 0;
@@ -859,8 +859,8 @@ export default {
 <a class="cell has-icon" href="/bar/statistics"><span class="cell-icon">${icon("chart")}</span><span class="cell-body"><span class="cell-title">Статистика</span><span class="cell-sub">Смены, заказы и выручка</span></span>${icon("chevronRight","cell-chevron")}</a>
 </div></div>
 <div class="section"><div class="section-header"><h2>Гости</h2></div><div class="list">
-<div class="cell has-icon"><span class="cell-icon">${icon("coin")}</span><span class="cell-body"><span class="cell-title" id="pricesTitle">Цены в меню гостей</span><span class="cell-sub" id="pricesSub">${pricesHidden?"Скрыты — гости видят меню без цен":"Гости видят цены коктейлей"}</span></span><button class="sw" type="button" role="switch" id="pricesSw" aria-labelledby="pricesTitle" aria-checked="${pricesHidden?"false":"true"}"></button></div>
-<a class="cell has-icon" href="/bar/reviews" id="reviewsCell" data-ids="${rv.ids}"><span class="cell-icon">${icon("star")}</span><span class="cell-body"><span class="cell-title">Отзывы гостей</span><span class="cell-sub">${rvSub}</span></span><span class="badge" id="reviewsNew" hidden></span>${icon("chevronRight","cell-chevron")}</a>
+<div class="cell has-icon"><span class="cell-icon">${icon("coin")}</span><span class="cell-body"><span class="cell-title" id="pricesTitle">Цены в меню гостей</span><span class="cell-sub" id="pricesSub" data-live>${pricesHidden?"Скрыты — гости видят меню без цен":"Гости видят цены коктейлей"}</span></span><button class="sw" type="button" role="switch" id="pricesSw" data-live="aria-checked" aria-labelledby="pricesTitle" aria-checked="${pricesHidden?"false":"true"}"></button></div>
+<a class="cell has-icon" href="/bar/reviews" id="reviewsCell" data-live="data-ids" data-ids="${rv.ids}"><span class="cell-icon">${icon("star")}</span><span class="cell-body"><span class="cell-title">Отзывы гостей</span><span class="cell-sub" id="reviewsSub" data-live>${rvSub}</span></span><span class="badge" id="reviewsNew" hidden></span>${icon("chevronRight","cell-chevron")}</a>
 <a class="cell has-icon" href="/menu"><span class="cell-icon">${icon("coupe")}</span><span class="cell-body"><span class="cell-title">Гостевое меню</span><span class="cell-sub">Так видят бар гости</span></span>${icon("chevronRight","cell-chevron")}</a>
 <a class="cell has-icon" href="/"><span class="cell-icon">${icon("home")}</span><span class="cell-body"><span class="cell-title">Главная</span></span>${icon("chevronRight","cell-chevron")}</a>
 </div></div>
@@ -869,7 +869,7 @@ export default {
 <button class="cell has-icon" type="button" id="pushTest" hidden><span class="cell-icon">${icon("check")}</span><span class="cell-body"><span class="cell-title">Отправить тестовое уведомление</span><span class="cell-sub">Придёт через 5 секунд — сверните приложение</span></span></button>
 </div><p class="section-footer">Придут на этот телефон, даже когда приложение закрыто: «Новый заказ от: Анна», «Новый отзыв от: Анна». Включите на каждом телефоне, где стоит барменская панель.</p></div>
 <div class="section"><div class="section-header"><h2>Безопасность</h2></div><div class="list">
-<button class="cell has-icon" type="button" data-open-sheet="pinSheet"><span class="cell-icon">${icon("lock")}</span><span class="cell-body"><span class="cell-title">Сменить код</span><span class="cell-sub">${devSub}</span></span>${icon("chevronRight","cell-chevron")}</button>
+<button class="cell has-icon" type="button" data-open-sheet="pinSheet"><span class="cell-icon">${icon("lock")}</span><span class="cell-body"><span class="cell-title">Сменить код</span><span class="cell-sub" id="devSub" data-live>${devSub}</span></span>${icon("chevronRight","cell-chevron")}</button>
 <button class="cell has-icon" type="button" id="logoutHere"><span class="cell-icon">${icon("logout")}</span><span class="cell-body"><span class="cell-title">Выйти на этом телефоне</span></span></button>
 <button class="cell has-icon" type="button" id="logoutAll"><span class="cell-icon">${icon("close")}</span><span class="cell-body"><span class="cell-title danger-text">Выйти на всех устройствах</span><span class="cell-sub">Если телефон потерялся: везде понадобится код, уведомления бармена отключатся</span></span></button>
 </div><p class="section-footer">Панель открывается только по коду, гостям доступно лишь меню. Забыли код — «Забыли код?» на экране входа и ключ восстановления.</p></div>
@@ -905,7 +905,7 @@ test.addEventListener("click",function(){test.disabled=true;endpoint().then(func
 (function(){
 var post=function(u,b){return fetch(u,{method:"POST",headers:{"content-type":"application/json"},body:JSON.stringify(b||{})}).then(function(r){return r.json().catch(function(){return {}}).then(function(d){if(!r.ok)throw new Error(d.error||"Не получилось — проверьте интернет");return d})})};
 // Выход: стираем сохранённые копии страниц панели, чтобы без входа их не было видно и офлайн.
-var forget=function(){if(!window.caches)return Promise.resolve();return caches.keys().then(function(ks){return Promise.all(ks.map(function(k){
+var forget=function(){if(VIA.forgetSnaps)VIA.forgetSnaps();if(!window.caches)return Promise.resolve();return caches.keys().then(function(ks){return Promise.all(ks.map(function(k){
 if(/^via-(pages|data)/.test(k))return caches.delete(k);if(/^via-static/.test(k))return caches.open(k).then(function(c){return c.keys().then(function(rs){return Promise.all(rs.filter(function(q){return q.url.indexOf("/__via-warm-bar")>=0}).map(function(q){return c.delete(q)}))})})}))}).catch(function(){})};
 var out=function(all){return (all?Promise.resolve():VIA.push.state("bar").then(function(st){if(st==="on")return VIA.push.disable("bar")}).catch(function(){}))
 .then(function(){return post("/api/bar/auth/logout",{all:!!all})}).then(forget).then(function(){location.replace("/bar")}).catch(function(e){VIA.toast(e.message,true,4000)})};
@@ -917,9 +917,10 @@ if(!/^\\d{6,12}$/.test(pin)){msg.textContent="Новый код — от 6 до 
 save.disabled=true;post("/api/bar/auth/change",{current:cur,pin:pin}).then(function(){f.reset();VIA.closeSheet("pinSheet");VIA.toast("Код изменён")}).catch(function(e){msg.textContent=e.message}).then(function(){save.disabled=false})});
 })();
 (function(){var c=document.getElementById("reviewsCell"),b=document.getElementById("reviewsNew");if(!c||!b)return;
-var seen=0;try{seen=Number(localStorage.getItem("via.reviews.seen")||0)}catch(e){}
+var paint=function(){var seen=0;try{seen=Number(localStorage.getItem("via.reviews.seen")||0)}catch(e){}
 var n=String(c.dataset.ids||"").split(",").filter(function(x){return Number(x)>seen}).length;
-if(n){b.textContent=n+" "+(n%10===1&&n%100!==11?"новый":"новых");b.hidden=false}})();
+b.textContent=n?n+" "+(n%10===1&&n%100!==11?"новый":"новых"):"";b.hidden=!n};
+paint();document.addEventListener("via-live",paint)})(); // via-live: страница из копии получила свежие значения
 </script>`));
       }
 
@@ -1929,6 +1930,8 @@ if(view)view.addEventListener("click",e=>{const t=e.target.closest("[data-id],[d
 // Вернулись на вкладку — тихо подтянуть остатки (их могли списать заказы на другом телефоне).
 document.addEventListener("visibilitychange",()=>{if(!document.hidden&&!LOAD_ERROR&&!document.querySelector(".sheet.open")&&Date.now()-lastFetch>30000)refresh().catch(()=>{})});
 addEventListener("pageshow",e=>{if(e.persisted&&!LOAD_ERROR)refresh().catch(()=>{})});
+// Вкладка открылась из копии на телефоне — сразу подтянуть свежие остатки (в копии — с прошлого раза).
+if(document.documentElement.hasAttribute("data-cached")&&!LOAD_ERROR)refresh().catch(()=>{});
 
 // ——— Карточка ингредиента: сводка и бутылки ———
 const detailBody=$("#detailBody"),detailTitle=$("#detailTitle");

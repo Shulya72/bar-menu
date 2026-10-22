@@ -185,6 +185,8 @@ const pinInput = (name, auto, label, extra = "") =>
 const userField = `<input class="sr-only" name="username" autocomplete="username" value="VIA Bar" tabindex="-1" aria-hidden="true" readonly>`;
 
 const LOGIN_JS = `(function(){
+// Экран входа: снимков вкладок панели на этом телефоне быть не должно (вышли или вход закрыт).
+try{Object.keys(localStorage).forEach(function(k){if(k.indexOf("via-snap:")===0)localStorage.removeItem(k)})}catch(e){}
 var $=function(s){return document.querySelector(s)},title=$(".large-title"),sub=$("#authSub"),login=$("#loginForm"),keyf=$("#keyForm");
 var TEXT={login:["Панель бармена","Заказы, рецепты и склад открываются по коду бармена. На этом устройстве его нужно ввести один раз."],
 setup:["Защита панели","Придумайте код из 6–12 цифр. Его нужно ввести один раз на каждом телефоне, где стоит панель. Для первой настройки нужен ключ восстановления."],
