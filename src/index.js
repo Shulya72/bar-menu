@@ -4,7 +4,7 @@ import { renderDocument, htmlResponse, icon, monogram, wordmark } from "./design
 // один раз: результат отмечается в app_migrations, а внутри экземпляра Worker'а
 // запоминается промисом. Чтобы изменить схему — добавь команду в SCHEMA_SQL и
 // поменяй SCHEMA_VERSION: новая версия применится один раз при следующем запросе.
-const SCHEMA_VERSION="schema-2026-10-21-guest-shift";
+const SCHEMA_VERSION="schema-2026-10-22-bar-devices";
 // Время самого раннего заказа гостя, принятого после закрытия последней смены (или NULL).
 const ORPHAN_GUEST_SQL="SELECT MIN(COALESCE(accepted_at,created_at)) FROM orders WHERE status IN ('accepted','served') AND COALESCE(accepted_at,created_at)>(SELECT MAX(closed_at) FROM bar_shifts WHERE status='closed')";
 const SCHEMA_SQL=[
@@ -65,6 +65,9 @@ const SCHEMA_SQL=[
   "CREATE TABLE IF NOT EXISTS bar_sessions (id INTEGER PRIMARY KEY AUTOINCREMENT,token_hash TEXT NOT NULL UNIQUE,label TEXT,created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,last_seen_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP)",
   "CREATE TABLE IF NOT EXISTS bar_login_failures (id INTEGER PRIMARY KEY AUTOINCREMENT,ip TEXT NOT NULL,at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP)",
   "CREATE INDEX IF NOT EXISTS idx_bar_login_failures_at ON bar_login_failures(at)",
+  // «Ещё → Устройства»: строка браузера (что за устройство) и название, которое дали хозяева.
+  "ALTER TABLE bar_sessions ADD COLUMN ua TEXT",
+  "ALTER TABLE bar_sessions ADD COLUMN name TEXT",
   // До защиты панели подписаться «как бармен» мог кто угодно — такие подписки сбрасываются
   // (один раз, при этой миграции); хозяева включат уведомления заново после входа.
   "DELETE FROM push_subscriptions WHERE role='bar' AND NOT EXISTS (SELECT 1 FROM app_migrations WHERE name='schema-2026-10-18-bar-auth')",
@@ -180,7 +183,7 @@ const refreshCocktailPrice = async (env, cocktailId) => {
   return {cost:price,price};
 };
 
-const BUILD_VERSION = "2026-10-22-ivory-v4.11";
+const BUILD_VERSION = "2026-10-22-ivory-v4.12";
 
 const calculateCocktailStrength = (recipeItems) => {
   let alcoholMl = 0;
@@ -853,7 +856,20 @@ export default {
         extraCss:`.section{margin-top:22px}.section-header{margin:0 4px 9px}.section-header h2{font:700 .6875rem/1 var(--sans);letter-spacing:.14em;text-transform:uppercase;color:var(--label-3)}#logoutAll .cell-icon{background:var(--danger-tint);color:var(--danger)}.cell .badge{flex:none}.cell .danger-text{color:var(--danger)}.form-msg{margin:12px 4px 0;color:var(--danger)}.form-msg:empty{display:none}.sr-only{position:absolute;width:1px;height:1px;overflow:hidden;clip:rect(0 0 0 0);white-space:nowrap}
 .sw{position:relative;flex:none;width:51px;height:31px;border:0;border-radius:16px;padding:0;background:var(--sep-strong);cursor:pointer;transition:background .2s}
 .sw::after{content:"";position:absolute;top:2px;left:2px;width:27px;height:27px;border-radius:50%;background:#fff;box-shadow:0 2px 5px rgba(42,14,22,.22);transition:transform .2s cubic-bezier(.2,.9,.25,1)}
-.sw[aria-checked="true"]{background:var(--accent)}.sw[aria-checked="true"]::after{transform:translateX(20px)}.sw:disabled{opacity:.6}`,
+.sw[aria-checked="true"]{background:var(--accent)}.sw[aria-checked="true"]::after{transform:translateX(20px)}.sw:disabled{opacity:.6}
+.dev-lead{margin:2px 4px 14px;color:var(--label-2);font-size:.875rem;line-height:1.45}
+.dev-row .cell-title{display:flex;align-items:center;flex-wrap:wrap;gap:4px 8px}
+.dev-me{display:inline-flex;align-items:center;height:21px;padding:0 9px;border-radius:11px;background:var(--ok-tint);color:var(--ok);font-size:.6875rem;font-weight:700}
+.dev-row.is-old .dev-when{color:var(--warn)}
+.dev-hero{display:flex;align-items:center;gap:14px;margin:6px 4px 18px}
+.dev-hero-ic{width:56px;height:56px;flex:none;display:grid;place-items:center;border-radius:18px;background:var(--tint);color:var(--tint-ink)}
+.dev-hero-ic .ic{width:28px;height:28px}
+.dev-hero h3{margin:0;font:600 1.625rem/1.1 var(--serif);overflow-wrap:anywhere}
+.dev-hero p{margin:4px 0 0;color:var(--label-2);font-size:.8125rem}
+.dev-facts{margin-top:14px}
+.fact{display:flex;justify-content:space-between;align-items:baseline;gap:16px;padding:12px 16px;border-top:1px solid var(--sep);font-size:.875rem}
+.fact:first-child{border-top:0}.fact span{color:var(--label-2)}.fact b{font-weight:600;text-align:right}
+#dcRevoke{margin-top:18px}#dcNote:empty{display:none}`,
         body:`<div class="section"><div class="section-header"><h2>Бар</h2></div><div class="list">
 <a class="cell has-icon" href="/bar/ingredients"><span class="cell-icon">${icon("leaf")}</span><span class="cell-body"><span class="cell-title">Ингредиенты</span><span class="cell-sub">Справочник для рецептов и склада</span></span>${icon("chevronRight","cell-chevron")}</a>
 <a class="cell has-icon" href="/bar/statistics"><span class="cell-icon">${icon("chart")}</span><span class="cell-body"><span class="cell-title">Статистика</span><span class="cell-sub">Смены, заказы и выручка</span></span>${icon("chevronRight","cell-chevron")}</a>
@@ -869,10 +885,28 @@ export default {
 <button class="cell has-icon" type="button" id="pushTest" hidden><span class="cell-icon">${icon("check")}</span><span class="cell-body"><span class="cell-title">Отправить тестовое уведомление</span><span class="cell-sub">Придёт через 5 секунд — сверните приложение</span></span></button>
 </div><p class="section-footer">Придут на этот телефон, даже когда приложение закрыто: «Новый заказ от: Анна», «Новый отзыв от: Анна». Включите на каждом телефоне, где стоит барменская панель.</p></div>
 <div class="section"><div class="section-header"><h2>Безопасность</h2></div><div class="list">
-<button class="cell has-icon" type="button" data-open-sheet="pinSheet"><span class="cell-icon">${icon("lock")}</span><span class="cell-body"><span class="cell-title">Сменить код</span><span class="cell-sub" id="devSub" data-live>${devSub}</span></span>${icon("chevronRight","cell-chevron")}</button>
+<button class="cell has-icon" type="button" id="devOpen" aria-haspopup="dialog"><span class="cell-icon">${icon("devices")}</span><span class="cell-body"><span class="cell-title">Устройства</span><span class="cell-sub" id="devSub" data-live>${devSub}</span></span>${icon("chevronRight","cell-chevron")}</button>
+<button class="cell has-icon" type="button" data-open-sheet="pinSheet"><span class="cell-icon">${icon("lock")}</span><span class="cell-body"><span class="cell-title">Сменить код</span><span class="cell-sub">Код бармена — от 6 до 12 цифр</span></span>${icon("chevronRight","cell-chevron")}</button>
 <button class="cell has-icon" type="button" id="logoutHere"><span class="cell-icon">${icon("logout")}</span><span class="cell-body"><span class="cell-title">Выйти на этом телефоне</span></span></button>
 <button class="cell has-icon" type="button" id="logoutAll"><span class="cell-icon">${icon("close")}</span><span class="cell-body"><span class="cell-title danger-text">Выйти на всех устройствах</span><span class="cell-sub">Если телефон потерялся: везде понадобится код, уведомления бармена отключатся</span></span></button>
 </div><p class="section-footer">Панель открывается только по коду, гостям доступно лишь меню. Забыли код — «Забыли код?» на экране входа и ключ восстановления.</p></div>
+<div class="sheet" id="devSheet" hidden><div class="sheet-panel" role="dialog" aria-modal="true" aria-labelledby="devTitle">
+<div class="sheet-grabber"></div>
+<div class="sheet-head"><button class="btn btn-plain left" type="button" id="devBack">Закрыть</button><h2 id="devTitle" tabindex="-1">Устройства</h2><button class="btn btn-plain right strong" type="button" id="devSave" hidden>Готово</button></div>
+<div class="sheet-body">
+<div id="devListView">
+<p class="dev-lead">Все телефоны и компьютеры, где открыта панель бармена. Незнакомое или забытое устройство отключите — там снова понадобится код.</p>
+<div class="list" id="devList" aria-busy="true"><div class="skeleton"></div><div class="skeleton"></div><div class="skeleton"></div></div>
+<p class="section-footer">Устройству можно дать название, например «Телефон Анастасии». Время, когда заходили, обновляется раз в час.</p>
+</div>
+<div id="devCard" hidden>
+<div class="dev-hero"><span class="dev-hero-ic" id="dcIcon"></span><div><h3 id="dcTitle"></h3><p id="dcKind"></p></div></div>
+<div class="list"><label class="field"><span>Название</span><input id="dcName" maxlength="40" autocomplete="off" enterkeyhint="done" placeholder="Например, телефон Анастасии"></label></div>
+<div class="list dev-facts" id="dcFacts"></div>
+<button class="btn btn-danger btn-block" type="button" id="dcRevoke">${icon("close")}Отключить устройство</button>
+<p class="section-footer" id="dcNote"></p>
+</div>
+</div></div></div>
 <div class="sheet" id="pinSheet" hidden><div class="sheet-panel" role="dialog" aria-modal="true" aria-labelledby="pinTitle">
 <div class="sheet-grabber"></div>
 <div class="sheet-head"><button class="btn btn-plain left" type="button" data-close-sheet>Отмена</button><h2 id="pinTitle" tabindex="-1">Новый код</h2><button class="btn btn-plain right strong" type="submit" form="pinForm" id="pinSave">Готово</button></div>
@@ -915,6 +949,48 @@ var f=document.getElementById("pinForm"),msg=document.getElementById("pinMsg"),s
 f.addEventListener("submit",function(e){e.preventDefault();msg.textContent="";var cur=f.current.value.trim(),pin=f.pin.value.trim();
 if(!/^\\d{6,12}$/.test(pin)){msg.textContent="Новый код — от 6 до 12 цифр";return}if(pin!==f.pin2.value.trim()){msg.textContent="Новые коды не совпадают";return}
 save.disabled=true;post("/api/bar/auth/change",{current:cur,pin:pin}).then(function(){f.reset();VIA.closeSheet("pinSheet");VIA.toast("Код изменён")}).catch(function(e){msg.textContent=e.message}).then(function(){save.disabled=false})});
+})();
+// «Устройства»: где открыта панель; название и «Отключить» — в карточке устройства.
+(function(){
+var $=function(id){return document.getElementById(id)},list=$("devList"),card=$("devCard"),lv=$("devListView"),back=$("devBack"),save=$("devSave"),title=$("devTitle"),nameIn=$("dcName"),rv=$("dcRevoke");
+var IC={phone:'${icon("mobile")}',tablet:'${icon("tablet")}',computer:'${icon("laptop")}'},devs=[],cur=null;
+var esc=function(t){return String(t==null?"":t).replace(/[&<>"]/g,function(c){return {"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;"}[c]})};
+var pl=function(n,a,b,c){var m=n%10,h=n%100;return m===1&&h!==11?a:m>=2&&m<=4&&(h<12||h>14)?b:c};
+var dt=function(s){return new Date(String(s||"").replace(" ","T")+"Z")};
+var day=function(d){return d.toLocaleDateString("ru-RU",{day:"numeric",month:"long"})+(d.getFullYear()!==new Date().getFullYear()?" "+d.getFullYear():"")};
+var ago=function(s){var d=dt(s),t=new Date(),n=Math.round((new Date(t.getFullYear(),t.getMonth(),t.getDate())-new Date(d.getFullYear(),d.getMonth(),d.getDate()))/864e5);
+  return n<=0?"сегодня":n===1?"вчера":n<7?n+" "+pl(n,"день","дня","дней")+" назад":day(d)};
+var oldDays=function(s){return (Date.now()-dt(s))/864e5};
+var nameOf=function(d){return d.name||d.device};
+var kindOf=function(d){return [d.name?d.device:"",d.where,d.os&&d.device.indexOf(d.os)<0?d.os:""].filter(Boolean).join(" · ")}; // «Компьютер Windows · Windows» — без повтора
+var count=function(n){$("devSub").textContent="Панель открыта на "+n+" "+(n%10===1&&n%100!==11?"устройстве":"устройствах")};
+var showList=function(){card.hidden=true;lv.hidden=false;save.hidden=true;back.textContent="Закрыть";title.textContent="Устройства";cur=null};
+var render=function(){list.removeAttribute("aria-busy");
+  list.innerHTML=devs.map(function(d){var old=!d.mine&&oldDays(d.last_seen_at)>=30;
+    return '<button class="cell has-icon dev-row'+(old?" is-old":"")+'" type="button" data-dev="'+d.id+'"><span class="cell-icon">'+(IC[d.kind]||IC.phone)+'</span><span class="cell-body"><span class="cell-title">'+esc(nameOf(d))+(d.mine?'<span class="dev-me">Это устройство</span>':"")+'</span>'+
+      (kindOf(d)?'<span class="cell-sub">'+esc(kindOf(d))+"</span>":"")+'<span class="cell-sub dev-when">'+(d.mine?"Вход "+day(dt(d.created_at)):"Заходили "+ago(d.last_seen_at)+" · вход "+day(dt(d.created_at)))+"</span></span>"+'${icon("chevronRight","cell-chevron")}</button>'}).join("")||'<div class="empty-state"><p>Устройств нет</p></div>'};
+var load=function(){list.setAttribute("aria-busy","true");
+  fetch("/api/bar/auth/devices",{cache:"no-store"}).then(function(r){return r.json().then(function(d){if(!r.ok)throw new Error(d.error||"Не удалось загрузить");return d})})
+  .then(function(d){devs=d.devices||[];render();count(devs.length)})
+  .catch(function(e){list.removeAttribute("aria-busy");list.innerHTML='<div class="empty-state"><h3>Не удалось загрузить</h3><p>Проверьте интернет и попробуйте ещё раз.</p><button class="btn btn-tinted" type="button" data-retry>Повторить</button></div>'})};
+var fact=function(k,v){return v?'<div class="fact"><span>'+k+"</span><b>"+esc(v)+"</b></div>":""};
+var showCard=function(d){cur=d;lv.hidden=true;card.hidden=false;save.hidden=false;back.textContent="Назад";title.textContent="Устройство";
+  $("dcIcon").innerHTML=IC[d.kind]||IC.phone;$("dcTitle").textContent=nameOf(d);$("dcKind").textContent=d.mine?"Это устройство":d.name?d.device:"Заходили "+ago(d.last_seen_at);nameIn.value=d.name||"";
+  var c=dt(d.created_at);
+  $("dcFacts").innerHTML=fact("Где открыта",d.where)+fact("Система",d.os)+fact("Вход в панель",day(c)+", "+c.toLocaleTimeString("ru-RU",{hour:"2-digit",minute:"2-digit"}))+fact("Заходили",d.mine?"сейчас":ago(d.last_seen_at))+fact("Уведомления бармена",d.push?"включены":"выключены");
+  rv.hidden=!!d.mine;$("dcNote").textContent=d.mine?"Чтобы выйти на этом устройстве, нажмите «Выйти на этом телефоне» в разделе «Безопасность».":"После отключения там откроется экран входа, а уведомления бармена на это устройство больше не придут.";
+  var b=card.closest(".sheet-body");if(b)b.scrollTop=0};
+var post=function(u,b){return fetch(u,{method:"POST",headers:{"content-type":"application/json"},body:JSON.stringify(b)}).then(function(r){return r.json().catch(function(){return {}}).then(function(d){if(!r.ok)throw new Error(d.error||"Не получилось — проверьте интернет");return d})})};
+$("devOpen").addEventListener("click",function(){showList();VIA.openSheet("devSheet");load()});
+back.addEventListener("click",function(){if(cur)showList();else VIA.closeSheet("devSheet")});
+list.addEventListener("click",function(e){if(e.target.closest("[data-retry]")){load();return}var r=e.target.closest("[data-dev]");if(!r)return;var d=devs.find(function(x){return String(x.id)===r.dataset.dev});if(d)showCard(d)});
+var saveName=function(){var d=cur;if(!d)return;var v=nameIn.value.trim();if(v===(d.name||"")){showList();return}save.disabled=true;
+  post("/api/bar/auth/devices/name",{id:d.id,name:v}).then(function(x){d.name=x.name||"";render();showList();VIA.toast(d.name?"Название сохранено":"Название убрано")})
+  .catch(function(e){VIA.toast(e.message,true,4000)}).then(function(){save.disabled=false})};
+save.addEventListener("click",saveName);nameIn.addEventListener("keydown",function(e){if(e.key==="Enter"){e.preventDefault();nameIn.blur();saveName()}});
+rv.addEventListener("click",function(){var d=cur;if(!d||!confirm("Отключить «"+nameOf(d)+"»? Там снова понадобится код, уведомления бармена на это устройство больше не придут."))return;rv.disabled=true;
+  post("/api/bar/auth/devices/revoke",{id:d.id}).then(function(x){devs=devs.filter(function(y){return y.id!==d.id});render();showList();count(x.devices!=null?x.devices:devs.length);VIA.toast("«"+nameOf(d)+"» отключено")})
+  .catch(function(e){VIA.toast(e.message,true,4000);load();showList()}).then(function(){rv.disabled=false})});
 })();
 (function(){var c=document.getElementById("reviewsCell"),b=document.getElementById("reviewsNew");if(!c||!b)return;
 var paint=function(){var seen=0;try{seen=Number(localStorage.getItem("via.reviews.seen")||0)}catch(e){}

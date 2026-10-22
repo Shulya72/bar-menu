@@ -53,6 +53,11 @@ const ICONS = {
   info: '<circle cx="12" cy="12" r="8.5"/><path d="M12 11v5.5"/><circle cx="12" cy="8" r=".6" fill="currentColor"/>',
   send: '<path d="M4 12l16-7-6 15-2.5-6.5z"/>',
   phone: '<path d="M6.5 4h3l1.5 4-2 1.3a10 10 0 0 0 5.7 5.7l1.3-2 4 1.5v3a2 2 0 0 1-2.2 2A16 16 0 0 1 4.5 6.2 2 2 0 0 1 6.5 4z"/>',
+  // устройства (раздел «Ещё → Устройства»)
+  mobile: '<rect x="6.5" y="2.5" width="11" height="19" rx="2.6"/><path d="M10.5 5.5h3"/>',
+  tablet: '<rect x="4.5" y="2.5" width="15" height="19" rx="2.4"/><path d="M11 18.5h2"/>',
+  laptop: '<rect x="4" y="5" width="16" height="10.5" rx="1.6"/><path d="M2 19h20"/>',
+  devices: '<rect x="2.5" y="4.5" width="12.5" height="9" rx="1.4"/><path d="M1.5 17h11"/><rect x="15.5" y="8" width="6" height="12" rx="1.5"/><path d="M17.8 17.6h1.4"/>',
   arrow: '<path d="M5 12h14M13 6l6 6-6 6"/>',
 };
 
