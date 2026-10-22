@@ -138,6 +138,15 @@ html[data-vt=next]::view-transition-new(page){animation:vt-in-next .26s cubic-be
 html[data-vt=prev]::view-transition-old(page){animation:vt-out-prev .26s cubic-bezier(.3,.7,.3,1) both}
 html[data-vt=prev]::view-transition-new(page){animation:vt-in-prev .26s cubic-bezier(.3,.7,.3,1) both}
 .pane.vt-next{animation:vt-in-next .26s cubic-bezier(.2,.9,.25,1)}.pane.vt-prev{animation:vt-in-prev .26s cubic-bezier(.2,.9,.25,1)}
+/* У гостя вкладки листаются «колодой»: текущая поднимается карточкой и едет за пальцем, отпустили — улетает
+   в сторону, а следующая выходит из-под неё. Карточка — фон страницы с тенью; фон расширен тенью-«полем»
+   на отступ страницы, чтобы края содержимого не упирались в край карточки. */
+.pane.vt-lift,.vt-card{background:var(--bg);border-radius:30px;box-shadow:0 0 0 20px var(--bg),0 22px 60px 20px rgba(42,14,22,.16)}
+.pane.vt-lift{position:relative;z-index:1;will-change:transform}
+.vt-deck{position:fixed;inset:0;z-index:40;pointer-events:none;overflow:hidden}
+.vt-card{position:absolute;margin:0;transition:transform .42s cubic-bezier(.3,.6,.2,1),opacity .42s ease}
+@keyframes vt-emerge{from{transform:translateY(22px) scale(.92);opacity:.35}}
+.pane.vt-emerge{animation:vt-emerge .5s cubic-bezier(.2,.9,.25,1)}
 
 /* ——— Знак VIA ——— */
 .wordmark{text-align:center;line-height:1}
@@ -402,12 +411,28 @@ export const SHELL_JS = `<script>
     if(sw.first){if(Math.abs(dx)<10&&Math.abs(dy)<10)return;sw.first=false;if(Math.abs(dx)<Math.abs(dy)*1.6){sw=null;return}
       sw.on=true;sw.els=[].filter.call(sw.m.children,function(c){return c.offsetParent!==null&&!c.classList.contains("sheet")&&getComputedStyle(c).position!=="fixed"});
       sw.els.forEach(function(c){c.style.transition="none"})}
-    e.preventDefault();sw.dx=dx;var k=(dx>0?sw.prev:sw.next)?.32:.1;sw.els.forEach(function(c){c.style.transform="translateX("+dx*k+"px)"})},{passive:false});
+    e.preventDefault();sw.dx=dx;var to=dx>0?sw.prev:sw.next,card=to&&to.tagName!=="A"&&sw.els.length===1&&sw.els[0].classList.contains("pane");
+    // у гостя — карточка из колоды: едет за пальцем почти вровень и слегка наклоняется; у бармена — лёгкий сдвиг
+    // наклон — от низа экрана (вкладка с меню длинная, её собственный низ далеко за экраном)
+    sw.els.forEach(function(c){c.classList.toggle("vt-lift",!!card);if(card&&!c.style.transformOrigin)c.style.transformOrigin="50% "+Math.round(innerHeight-c.getBoundingClientRect().top)+"px";c.style.transform=card?"translateX("+dx*.7+"px) rotate("+(dx/innerWidth*7).toFixed(2)+"deg)":"translateX("+dx*(to?.32:.1)+"px)"})},{passive:false});
   var swEnd=function(e){var d=sw;sw=null;if(!d||!d.on)return;
     var dir=d.dx<0?"next":"prev",to=d[dir],go=e.type==="touchend"&&to&&Math.abs(d.dx)>=Math.min(innerWidth*.25,140);
     if(go&&to.tagName==="A"){document.documentElement.dataset.vt=dir;try{sessionStorage.setItem("via-vt",dir)}catch(_){}location.href=to.href;return}
+    var old=d.els[0],lifted=old&&old.classList.contains("vt-lift");
+    if(go&&lifted){
+      // Колода: копия текущей вкладки улетает в сторону поверх, настоящая сразу сменяется следующей,
+      // и та выходит из-под улетающей карточки.
+      var r=old.getBoundingClientRect(),tf=old.style.transform,deck=document.createElement("div"),card=old.cloneNode(true);
+      deck.className="vt-deck";card.className="vt-card";card.removeAttribute("data-pane");card.removeAttribute("id");card.removeAttribute("hidden");
+      [].forEach.call(card.querySelectorAll("[id]"),function(x){x.removeAttribute("id")});
+      card.style.cssText="left:"+r.left+"px;top:"+r.top+"px;width:"+r.width+"px;transform-origin:"+old.style.transformOrigin+";transform:"+tf;
+      old.style.transition="none";old.style.transform="";old.style.transformOrigin="";old.classList.remove("vt-lift");
+      to.click();deck.appendChild(card);document.body.appendChild(deck);
+      var p=document.querySelector(".pane:not([hidden])");if(p){p.classList.remove("vt-emerge");void p.offsetWidth;p.classList.add("vt-emerge");p.addEventListener("animationend",function(){p.classList.remove("vt-emerge")},{once:true})}
+      var s=d.dx<0?-1:1;requestAnimationFrame(function(){requestAnimationFrame(function(){card.style.transform="translateX("+s*(innerWidth+120)+"px) rotate("+s*16+"deg)";card.style.opacity=".9"})});
+      setTimeout(function(){deck.remove();old.style.transition=""},520);return}
     d.els.forEach(function(c){c.style.transition=go?"none":"transform .3s cubic-bezier(.2,.9,.25,1)";c.style.transform=""});
-    setTimeout(function(){d.els.forEach(function(c){c.style.transition=""})},320);
+    setTimeout(function(){d.els.forEach(function(c){c.style.transition="";c.style.transformOrigin="";c.classList.remove("vt-lift")})},320);
     if(!go)return;to.click();var p=document.querySelector(".pane:not([hidden])");
     if(p){p.classList.remove("vt-next","vt-prev");void p.offsetWidth;p.classList.add("vt-"+dir);p.addEventListener("animationend",function(){p.classList.remove("vt-"+dir)},{once:true})}};
   document.addEventListener("touchend",swEnd);document.addEventListener("touchcancel",swEnd);
