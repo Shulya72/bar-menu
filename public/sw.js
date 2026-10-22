@@ -5,7 +5,8 @@
 // страница покажет «нет связи», как и раньше.
 const STATIC = "via-static-4"; // шрифты, иконки, логотип — меняются только с версией (-4: «Слоновая кость и бордо»)
 // -2: после защиты панели входом старые копии барменских страниц стираются со всех устройств.
-const PAGES = "via-pages-3"; // -3: новый дизайн — старые копии страниц не показываем
+// -4: вкладки бармена открываются из копии сразу — копии прежней версии (без снимков и «Обновляем…») стираем.
+const PAGES = "via-pages-4"; // -3: новый дизайн — старые копии страниц не показываем
 const DATA = "via-data-2";
 const PHOTOS = "via-photos";
 const KEEP = [STATIC, PAGES, DATA, PHOTOS];
@@ -32,6 +33,10 @@ const WARM = {
   ],
 };
 const NO_CACHE_API = new Set(["/api/health", "/api/photo-debug"]);
+// Вкладки панели бармена открываются сразу из копии на телефоне, а свежая копия страницы грузится
+// в фоне — для следующего раза. Данные на экране всё равно свежие: страница сама запрашивает их у
+// сервера, а то, что вписано в саму страницу («Ещё», склад), подтягивает по отметке data-cached.
+const FAST_PAGES = new Set(["/bar/orders", "/bar/recipes", "/bar/stock", "/bar/shop", "/bar"]);
 const PAGE_TIMEOUT = 6000; // плохой интернет: через 6 с показываем сохранённое
 const DATA_TIMEOUT = 8000;
 // Сохранённой копии нет: ждём сеть ещё, но не бесконечно — оператор может «заморозить»
@@ -113,7 +118,7 @@ self.addEventListener("fetch", (e) => {
   }
   if (url.pathname === "/sw.js") return;
   if (req.mode === "navigate") {
-    e.respondWith(page(e, url, complete(fetchAndSave(e, req, PAGES, pageKey(url)))));
+    e.respondWith(FAST_PAGES.has(url.pathname) ? fastPage(e, req, url) : page(e, url, complete(fetchAndSave(e, req, PAGES, pageKey(url)))));
   } else if (url.pathname.startsWith("/api/cocktail-photo")) {
     e.respondWith(photo(e, req));
   } else if (url.pathname.startsWith("/api/")) {
@@ -183,6 +188,15 @@ async function page(e, url, net) {
     return new Response(html, { headers: { "content-type": "text/html;charset=UTF-8" } });
   }
   return res || offlinePage(url);
+}
+
+async function fastPage(e, req, url) {
+  const hit = await caches.open(PAGES).then((c) => c.match(pageKey(url), { ignoreVary: true })).catch(() => null);
+  const net = fetchAndSave(e, req, PAGES, pageKey(url)); // свежая копия сохранится в фоне
+  if (!hit) return page(e, url, complete(net));
+  net.catch(() => {});
+  const html = (await hit.text()).replace("<html lang=\"ru\">", "<html lang=\"ru\" data-cached>");
+  return new Response(html, { headers: { "content-type": "text/html;charset=UTF-8" } });
 }
 
 async function data(e, req, net) {
