@@ -4,7 +4,7 @@ import { renderDocument, htmlResponse, icon, monogram, wordmark } from "./design
 // один раз: результат отмечается в app_migrations, а внутри экземпляра Worker'а
 // запоминается промисом. Чтобы изменить схему — добавь команду в SCHEMA_SQL и
 // поменяй SCHEMA_VERSION: новая версия применится один раз при следующем запросе.
-const SCHEMA_VERSION="schema-2026-10-22-bar-devices";
+const SCHEMA_VERSION="schema-2026-10-22-guest-consent";
 // Время самого раннего заказа гостя, принятого после закрытия последней смены (или NULL).
 const ORPHAN_GUEST_SQL="SELECT MIN(COALESCE(accepted_at,created_at)) FROM orders WHERE status IN ('accepted','served') AND COALESCE(accepted_at,created_at)>(SELECT MAX(closed_at) FROM bar_shifts WHERE status='closed')";
 const SCHEMA_SQL=[
@@ -68,6 +68,8 @@ const SCHEMA_SQL=[
   // «Ещё → Устройства»: строка браузера (что за устройство) и название, которое дали хозяева.
   "ALTER TABLE bar_sessions ADD COLUMN ua TEXT",
   "ALTER TABLE bar_sessions ADD COLUMN name TEXT",
+  // Когда гость дал согласие на обработку данных (галочка при регистрации или в «Профиле»).
+  "ALTER TABLE guests ADD COLUMN consent_at TEXT",
   // До защиты панели подписаться «как бармен» мог кто угодно — такие подписки сбрасываются
   // (один раз, при этой миграции); хозяева включат уведомления заново после входа.
   "DELETE FROM push_subscriptions WHERE role='bar' AND NOT EXISTS (SELECT 1 FROM app_migrations WHERE name='schema-2026-10-18-bar-auth')",
@@ -183,7 +185,7 @@ const refreshCocktailPrice = async (env, cocktailId) => {
   return {cost:price,price};
 };
 
-const BUILD_VERSION = "2026-10-22-ivory-v4.12";
+const BUILD_VERSION = "2026-10-22-ivory-v4.13";
 
 const calculateCocktailStrength = (recipeItems) => {
   let alcoholMl = 0;
@@ -833,6 +835,61 @@ export default {
         return json({...cocktail,recipe_items:results});
       }
 
+      // ═══════ route-block: /privacy, /consent ═══════
+      // Политика конфиденциальности и отдельный текст согласия (152-ФЗ: политика — на сайте; согласие с 01.09.2025 —
+      // отдельным документом). Простыми словами, от «мы». Дата меняется вместе с текстом.
+      if (url.pathname === "/privacy" || url.pathname === "/consent") {
+        const DOC_CSS=`.doc{max-width:640px}.doc .updated{margin:-6px 0 20px;color:var(--label-3);font-size:.8125rem}
+.doc .lead{margin:0 0 18px;padding:16px 18px;border-radius:20px;background:var(--bg-raised);box-shadow:0 1px 0 rgba(42,14,22,.04),0 8px 24px rgba(42,14,22,.06);font-size:1rem;line-height:1.55;color:var(--label)}
+.doc h2{margin:28px 0 8px;font:600 1.5rem/1.15 var(--serif);color:var(--label)}
+.doc p,.doc li{font-size:.9375rem;line-height:1.6;color:var(--label-2)}.doc p{margin:0 0 10px}
+.doc ul{margin:0 0 10px;padding-left:20px}.doc li{margin:5px 0}.doc li::marker{color:var(--brass)}
+.doc b{color:var(--label);font-weight:700}.doc a{font-weight:700}
+.doc .sign{margin-top:26px;color:var(--label-3);font-size:.8125rem}`;
+        const privacy=`<div class="doc"><p class="updated">Обновлено 22 октября 2026 года</p>
+<p class="lead">VIA Bar — домашний бар Владимира и Анастасии Шульминых. Мы ничего не продаём: все коктейли — угощение для друзей и гостей. Цены в меню показывают, во сколько напиток обходится нам. Сайт нужен, чтобы вы выбрали коктейль, а мы знали, кому его нести.</p>
+<h2>Кто отвечает за данные</h2>
+<p>Мы — Владимир и Анастасия Шульмины. Ваши данные видим только мы двое: в панели бармена, она открывается по коду.</p>
+<h2>Что мы храним</h2>
+<ul><li><b>Имя и телефон</b> — их вы указываете при регистрации.</li>
+<li><b>PIN-код</b> — только в зашифрованном виде, расшифровать его нельзя: сам код не знаем даже мы.</li>
+<li><b>Заказы и оценки</b> коктейлей — с вашими комментариями.</li>
+<li><b>Подписку на уведомления</b>, если вы их включили: её адрес выдаёт Apple или Google, по нему мы присылаем «Заказ готов».</li>
+<li><b>Технические сведения</b>: тип устройства и браузера, IP-адрес — их видит хостинг, чтобы показать вам сайт.</li></ul>
+<h2>Зачем</h2>
+<p>Чтобы принять и приготовить ваш заказ, показать, как он готовится, сохранить вашу историю и оценки, узнать вас на другом телефоне и сообщить, когда коктейль готов.</p>
+<p>Мы не рассылаем рекламу, не продаём и не передаём ваши данные другим людям и компаниям, не публикуем их.</p>
+<h2>Где хранятся</h2>
+<p>Сайт работает на платформе Cloudflare (США): данные лежат в её облачной базе, серверы могут находиться за пределами России. Доступ к ним есть только у нас. Если мы делаем резервную копию базы, она хранится там же.</p>
+<h2>Сколько храним</h2>
+<p>Пока у вас есть профиль. Удалите его — и мы сотрём имя, телефон, PIN, оценки и подписку на уведомления. Ваши прошлые заказы останутся в учёте бара без имени, как «Гость»: по ним мы считаем, сколько чего выпито и что докупить.</p>
+<h2>Cookie</h2>
+<p>Сайт использует только технические cookie — чтобы помнить, что вы вошли (на 30 дней). Без рекламы, счётчиков и слежки. Ещё телефон хранит копию меню, чтобы оно открывалось без интернета.</p>
+<h2>Ваши права</h2>
+<ul><li>Посмотреть свои данные — в «Профиле».</li>
+<li>Удалить профиль и данные, а значит, и отозвать согласие — «Профиль → Удалить профиль и мои данные». Это сразу и навсегда.</li>
+<li>Спросить нас о ваших данных — лично или в сообщении: вы наш гость, и мы на связи.</li></ul>
+<h2>Возраст</h2>
+<p>В меню есть алкогольные коктейли. Они только для гостей старше 18 лет.</p>
+<p>Текст согласия, которое вы даёте при регистрации, — <a href="/consent">здесь</a>.</p>
+<p class="sign">VIA Bar · by Vladimir &amp; Anastasia</p></div>`;
+        const consent=`<div class="doc"><p class="updated">Редакция от 22 октября 2026 года</p>
+<p>Регистрируясь в VIA Bar на сайте shulya.party, я даю согласие Владимиру и Анастасии Шульминым на обработку моих персональных данных:</p>
+<ul><li>имени и номера телефона;</li><li>PIN-кода — в зашифрованном виде;</li><li>моих заказов, оценок и комментариев к коктейлям;</li><li>адреса подписки на уведомления, если я их включу.</li></ul>
+<p><b>Цель:</b> принимать и готовить мои заказы в домашнем баре VIA Bar, показывать их статус и историю, узнавать меня при входе, присылать уведомления о заказе.</p>
+<p><b>Что с данными делают:</b> собирают, записывают, хранят, уточняют, используют и удаляют — с помощью сайта shulya.party. Данные хранятся на платформе Cloudflare, серверы могут находиться за пределами России, — на это я тоже даю согласие.</p>
+<p>Данные не передают другим людям и компаниям и не публикуют.</p>
+<p><b>Срок:</b> пока существует мой профиль. Согласие я могу отозвать в любой момент: «Профиль → Удалить профиль и мои данные» или сообщив лично. После этого данные удаляются; прошлые заказы остаются в учёте бара без имени.</p>
+<p>Подробнее — в <a href="/privacy">политике конфиденциальности</a>.</p></div>`;
+        const isPrivacy=url.pathname==="/privacy";
+        return htmlResponse(renderDocument({
+          title:isPrivacy?"Конфиденциальность":"Согласие на обработку данных",
+          docTitle:(isPrivacy?"Политика конфиденциальности":"Согласие на обработку персональных данных")+" · VIA Bar",
+          app:"guest", back:{href:"/menu",label:"Меню"}, extraCss:DOC_CSS, body:isPrivacy?privacy:consent,
+        // Пришли из приложения — «Назад» возвращает туда же (в профиль, в форму регистрации).
+        }).replace("</main>",()=>`</main><script>(function(){var b=document.querySelector(".nav-back");if(b&&document.referrer.indexOf(location.origin+"/")===0&&history.length>1)b.addEventListener("click",function(e){e.preventDefault();history.back()})})();</script>`));
+      }
+
       if (url.pathname === "/") return htmlResponse(renderDocument({
         title:"VIA Bar", navbar:false,
         docTitle:"VIA Bar — семейный бар",
@@ -878,6 +935,7 @@ export default {
 <div class="cell has-icon"><span class="cell-icon">${icon("coin")}</span><span class="cell-body"><span class="cell-title" id="pricesTitle">Цены в меню гостей</span><span class="cell-sub" id="pricesSub" data-live>${pricesHidden?"Скрыты — гости видят меню без цен":"Гости видят цены коктейлей"}</span></span><button class="sw" type="button" role="switch" id="pricesSw" data-live="aria-checked" aria-labelledby="pricesTitle" aria-checked="${pricesHidden?"false":"true"}"></button></div>
 <a class="cell has-icon" href="/bar/reviews" id="reviewsCell" data-live="data-ids" data-ids="${rv.ids}"><span class="cell-icon">${icon("star")}</span><span class="cell-body"><span class="cell-title">Отзывы гостей</span><span class="cell-sub" id="reviewsSub" data-live>${rvSub}</span></span><span class="badge" id="reviewsNew" hidden></span>${icon("chevronRight","cell-chevron")}</a>
 <a class="cell has-icon" href="/menu"><span class="cell-icon">${icon("coupe")}</span><span class="cell-body"><span class="cell-title">Гостевое меню</span><span class="cell-sub">Так видят бар гости</span></span>${icon("chevronRight","cell-chevron")}</a>
+<a class="cell has-icon" href="/privacy"><span class="cell-icon">${icon("lock")}</span><span class="cell-body"><span class="cell-title">Конфиденциальность</span><span class="cell-sub">Политика и согласие, которые видят гости</span></span>${icon("chevronRight","cell-chevron")}</a>
 <a class="cell has-icon" href="/"><span class="cell-icon">${icon("home")}</span><span class="cell-body"><span class="cell-title">Главная</span></span>${icon("chevronRight","cell-chevron")}</a>
 </div></div>
 <div class="section"><div class="section-header"><h2>Уведомления</h2></div><div class="list">
@@ -2331,6 +2389,15 @@ $("#bottleDel").addEventListener("click",async()=>{if(!editing)return;
 .fbox>span{display:block;margin:0;font-size:.71875rem;font-weight:600;color:var(--label-3)}
 .fbox input{display:block;width:100%;min-height:30px;margin-top:2px;padding:2px 0!important;border:0;background:transparent!important;box-shadow:none!important;border-radius:0!important;font:inherit;font-weight:600;font-size:max(16px,1rem);color:var(--label);outline:none}
 .auth-why{margin:12px 2px 0;font-size:.78125rem;color:var(--label-3);line-height:1.45}
+.auth-why a,.consent a,.menu-foot a,.consent-card a{color:var(--accent);font-weight:700}
+.consent{display:flex;align-items:flex-start;gap:11px;margin:14px 2px 2px;font-size:.875rem;line-height:1.4;color:var(--label-2);cursor:pointer}
+.consent input{flex:none;width:22px;height:22px;margin:0;accent-color:var(--accent)}
+.menu-foot{margin:34px auto 0;max-width:520px;text-align:center;font-size:.78125rem;line-height:1.5;color:var(--label-3)}
+.menu-foot p{margin:0 0 6px}
+.menu-foot .age{display:inline-grid;place-items:center;height:19px;padding:0 6px;border-radius:6px;box-shadow:inset 0 0 0 1.2px currentColor;font-size:.6875rem;font-weight:700;color:var(--label-2)}
+.consent-card{margin-top:22px;padding:16px;border-radius:20px;background:var(--bg-raised);box-shadow:inset 0 0 0 1.4px var(--brass-line)}
+.consent-card p{margin:0 0 12px;font-size:.875rem;line-height:1.45;color:var(--label-2)}
+.cell-icon-danger{background:var(--danger-tint)!important;color:var(--danger)!important}.danger-text{color:var(--danger)}
 .form-alert{margin:10px 2px 0;font-size:.8125rem;font-weight:600;color:var(--danger)}
 .form-alert:empty{display:none}
 .auth-panel .btn-block{margin-top:16px}
@@ -2383,8 +2450,9 @@ $("#bottleDel").addEventListener("click",async()=>{if(!editing)return;
 <label class="fbox"><span>Имя</span><input name="name" autocomplete="name" required minlength="2" maxlength="80" placeholder="Как вас зовут"></label>
 <label class="fbox"><span>Телефон</span><input name="phone" type="tel" inputmode="tel" autocomplete="tel" required placeholder="+7 900 123-45-67"></label>
 <label class="fbox"><span>Придумайте PIN-код</span><input name="pin" type="password" inputmode="numeric" autocomplete="new-password" pattern="[0-9]{4,12}" required placeholder="4–12 цифр"></label>
+<label class="consent"><input type="checkbox" name="consent" required><span>Даю <a href="/consent" target="_blank" rel="noopener">согласие на обработку моих данных</a></span></label>
 <p class="form-alert" id="regMsg" role="alert"></p><button class="btn btn-primary btn-block" type="submit" id="regBtn">Зарегистрироваться</button>
-<p class="auth-why">Телефон и PIN нужны, чтобы сохранилась ваша история заказов.</p></form>
+<p class="auth-why">Телефон и PIN нужны, чтобы сохранилась ваша история заказов. Как мы храним данные — в <a href="/privacy" target="_blank" rel="noopener">политике конфиденциальности</a>.</p></form>
 </div></div></div>
 
 <div class="sheet" id="reviewsSheet" hidden><div class="sheet-panel" role="dialog" aria-modal="true" aria-labelledby="revTitle">
@@ -2398,6 +2466,8 @@ $("#bottleDel").addEventListener("click",async()=>{if(!editing)return;
 <div class="menu-tools"><label class="search">${icon("search")}<input type="search" id="q" placeholder="Коктейль или ингредиент" autocomplete="off" aria-label="Поиск по меню"></label>
 <div class="chips" id="lineChips" role="group" aria-label="Крепость"></div></div>
 <div id="menuList"><div class="grid" style="margin-top:26px"><div class="skeleton" style="aspect-ratio:4/5"></div><div class="skeleton" style="aspect-ratio:4/5"></div></div></div>
+<footer class="menu-foot"><p id="priceNote" hidden>Мы ничего не продаём — все коктейли угощение. Цены показывают, во сколько напиток обходится нам.</p>
+<p><span class="age" aria-label="Только для взрослых">18+</span> · Только технические cookie, без рекламы · <a href="/privacy">Конфиденциальность</a></p></footer>
 </section>
 <section class="pane" data-pane="order" aria-label="Заказ" hidden>
 <div class="pane-head"><h1 class="large-title">Ваш заказ</h1><p class="screen-sub" id="orderSub" style="margin-bottom:0"></p></div>
@@ -2554,20 +2624,26 @@ finally{sending=false;renderCart();renderCartBar()}}
 const GUILLOCHE=${JSON.stringify(guilloche)},LOGO_GOLD=${JSON.stringify(monogram(46, "gold"))},LOGO=${JSON.stringify(monogram(132))},WM=${JSON.stringify(wordmark("Карта гостя"))};
 const chev=()=>ic("chevronRight").replace('class="ic"','class="ic cell-chevron"');
 function renderProfile(){const box=$("#profileBox");
-if(!guest){box.innerHTML='<div class="welcome">'+LOGO+'<h2>Добро пожаловать</h2><p>Войдите, чтобы заказывать коктейли, следить за заказом и оценивать выпитое.</p><button class="btn btn-primary" type="button" id="pLogin">Войти</button><button class="btn btn-gray" type="button" id="pReg">Зарегистрироваться</button></div>';
+if(!guest){box.innerHTML='<div class="welcome">'+LOGO+'<h2>Добро пожаловать</h2><p>Войдите, чтобы заказывать коктейли, следить за заказом и оценивать выпитое.</p><button class="btn btn-primary" type="button" id="pLogin">Войти</button><button class="btn btn-gray" type="button" id="pReg">Зарегистрироваться</button><p class="menu-foot" style="margin-top:14px"><a href="/privacy">Как мы храним данные</a></p></div>';
 // Вход из профиля — без отправки заказа (её включает только кнопка «Отправить заказ»).
 $("#pLogin").onclick=()=>{pendingSend=false;openAuth("login")};$("#pReg").onclick=()=>{pendingSend=false;openAuth("reg")};return}
 const s=stats||{},digits=String(guest.phone||"").replace(/\D/g,""),last4=digits.slice(-4),latest=(s.history||[])[0],li=s.latest_order_items||[];
 const lp=li.find(i=>i.photo_url);
 box.innerHTML='<div class="gcard">'+GUILLOCHE+'<div class="gcard-top">'+WM+LOGO_GOLD+'</div>'
 +'<div class="gcard-who"><b>'+esc(guest.name)+'</b>'+(last4.length===4?'<span class="num">+7 ••• ••• '+last4.slice(0,2)+' '+last4.slice(2)+'</span>':"")+'</div>'
-+'<div class="gcard-st'+(s.visit_rub==null?' no-money':'')+'"><div><b class="num">'+Number(s.visit_cocktails||0)+'</b><span>'+plural(Number(s.visit_cocktails||0),["коктейль","коктейля","коктейлей"])+'<br>за визит</span></div>'+(s.visit_rub==null?'':'<div><b class="num">'+rub(s.visit_rub)+'</b><span>потрачено<br>за визит</span></div>')
++'<div class="gcard-st'+(s.visit_rub==null?' no-money':'')+'"><div><b class="num">'+Number(s.visit_cocktails||0)+'</b><span>'+plural(Number(s.visit_cocktails||0),["коктейль","коктейля","коктейлей"])+'<br>за визит</span></div>'+(s.visit_rub==null?'':'<div><b class="num">'+rub(s.visit_rub)+'</b><span>угощение<br>за визит</span></div>')
 +(s.favorite_cocktail?'<div><b class="fav">'+esc(s.favorite_cocktail)+'</b><span>любимый<br>коктейль</span></div>':"")+'</div></div>'
 +(latest?'<div class="section"><div class="section-header"><h2>Последний заказ</h2><span>'+esc(when(latest.created_at))+'</span></div><div class="card last"><div class="last-r">'+(lp?'<img class="thumb" src="'+esc(lp.photo_url)+'" alt="">':'<span class="thumb thumb-ph">'+ic("coupe")+'</span>')+'<span class="body"><span class="name-serif" style="display:block">'+esc(latest.items||"—")+'</span><span class="cell-sub num">'+money(latest.total_rub,'')+(latest.total_rub==null?'':' · ')+(PILL[latest.status]||PILL.pending)[0]+'</span></span></div>'+(li.length?'<button class="btn btn-outline" type="button" id="repeatOrder">'+ic("repeat")+'Повторить заказ</button>':"")+'</div></div>':"")
 +'<div class="list rows-gap"><button class="cell has-icon" type="button" data-goto="order"><span class="cell-icon">'+ic("chit")+'</span><span class="cell-body"><span class="cell-title">Мои заказы</span><span class="cell-sub">'+Number(s.orders_count||0)+' '+plural(Number(s.orders_count||0),["заказ","заказа","заказов"])+(s.orders_count?' · '+cocktailsWord(Number(s.cocktails_count||0))+money(s.spent_rub,' · '):'')+'</span></span>'+chev()+'</button>'
 +'<button class="cell has-icon" type="button" id="openReviews"><span class="cell-icon">'+ic("star")+'</span><span class="cell-body"><span class="cell-title">Мои оценки</span><span class="cell-sub">Оцените выпитые коктейли</span></span>'+chev()+'</button>'
 +(pushState&&pushState!=="unsupported"?'<button class="cell has-icon" type="button" id="pushToggle"><span class="cell-icon">'+ic("bell")+'</span><span class="cell-body"><span class="cell-title">Уведомления о заказе</span><span class="cell-sub">'+esc(pushState==="off"?"Напишем, когда примем заказ и когда он будет готов":VIA.push.text[pushState]||"")+'</span></span><span class="cell-value">'+(pushState==="on"?"Вкл.":pushState==="off"?"Выкл.":"")+'</span></button>':"")
-+'<button class="cell has-icon" type="button" id="logout"><span class="cell-icon">'+ic("logout")+'</span><span class="cell-body"><span class="cell-title acc">Выйти</span></span></button></div>';
++'<button class="cell has-icon" type="button" id="logout"><span class="cell-icon">'+ic("logout")+'</span><span class="cell-body"><span class="cell-title acc">Выйти</span></span></button></div>'
+// Данные: согласие (у зарегистрированных до галочки), политика, удаление профиля.
++(guest.consent===false?'<div class="consent-card"><p>Мы описали, какие данные храним и зачем. Подтвердите, пожалуйста, <a href="/consent">согласие на их обработку</a>.</p><button class="btn btn-primary btn-sm" type="button" id="giveConsent">Даю согласие</button></div>':"")
++'<div class="section"><div class="section-header"><h2>Мои данные</h2></div><div class="list"><a class="cell has-icon" href="/privacy"><span class="cell-icon">'+ic("lock")+'</span><span class="cell-body"><span class="cell-title">Конфиденциальность</span><span class="cell-sub">Какие данные мы храним и зачем</span></span>'+chev()+'</a>'
++'<button class="cell has-icon" type="button" id="deleteMe"><span class="cell-icon cell-icon-danger">'+ic("trash")+'</span><span class="cell-body"><span class="cell-title danger-text">Удалить профиль и мои данные</span><span class="cell-sub">Имя, телефон, PIN и оценки — сразу и навсегда</span></span></button></div></div>';
+const gc=$("#giveConsent");if(gc)gc.onclick=async()=>{gc.disabled=true;try{const r=await fetch("/api/guest/consent",{method:"POST"});if(!r.ok)throw 0;guest.consent=true;renderProfile();VIA.toast("Спасибо!")}catch(e){gc.disabled=false;VIA.toast("Не получилось — проверьте интернет",true)}};
+const dm=$("#deleteMe");if(dm)dm.onclick=deleteMe;
 // Повторить заказ: добавляем только то, что сейчас есть в наличии (не больше остатка).
 const rp=$("#repeatOrder");if(rp)rp.onclick=()=>{const added=[],out=[],less=[];
 li.forEach(i=>{const id=Number(i.cocktail_id),c=byId.get(id),want=Number(i.quantity||1),max=maxOf(c),name=(c&&c.name)||i.cocktail_name||"Коктейль";
@@ -2598,7 +2674,12 @@ if(window.VIA&&VIA.push)VIA.push.state("guest").then(st=>{if(st==="on")return VI
 $("#loginForm").onsubmit=async e=>{e.preventDefault();const f=new FormData(e.target),m=$("#loginMsg");m.textContent="";$("#loginBtn").disabled=true;
 try{const r=await fetch("/api/guest/login",{method:"POST",headers:{"content-type":"application/json"},body:JSON.stringify({phone:f.get("phone"),pin:f.get("pin")})});const d=await r.json().catch(()=>({}));if(!r.ok)throw new Error(d.error||"Не удалось войти");e.target.reset();afterAuth(d.name)}catch(err){m.textContent=err.message||"Ошибка сети. Попробуйте ещё раз."}finally{$("#loginBtn").disabled=false}};
 $("#regForm").onsubmit=async e=>{e.preventDefault();const f=new FormData(e.target),m=$("#regMsg");m.textContent="";$("#regBtn").disabled=true;
-try{const r=await fetch("/api/guest/register",{method:"POST",headers:{"content-type":"application/json"},body:JSON.stringify({name:f.get("name"),phone:f.get("phone"),pin:f.get("pin")})});const d=await r.json().catch(()=>({}));if(!r.ok)throw new Error(d.error||"Не удалось зарегистрироваться");const nm=f.get("name");e.target.reset();afterAuth(nm)}catch(err){m.textContent=err.message||"Ошибка сети. Попробуйте ещё раз."}finally{$("#regBtn").disabled=false}};
+try{const r=await fetch("/api/guest/register",{method:"POST",headers:{"content-type":"application/json"},body:JSON.stringify({name:f.get("name"),phone:f.get("phone"),pin:f.get("pin"),consent:f.get("consent")==="on"})});const d=await r.json().catch(()=>({}));if(!r.ok)throw new Error(d.error||"Не удалось зарегистрироваться");const nm=f.get("name");e.target.reset();afterAuth(nm)}catch(err){m.textContent=err.message||"Ошибка сети. Попробуйте ещё раз."}finally{$("#regBtn").disabled=false}};
+// Удалить профиль: на сервере стираются имя, телефон, PIN, входы, оценки и подписка; заказы остаются без имени.
+async function deleteMe(){if(!confirm("Удалить профиль? Мы сотрём ваше имя, телефон, PIN, оценки и подписку на уведомления. Прошлые заказы останутся в учёте бара без имени. Отменить это нельзя."))return;
+const b=$("#deleteMe");if(b)b.disabled=true;try{if(pushState==="on")await VIA.push.disable("guest")}catch(e){}
+try{const r=await fetch("/api/guest/delete",{method:"POST"});const d=await r.json().catch(()=>({}));if(!r.ok)throw new Error(d.error||"Не получилось — проверьте интернет")}catch(e){if(b)b.disabled=false;VIA.toast(e.message,true,4000);return}
+try{localStorage.removeItem("via.known")}catch(e){}guest=null;stats=null;pushState="";renderHello();renderProfile();renderCart();VIA.toast("Профиль и данные удалены. Будем рады видеть вас снова")}
 async function logout(){if(!confirm("Выйти из профиля?"))return;try{if(pushState==="on")await VIA.push.disable("guest")}catch(e){}try{await fetch("/api/guest/logout",{method:"POST"})}catch(e){}guest=null;stats=null;pushState="";renderHello();renderProfile();renderCart();VIA.toast("Вы вышли из профиля")}
 
 /* ——— оценки ——— */
@@ -2618,6 +2699,7 @@ async function loadMe(){try{const r=await fetch("/api/guest/me");const d=await r
 // Меню вместе с наличием: коктейль, на который не хватает ингредиентов, заказать нельзя.
 let menuLoadedAt=0;
 async function loadMenu(quiet){try{const r=await fetch("/api/cocktails?for=menu",{cache:"no-store"});if(!r.ok)throw 0;const x=await r.json();cocktails=Array.isArray(x)?x:[];byId=new Map(cocktails.map(c=>[Number(c.id),c]));menuLoadedAt=Date.now();
+const pn=$("#priceNote");if(pn)pn.hidden=!cocktails.some(c=>c.price_rub!=null); // цены скрыты — нет и вопросов, пояснение не нужно
 const gone=[];Object.keys(cart).forEach(id=>{const c=byId.get(Number(id)),max=maxOf(c);if(!c||max<1){if(c)gone.push(c.name);delete cart[id]}else if(cart[id]>max)cart[id]=max});saveCart();
 if(gone.length)VIA.toast((gone.length>1?"Закончились: ":"Закончился: ")+gone.join(", ")+" — убрали из заказа",true);
 const focusRow=document.activeElement&&document.activeElement.closest&&document.activeElement.closest("[data-row]");

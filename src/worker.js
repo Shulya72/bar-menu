@@ -94,6 +94,8 @@ const register = async (r, e) => {
   if (name.length < 2 || name.length > 80) return json({ error: "Имя должно быть от 2 до 80 символов" }, 400);
   if (!/^\+?\d{7,15}$/.test(phone)) return json({ error: "Введите корректный номер телефона" }, 400);
   if (!/^\d{4,12}$/.test(pin)) return json({ error: "PIN должен содержать от 4 до 12 цифр" }, 400);
+  // Согласие на обработку данных — отдельной галочкой (закон 152-ФЗ, с 1 сентября 2025 — отдельным документом /consent).
+  if (b?.consent !== true) return json({ error: "Отметьте согласие на обработку данных — без него не сможем вас зарегистрировать" }, 400);
   const variants = phoneVariants(b?.phone);
   if (await e.DB.prepare(`SELECT id FROM guests WHERE phone IN (${inList(variants.length)})`).bind(...variants).first())
     return json({ error: "Этот номер уже зарегистрирован — войдите по нему" }, 409);
@@ -106,6 +108,7 @@ const register = async (r, e) => {
       .run(),
     t = await session(e, Number(q.meta.last_row_id)),
     o = json({ ok: true, message: "Регистрация успешно сохранена" });
+  await markConsent(e, Number(q.meta.last_row_id));
   o.headers.set("Set-Cookie", "bar_guest_session=" + t + "; HttpOnly; Secure; SameSite=Lax; Path=/; Max-Age=2592000");
   return o;
 };
@@ -152,6 +155,44 @@ const me = async (r, e) => {
   )
     .bind(m[1])
     .first();
+};
+// Когда гость дал согласие на обработку данных. Колонки ещё нет (схема не обновилась) — не мешаем входу.
+const markConsent = (e, id) =>
+  e.DB.prepare("UPDATE guests SET consent_at=CURRENT_TIMESTAMP WHERE id=?").bind(id).run().catch(() => {});
+const hasConsent = async (e, id) => {
+  try {
+    return !!(await e.DB.prepare("SELECT consent_at FROM guests WHERE id=?").bind(id).first())?.consent_at;
+  } catch {
+    return true;
+  }
+};
+const guestMe = async (r, e) => {
+  const g = await me(r, e);
+  if (g) g.consent = await hasConsent(e, g.id);
+  return json({ guest: g });
+};
+// Гости, зарегистрированные до галочки, подтверждают согласие в «Профиле».
+const giveConsent = async (r, e) => {
+  const g = await me(r, e);
+  if (!g) return json({ error: "Войдите в аккаунт" }, 401);
+  await markConsent(e, g.id);
+  return json({ ok: true });
+};
+// «Удалить профиль и мои данные»: стираем имя, телефон, PIN, входы, оценки и подписку на уведомления.
+// Заказы остаются в учёте бара (склад, статистика) — без имени, как «Гость».
+const deleteGuest = async (r, e) => {
+  const g = await me(r, e);
+  if (!g) return json({ error: "Войдите в аккаунт" }, 401);
+  await e.DB.batch([
+    e.DB.prepare("DELETE FROM guest_reviews WHERE guest_id=?").bind(g.id),
+    e.DB.prepare("DELETE FROM push_subscriptions WHERE role='guest' AND guest_id=?").bind(g.id),
+    e.DB.prepare("UPDATE orders SET guest_id=NULL WHERE guest_id=?").bind(g.id),
+    e.DB.prepare("DELETE FROM guest_sessions WHERE guest_id=?").bind(g.id),
+    e.DB.prepare("DELETE FROM guests WHERE id=?").bind(g.id),
+  ]);
+  const o = json({ ok: true });
+  o.headers.set("Set-Cookie", "bar_guest_session=; HttpOnly; Secure; SameSite=Lax; Path=/; Max-Age=0");
+  return o;
 };
 const guestReviews = async (r, e) => {
   const g = await me(r, e);
@@ -496,7 +537,9 @@ export default {
       return forGuests(await App.fetch(r, e, c), e);
     if (u.pathname === "/api/guest/register" && r.method === "POST") return register(r, e);
     if (u.pathname === "/api/guest/login" && r.method === "POST") return login(r, e);
-    if (u.pathname === "/api/guest/me" && r.method === "GET") return json({ guest: await me(r, e) });
+    if (u.pathname === "/api/guest/me" && r.method === "GET") return guestMe(r, e);
+    if (u.pathname === "/api/guest/consent" && r.method === "POST") return giveConsent(r, e);
+    if (u.pathname === "/api/guest/delete" && r.method === "POST") return deleteGuest(r, e);
     if (u.pathname === "/api/guest/logout" && r.method === "POST") return logout(r, e);
     if (u.pathname === "/api/guest/order" && r.method === "POST") return guestOrder(r, e, c);
     if (u.pathname === "/api/guest/stats" && r.method === "GET") return stats(r, e);

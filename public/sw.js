@@ -113,7 +113,7 @@ self.addEventListener("fetch", (e) => {
   if (url.origin !== self.location.origin) return;
   if (req.method !== "GET") {
     // Вошёл другой гость или вышел — сохранённый профиль больше не его.
-    if (/^\/api\/guest\/(login|register|logout)$/.test(url.pathname)) e.waitUntil(forgetGuest());
+    if (/^\/api\/guest\/(login|register|logout|delete)$/.test(url.pathname)) e.waitUntil(forgetGuest());
     return;
   }
   if (url.pathname === "/sw.js") return;
