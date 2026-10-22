@@ -2466,7 +2466,7 @@ $("#bottleDel").addEventListener("click",async()=>{if(!editing)return;
 <div class="menu-tools"><label class="search">${icon("search")}<input type="search" id="q" placeholder="Коктейль или ингредиент" autocomplete="off" aria-label="Поиск по меню"></label>
 <div class="chips" id="lineChips" role="group" aria-label="Крепость"></div></div>
 <div id="menuList"><div class="grid" style="margin-top:26px"><div class="skeleton" style="aspect-ratio:4/5"></div><div class="skeleton" style="aspect-ratio:4/5"></div></div></div>
-<footer class="menu-foot"><p>Мы ничего не продаём — все коктейли угощение.<span id="priceNote"> Цены показывают, во сколько напиток обходится нам.</span></p>
+<footer class="menu-foot"><p id="priceNote" hidden>Мы ничего не продаём — все коктейли угощение. Цены показывают, во сколько напиток обходится нам.</p>
 <p><span class="age" aria-label="Только для взрослых">18+</span> · Только технические cookie, без рекламы · <a href="/privacy">Конфиденциальность</a></p></footer>
 </section>
 <section class="pane" data-pane="order" aria-label="Заказ" hidden>
@@ -2699,7 +2699,7 @@ async function loadMe(){try{const r=await fetch("/api/guest/me");const d=await r
 // Меню вместе с наличием: коктейль, на который не хватает ингредиентов, заказать нельзя.
 let menuLoadedAt=0;
 async function loadMenu(quiet){try{const r=await fetch("/api/cocktails?for=menu",{cache:"no-store"});if(!r.ok)throw 0;const x=await r.json();cocktails=Array.isArray(x)?x:[];byId=new Map(cocktails.map(c=>[Number(c.id),c]));menuLoadedAt=Date.now();
-const pn=$("#priceNote");if(pn)pn.hidden=!cocktails.some(c=>c.price_rub!=null); // цены скрыты — и пояснение к ним не нужно
+const pn=$("#priceNote");if(pn)pn.hidden=!cocktails.some(c=>c.price_rub!=null); // цены скрыты — нет и вопросов, пояснение не нужно
 const gone=[];Object.keys(cart).forEach(id=>{const c=byId.get(Number(id)),max=maxOf(c);if(!c||max<1){if(c)gone.push(c.name);delete cart[id]}else if(cart[id]>max)cart[id]=max});saveCart();
 if(gone.length)VIA.toast((gone.length>1?"Закончились: ":"Закончился: ")+gone.join(", ")+" — убрали из заказа",true);
 const focusRow=document.activeElement&&document.activeElement.closest&&document.activeElement.closest("[data-row]");
