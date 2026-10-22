@@ -185,7 +185,7 @@ const refreshCocktailPrice = async (env, cocktailId) => {
   return {cost:price,price};
 };
 
-const BUILD_VERSION = "2026-10-22-ivory-v4.13";
+const BUILD_VERSION = "2026-10-22-ivory-v4.14";
 
 const calculateCocktailStrength = (recipeItems) => {
   let alcoholMl = 0;
@@ -2631,7 +2631,7 @@ const s=stats||{},digits=String(guest.phone||"").replace(/\D/g,""),last4=digits.
 const lp=li.find(i=>i.photo_url);
 box.innerHTML='<div class="gcard">'+GUILLOCHE+'<div class="gcard-top">'+WM+LOGO_GOLD+'</div>'
 +'<div class="gcard-who"><b>'+esc(guest.name)+'</b>'+(last4.length===4?'<span class="num">+7 ••• ••• '+last4.slice(0,2)+' '+last4.slice(2)+'</span>':"")+'</div>'
-+'<div class="gcard-st'+(s.visit_rub==null?' no-money':'')+'"><div><b class="num">'+Number(s.visit_cocktails||0)+'</b><span>'+plural(Number(s.visit_cocktails||0),["коктейль","коктейля","коктейлей"])+'<br>за визит</span></div>'+(s.visit_rub==null?'':'<div><b class="num">'+rub(s.visit_rub)+'</b><span>угощение<br>за визит</span></div>')
++'<div class="gcard-st'+(s.visit_rub==null?' no-money':'')+'"><div><b class="num">'+Number(s.visit_cocktails||0)+'</b><span>'+plural(Number(s.visit_cocktails||0),["коктейль","коктейля","коктейлей"])+'<br>за визит</span></div>'+(s.visit_rub==null?'':'<div><b class="num">'+rub(s.visit_rub)+'</b><span>потрачено<br>за визит</span></div>')
 +(s.favorite_cocktail?'<div><b class="fav">'+esc(s.favorite_cocktail)+'</b><span>любимый<br>коктейль</span></div>':"")+'</div></div>'
 +(latest?'<div class="section"><div class="section-header"><h2>Последний заказ</h2><span>'+esc(when(latest.created_at))+'</span></div><div class="card last"><div class="last-r">'+(lp?'<img class="thumb" src="'+esc(lp.photo_url)+'" alt="">':'<span class="thumb thumb-ph">'+ic("coupe")+'</span>')+'<span class="body"><span class="name-serif" style="display:block">'+esc(latest.items||"—")+'</span><span class="cell-sub num">'+money(latest.total_rub,'')+(latest.total_rub==null?'':' · ')+(PILL[latest.status]||PILL.pending)[0]+'</span></span></div>'+(li.length?'<button class="btn btn-outline" type="button" id="repeatOrder">'+ic("repeat")+'Повторить заказ</button>':"")+'</div></div>':"")
 +'<div class="list rows-gap"><button class="cell has-icon" type="button" data-goto="order"><span class="cell-icon">'+ic("chit")+'</span><span class="cell-body"><span class="cell-title">Мои заказы</span><span class="cell-sub">'+Number(s.orders_count||0)+' '+plural(Number(s.orders_count||0),["заказ","заказа","заказов"])+(s.orders_count?' · '+cocktailsWord(Number(s.cocktails_count||0))+money(s.spent_rub,' · '):'')+'</span></span>'+chev()+'</button>'
