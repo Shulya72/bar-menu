@@ -272,7 +272,7 @@ const guestOrder = async (r, e, c) => {
       tag: "order-" + oid,
     }),
   );
-  return json({ ok: true, order_id: oid, total_rub: total });
+  return json({ ok: true, order_id: oid, total_rub: (await pricesHidden(e)) ? null : total });
 };
 const stats = async (r, e) => {
   const g = await me(r, e);
@@ -331,13 +331,16 @@ const stats = async (r, e) => {
   )
     .bind(g.id)
     .first();
+  // Цены скрыты — суммы гостю не отдаём (по ним цены легко вычислить).
+  const hide = await pricesHidden(e);
+  if (hide) for (const o of h.results || []) o.total_rub = null;
   return json({
     guest: g,
     orders_count: Number(a?.orders_count || 0),
     cocktails_count: Number(c?.cocktails_count || 0),
-    spent_rub: Number(a?.spent_rub || 0),
+    spent_rub: hide ? null : Number(a?.spent_rub || 0),
     visit_cocktails: Number(ses?.cocktails || 0),
-    visit_rub: Number(ses?.rub || 0),
+    visit_rub: hide ? null : Number(ses?.rub || 0),
     history: h.results || [],
     latest_order_items: latestItems,
     favorite_cocktail: fav?.name || null,
@@ -458,11 +461,26 @@ const pushBarTest = async (r, e, c) => {
   return json({ ok: true });
 };
 const needsDb = (p) => (p.startsWith("/api/") && p !== "/api/health" && !p.startsWith("/api/cocktail-photo")) || isBarPage(p);
-// Посетителю без входа список коктейлей отдаётся без остатков склада (меню они не нужны).
-const withoutStock = async (res) => {
+// «Ещё → Цены в меню гостей»: бармен может на вечер скрыть цены. Тогда гостям они не приходят вовсе —
+// ни в меню, ни в суммах их заказов (суммы у бармена и в статистике считаются как обычно).
+const PRICES_KEY = "guest_prices";
+const pricesHidden = async (e) => (await e.DB.prepare("SELECT value FROM app_kv WHERE key=?").bind(PRICES_KEY).first())?.value === "hidden";
+const setGuestPrices = async (r, e) => {
+  const b = await r.json().catch(() => ({}));
+  const hidden = !!b?.hidden;
+  await e.DB.prepare("INSERT INTO app_kv(key,value) VALUES(?,?) ON CONFLICT(key) DO UPDATE SET value=excluded.value").bind(PRICES_KEY, hidden ? "hidden" : "shown").run();
+  return json({ ok: true, hidden });
+};
+// Меню гостя (посетитель без входа или бармен в «Гостевом меню», ?for=menu): без остатков склада
+// (меню они не нужны), а если цены скрыты — и без цен.
+const forGuests = async (res, e) => {
   if (!res.ok) return res;
-  const list = await res.json();
-  for (const c of Array.isArray(list) ? list : []) for (const i of c.recipe_items || []) delete i.stock_available;
+  const list = await res.json(),
+    hide = await pricesHidden(e);
+  for (const c of Array.isArray(list) ? list : []) {
+    for (const i of c.recipe_items || []) delete i.stock_available;
+    if (hide) c.price_rub = null;
+  }
   return json(list);
 };
 export default {
@@ -474,8 +492,8 @@ export default {
       return (await barAuthApi(r, e, u)) || json({ error: "Не найдено" }, 404);
     // Панель бармена: страницы и данные — только после входа по коду.
     if (gated && !(await barSession(r, e))) return isBarPage(u.pathname) ? barLoginPage(r, e) : authRequired();
-    if (u.pathname === "/api/cocktails" && r.method === "GET" && !(await barSession(r, e)))
-      return withoutStock(await App.fetch(r, e, c));
+    if (u.pathname === "/api/cocktails" && r.method === "GET" && (u.searchParams.get("for") === "menu" || !(await barSession(r, e))))
+      return forGuests(await App.fetch(r, e, c), e);
     if (u.pathname === "/api/guest/register" && r.method === "POST") return register(r, e);
     if (u.pathname === "/api/guest/login" && r.method === "POST") return login(r, e);
     if (u.pathname === "/api/guest/me" && r.method === "GET") return json({ guest: await me(r, e) });
@@ -491,6 +509,7 @@ export default {
     if (u.pathname === "/api/bar/order/accept" && r.method === "POST") return acceptBarOrder(r, e, c);
     if (u.pathname === "/api/bar/push/status" && r.method === "POST") return pushBarStatus(r, e);
     if (u.pathname === "/api/bar/push/test" && r.method === "POST") return pushBarTest(r, e, c);
+    if (u.pathname === "/api/bar/guest-prices" && r.method === "POST") return setGuestPrices(r, e);
     if (u.pathname === "/api/push/key" && r.method === "GET") return pushKey(r, e);
     if (u.pathname === "/api/push/subscribe" && r.method === "POST") return pushSubscribe(r, e);
     if (u.pathname === "/api/push/unsubscribe" && r.method === "POST") return pushUnsubscribe(r, e);
