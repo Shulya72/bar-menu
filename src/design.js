@@ -138,15 +138,11 @@ html[data-vt=next]::view-transition-new(page){animation:vt-in-next .26s cubic-be
 html[data-vt=prev]::view-transition-old(page){animation:vt-out-prev .26s cubic-bezier(.3,.7,.3,1) both}
 html[data-vt=prev]::view-transition-new(page){animation:vt-in-prev .26s cubic-bezier(.3,.7,.3,1) both}
 .pane.vt-next{animation:vt-in-next .26s cubic-bezier(.2,.9,.25,1)}.pane.vt-prev{animation:vt-in-prev .26s cubic-bezier(.2,.9,.25,1)}
-/* У гостя вкладки листаются «колодой»: текущая поднимается карточкой и едет за пальцем, отпустили — улетает
-   в сторону, а следующая выходит из-под неё. Карточка — фон страницы с тенью; фон расширен тенью-«полем»
-   на отступ страницы, чтобы края содержимого не упирались в край карточки. */
-.pane.vt-lift,.vt-card{background:var(--bg);border-radius:30px;box-shadow:0 0 0 20px var(--bg),0 22px 60px 20px rgba(42,14,22,.16)}
-.pane.vt-lift{position:relative;z-index:1;will-change:transform}
-.vt-deck{position:fixed;inset:0;z-index:40;pointer-events:none;overflow:hidden}
-.vt-card{position:absolute;margin:0;transition:transform .42s cubic-bezier(.3,.6,.2,1),opacity .42s ease}
-@keyframes vt-emerge{from{transform:translateY(22px) scale(.92);opacity:.35}}
-.pane.vt-emerge{animation:vt-emerge .5s cubic-bezier(.2,.9,.25,1)}
+/* У гостя вкладки листаются как срез колоды: текущая вкладка — верхняя карта, она прямо сдвигается вбок
+   за пальцем, а под ней уже лежит следующая вкладка (.vt-under, такой, какой откроется — с самого верха).
+   Карта — фон страницы с тенью у края; фон расширен тенью-«полем» на боковой отступ страницы. */
+.pane.vt-lift{position:relative;z-index:1;min-height:100vh;background:var(--bg);box-shadow:0 0 0 20px var(--bg),0 0 34px 20px rgba(42,14,22,.14);will-change:transform}
+.pane.vt-under{position:fixed;z-index:0;margin:0;pointer-events:none}
 
 /* ——— Знак VIA ——— */
 .wordmark{text-align:center;line-height:1}
@@ -403,41 +399,46 @@ export const SHELL_JS = `<script>
   var sw=null;
   var noSwipe=function(el){for(;el&&el.nodeType===1;el=el.parentElement){if(el.matches("input,textarea,select,[contenteditable],.chips,[data-no-swipe]"))return true;var o=getComputedStyle(el).overflowX;if((o==="auto"||o==="scroll")&&el.scrollWidth>el.clientWidth+1)return true}return false};
   document.addEventListener("touchstart",function(e){sw=null;var t=e.touches[0],m=document.querySelector("main.screen");
+    [].forEach.call(document.querySelectorAll(".vt-lift,.vt-under"),function(c){if(c.classList.contains("vt-under")){c.classList.remove("vt-under");c.style.top=c.style.left=c.style.width="";c.hidden=true}c.classList.remove("vt-lift");c.style.transform="";c.style.transition=""});
     if(e.touches.length!==1||!m||document.querySelector(".sheet.open")||t.clientX<24||t.clientX>innerWidth-24||noSwipe(e.target))return;
     var ts=[].slice.call(document.querySelectorAll(".tabbar .tab")),i=ts.findIndex(function(x){return x.getAttribute("aria-current")==="page"}),back=document.querySelector(".nav-back");
     var prev=back||ts[i-1],next=back?null:ts[i+1];if(i<0&&!back||!prev&&!next)return;
-    sw={x:t.clientX,y:t.clientY,dx:0,m:m,prev:prev,next:next,first:true,on:false}},{passive:true});
-  document.addEventListener("touchmove",function(e){if(!sw)return;var t=e.touches[0],dx=t.clientX-sw.x,dy=t.clientY-sw.y;
+    sw={x:t.clientX,y:t.clientY,dx:0,m:m,prev:prev,next:next,first:true,on:false,tg:e.target};
+    // Если элемент под пальцем перерисуется во время свайпа (подгрузились данные), касание уходит ему, а не
+    // странице, — поэтому слушаем и сам элемент; повторный вызов ничего не делает.
+    sw.tg.addEventListener("touchmove",swMove,{passive:false});sw.tg.addEventListener("touchend",swEnd);sw.tg.addEventListener("touchcancel",swEnd)},{passive:true});
+  var swMove=function(e){if(!sw)return;var t=e.touches[0],dx=t.clientX-sw.x,dy=t.clientY-sw.y;
     if(sw.first){if(Math.abs(dx)<10&&Math.abs(dy)<10)return;sw.first=false;if(Math.abs(dx)<Math.abs(dy)*1.6){sw=null;return}
       sw.on=true;sw.els=[].filter.call(sw.m.children,function(c){return c.offsetParent!==null&&!c.classList.contains("sheet")&&getComputedStyle(c).position!=="fixed"});
       sw.els.forEach(function(c){c.style.transition="none"})}
     e.preventDefault();sw.dx=dx;var to=dx>0?sw.prev:sw.next,card=to&&to.tagName!=="A"&&sw.els.length===1&&sw.els[0].classList.contains("pane");
-    // у гостя — карточка из колоды: едет за пальцем почти вровень и слегка наклоняется; у бармена — лёгкий сдвиг
-    // наклон — от низа экрана (вкладка с меню длинная, её собственный низ далеко за экраном)
-    sw.els.forEach(function(c){c.classList.toggle("vt-lift",!!card);if(card&&!c.style.transformOrigin)c.style.transformOrigin="50% "+Math.round(innerHeight-c.getBoundingClientRect().top)+"px";c.style.transform=card?"translateX("+dx*.7+"px) rotate("+(dx/innerWidth*7).toFixed(2)+"deg)":"translateX("+dx*(to?.32:.1)+"px)"})},{passive:false});
-  var swEnd=function(e){var d=sw;sw=null;if(!d||!d.on)return;
+    // у гостя — срез колоды: вкладка едет за пальцем вровень, под ней — следующая; у бармена — лёгкий сдвиг
+    under(sw,card?document.querySelector('.pane[data-pane="'+to.dataset.pane+'"]'):null);
+    sw.els.forEach(function(c){c.classList.toggle("vt-lift",!!card);c.style.transform="translateX("+dx*(card?1:to?.32:.1)+"px)"})};
+  document.addEventListener("touchmove",swMove,{passive:false});
+  // Следующая вкладка под верхней картой: на месте, где она окажется после переключения (с самого верха).
+  var under=function(d,tp){if(d.under===tp)return;if(d.under){d.under.classList.remove("vt-under");d.under.style.top=d.under.style.left=d.under.style.width="";d.under.hidden=true;d.under=null}
+    if(!tp)return;if(VIA.panePrep)VIA.panePrep(tp.dataset.pane);var r=d.els[0].getBoundingClientRect();
+    tp.style.top=Math.round(r.top+scrollY)+"px";tp.style.left=r.left+"px";tp.style.width=r.width+"px";tp.classList.add("vt-under");tp.hidden=false;d.under=tp};
+  var swEnd=function(e){var d=sw;sw=null;if(d){d.tg.removeEventListener("touchmove",swMove);d.tg.removeEventListener("touchend",swEnd);d.tg.removeEventListener("touchcancel",swEnd)}if(!d||!d.on)return;
     var dir=d.dx<0?"next":"prev",to=d[dir],go=e.type==="touchend"&&to&&Math.abs(d.dx)>=Math.min(innerWidth*.25,140);
     if(go&&to.tagName==="A"){document.documentElement.dataset.vt=dir;try{sessionStorage.setItem("via-vt",dir)}catch(_){}location.href=to.href;return}
-    var old=d.els[0],lifted=old&&old.classList.contains("vt-lift");
-    if(go&&lifted){
-      // Колода: копия текущей вкладки улетает в сторону поверх, настоящая сразу сменяется следующей,
-      // и та выходит из-под улетающей карточки.
-      var r=old.getBoundingClientRect(),tf=old.style.transform,deck=document.createElement("div"),card=old.cloneNode(true);
-      deck.className="vt-deck";card.className="vt-card";card.removeAttribute("data-pane");card.removeAttribute("id");card.removeAttribute("hidden");
-      [].forEach.call(card.querySelectorAll("[id]"),function(x){x.removeAttribute("id")});
-      card.style.cssText="left:"+r.left+"px;top:"+r.top+"px;width:"+r.width+"px;transform-origin:"+old.style.transformOrigin+";transform:"+tf;
-      old.style.transition="none";old.style.transform="";old.style.transformOrigin="";old.classList.remove("vt-lift");
-      to.click();deck.appendChild(card);document.body.appendChild(deck);
-      var p=document.querySelector(".pane:not([hidden])");if(p){p.classList.remove("vt-emerge");void p.offsetWidth;p.classList.add("vt-emerge");p.addEventListener("animationend",function(){p.classList.remove("vt-emerge")},{once:true})}
-      var s=d.dx<0?-1:1;requestAnimationFrame(function(){requestAnimationFrame(function(){card.style.transform="translateX("+s*(innerWidth+120)+"px) rotate("+s*16+"deg)";card.style.opacity=".9"})});
-      setTimeout(function(){deck.remove();old.style.transition=""},520);return}
+    var top=d.els[0];
+    if(top&&top.classList.contains("vt-lift")){
+      // Срез колоды: дотянули — верхняя карта уезжает за край, под ней уже следующая вкладка, она и остаётся;
+      // не дотянули — карта возвращается и закрывает её.
+      var s=d.dx<0?-1:1;top.style.transition="transform "+(go?".24s cubic-bezier(.3,.6,.4,1)":".3s cubic-bezier(.2,.9,.25,1)");
+      top.style.transform=go?"translateX("+s*(innerWidth+60)+"px)":"";
+      setTimeout(function(){var u=d.under;if(go&&u){u.classList.remove("vt-under");u.style.top=u.style.left=u.style.width="";d.under=null}else under(d,null);
+        top.style.transition="none";top.style.transform="";top.classList.remove("vt-lift");if(go)to.click();setTimeout(function(){top.style.transition=""},30)},go?240:300);
+      return}
     d.els.forEach(function(c){c.style.transition=go?"none":"transform .3s cubic-bezier(.2,.9,.25,1)";c.style.transform=""});
-    setTimeout(function(){d.els.forEach(function(c){c.style.transition="";c.style.transformOrigin="";c.classList.remove("vt-lift")})},320);
+    setTimeout(function(){d.els.forEach(function(c){c.style.transition="";c.classList.remove("vt-lift")})},320);
     if(!go)return;to.click();var p=document.querySelector(".pane:not([hidden])");
     if(p){p.classList.remove("vt-next","vt-prev");void p.offsetWidth;p.classList.add("vt-"+dir);p.addEventListener("animationend",function(){p.classList.remove("vt-"+dir)},{once:true})}};
   document.addEventListener("touchend",swEnd);document.addEventListener("touchcancel",swEnd);
   // Вернулись на страницу кнопкой «назад» (из памяти браузера) — убираем следы свайпа.
-  addEventListener("pageshow",function(e){if(!e.persisted)return;delete document.documentElement.dataset.vt;var m=document.querySelector("main.screen");if(m)[].forEach.call(m.children,function(c){c.style.transform="";c.style.transition=""})});
+  addEventListener("pageshow",function(e){if(!e.persisted)return;delete document.documentElement.dataset.vt;var m=document.querySelector("main.screen");if(m)[].forEach.call(m.children,function(c){c.style.transform="";c.style.transition="";c.classList.remove("vt-lift");if(c.classList.contains("vt-under")){c.classList.remove("vt-under");c.hidden=true}})});
   // Офлайн-режим: сервис-воркер (/sw.js) хранит копию страниц и данных на устройстве.
   VIA.setOffline=function(on){var p=document.getElementById("viaOffline");if(!p){if(!on)return;p=document.createElement("div");p.id="viaOffline";p.className="offline-pill";p.setAttribute("role","status");p.textContent="Нет интернета — сохранённая версия";var m=document.querySelector("main.screen");if(m)m.prepend(p);else document.body.prepend(p)}p.hidden=!on};
   if(document.documentElement.hasAttribute("data-offline")||navigator.onLine===false)VIA.setOffline(true);

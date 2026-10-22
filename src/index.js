@@ -2382,6 +2382,8 @@ function show(p,push){pane=p;document.querySelectorAll(".pane").forEach(s=>s.hid
 $(".nav-title").textContent=TITLES[p];document.title=(p==="menu"?"VIA Bar — меню":TITLES[p]+" · VIA Bar");
 if(push!==false&&location.hash!=="#"+p)history.replaceState(null,"","#"+p);window.scrollTo(0,0);dispatchEvent(new Event("scroll"));renderCartBar();
 if(p==="order"){renderCart();refreshStats()}if(p==="profile"){renderProfile();refreshStats()}if(p==="menu"&&menuLoadedAt&&Date.now()-menuLoadedAt>20000)loadMenu(true)}
+// Свайп между вкладками (каркас, design.js): следующую вкладку заполняем заранее — она видна под сдвигаемой.
+window.VIA=window.VIA||{};VIA.panePrep=p=>{if(p==="order")renderCart();else if(p==="profile")renderProfile()};
 document.querySelectorAll(".tabbar .tab").forEach(t=>t.onclick=()=>show(t.dataset.pane));
 addEventListener("hashchange",()=>{const h=location.hash.slice(1);if(TITLES[h]&&h!==pane)show(h,false)});
 
