@@ -128,6 +128,16 @@ a{color:var(--accent);text-decoration:none}
 .hidden,[hidden]{display:none!important}
 @view-transition{navigation:auto}
 ::view-transition-old(root),::view-transition-new(root){animation-duration:.22s}
+/* Свайп между вкладками: содержимое уезжает в сторону пальца, соседняя вкладка въезжает с другой стороны.
+   Панель бармена — переход между страницами (data-vt ставит жест), у гостя — смена вкладки на той же странице. */
+@keyframes vt-out-next{to{transform:translateX(-22%);opacity:0}}@keyframes vt-in-next{from{transform:translateX(22%);opacity:0}}
+@keyframes vt-out-prev{to{transform:translateX(22%);opacity:0}}@keyframes vt-in-prev{from{transform:translateX(-22%);opacity:0}}
+html[data-vt] main.screen{view-transition-name:page}
+html[data-vt=next]::view-transition-old(page){animation:vt-out-next .26s cubic-bezier(.3,.7,.3,1) both}
+html[data-vt=next]::view-transition-new(page){animation:vt-in-next .26s cubic-bezier(.3,.7,.3,1) both}
+html[data-vt=prev]::view-transition-old(page){animation:vt-out-prev .26s cubic-bezier(.3,.7,.3,1) both}
+html[data-vt=prev]::view-transition-new(page){animation:vt-in-prev .26s cubic-bezier(.3,.7,.3,1) both}
+.pane.vt-next{animation:vt-in-next .26s cubic-bezier(.2,.9,.25,1)}.pane.vt-prev{animation:vt-in-prev .26s cubic-bezier(.2,.9,.25,1)}
 
 /* ——— Знак VIA ——— */
 .wordmark{text-align:center;line-height:1}
@@ -361,6 +371,33 @@ export const SHELL_JS = `<script>
     if(!td.on)return;e.preventDefault();td.dy=Math.max(0,t.clientY-td.y);td.p.style.transform="translateY("+td.dy+"px)"},{passive:false});
   var tend=function(){var d=td;td=null;if(!d||!d.on)return;d.p.style.transition="";d.p.style.transform="";if(d.dy>pullLim(d.p))VIA.closeSheet(d.p.closest(".sheet"))};
   document.addEventListener("touchend",tend);document.addEventListener("touchcancel",tend);
+  // Свайп вбок по странице — соседняя нижняя вкладка, как нажатие на неё. Срабатывает только на явное движение
+  // вбок на четверть ширины экрана; не мешает прокрутке, жесту iPhone «назад» от края, полосам, которые листаются
+  // вбок, полям ввода и открытым шторкам. Содержимое слегка едет за пальцем (полосы заказа и шторки — нет:
+  // они «прилипшие»); не дотянули — пружинит обратно. На вложенных страницах («Статистика» и т.п.) свайп
+  // вправо — назад, как стрелка в шапке.
+  var sw=null;
+  var noSwipe=function(el){for(;el&&el.nodeType===1;el=el.parentElement){if(el.matches("input,textarea,select,[contenteditable],.chips,[data-no-swipe]"))return true;var o=getComputedStyle(el).overflowX;if((o==="auto"||o==="scroll")&&el.scrollWidth>el.clientWidth+1)return true}return false};
+  document.addEventListener("touchstart",function(e){sw=null;var t=e.touches[0],m=document.querySelector("main.screen");
+    if(e.touches.length!==1||!m||document.querySelector(".sheet.open")||t.clientX<24||t.clientX>innerWidth-24||noSwipe(e.target))return;
+    var ts=[].slice.call(document.querySelectorAll(".tabbar .tab")),i=ts.findIndex(function(x){return x.getAttribute("aria-current")==="page"}),back=document.querySelector(".nav-back");
+    var prev=back||ts[i-1],next=back?null:ts[i+1];if(i<0&&!back||!prev&&!next)return;
+    sw={x:t.clientX,y:t.clientY,dx:0,m:m,prev:prev,next:next,first:true,on:false}},{passive:true});
+  document.addEventListener("touchmove",function(e){if(!sw)return;var t=e.touches[0],dx=t.clientX-sw.x,dy=t.clientY-sw.y;
+    if(sw.first){if(Math.abs(dx)<10&&Math.abs(dy)<10)return;sw.first=false;if(Math.abs(dx)<Math.abs(dy)*1.6){sw=null;return}
+      sw.on=true;sw.els=[].filter.call(sw.m.children,function(c){return c.offsetParent!==null&&!c.classList.contains("sheet")&&getComputedStyle(c).position!=="fixed"});
+      sw.els.forEach(function(c){c.style.transition="none"})}
+    e.preventDefault();sw.dx=dx;var k=(dx>0?sw.prev:sw.next)?.32:.1;sw.els.forEach(function(c){c.style.transform="translateX("+dx*k+"px)"})},{passive:false});
+  var swEnd=function(e){var d=sw;sw=null;if(!d||!d.on)return;
+    var dir=d.dx<0?"next":"prev",to=d[dir],go=e.type==="touchend"&&to&&Math.abs(d.dx)>=Math.min(innerWidth*.25,140);
+    if(go&&to.tagName==="A"){document.documentElement.dataset.vt=dir;try{sessionStorage.setItem("via-vt",dir)}catch(_){}location.href=to.href;return}
+    d.els.forEach(function(c){c.style.transition=go?"none":"transform .3s cubic-bezier(.2,.9,.25,1)";c.style.transform=""});
+    setTimeout(function(){d.els.forEach(function(c){c.style.transition=""})},320);
+    if(!go)return;to.click();var p=document.querySelector(".pane:not([hidden])");
+    if(p){p.classList.remove("vt-next","vt-prev");void p.offsetWidth;p.classList.add("vt-"+dir);p.addEventListener("animationend",function(){p.classList.remove("vt-"+dir)},{once:true})}};
+  document.addEventListener("touchend",swEnd);document.addEventListener("touchcancel",swEnd);
+  // Вернулись на страницу кнопкой «назад» (из памяти браузера) — убираем следы свайпа.
+  addEventListener("pageshow",function(e){if(!e.persisted)return;delete document.documentElement.dataset.vt;var m=document.querySelector("main.screen");if(m)[].forEach.call(m.children,function(c){c.style.transform="";c.style.transition=""})});
   // Офлайн-режим: сервис-воркер (/sw.js) хранит копию страниц и данных на устройстве.
   VIA.setOffline=function(on){var p=document.getElementById("viaOffline");if(!p){if(!on)return;p=document.createElement("div");p.id="viaOffline";p.className="offline-pill";p.setAttribute("role","status");p.textContent="Нет интернета — сохранённая версия";var m=document.querySelector("main.screen");if(m)m.prepend(p);else document.body.prepend(p)}p.hidden=!on};
   if(document.documentElement.hasAttribute("data-offline")||navigator.onLine===false)VIA.setOffline(true);
@@ -451,6 +488,7 @@ load();if(!onOrders){setInterval(load,20000);document.addEventListener("visibili
 </script>`;
 
 const headTags = (title, app) => `<meta charset="utf-8">
+<script>try{var v=sessionStorage.getItem("via-vt");if(v){sessionStorage.removeItem("via-vt");document.documentElement.dataset.vt=v;setTimeout(function(){delete document.documentElement.dataset.vt},700)}}catch(e){}</script>
 <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
 <meta name="color-scheme" content="light">
 <meta name="theme-color" content="#F6EFE5">
