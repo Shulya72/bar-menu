@@ -142,7 +142,11 @@ html[data-vt=prev]::view-transition-new(page){animation:vt-in-prev .26s cubic-be
    за пальцем, а под ней уже лежит следующая вкладка (.vt-under, такой, какой откроется — с самого верха).
    Карта — фон страницы с тенью у края; фон расширен тенью-«полем» на боковой отступ страницы. */
 .pane.vt-lift{position:relative;z-index:1;min-height:100vh;background:var(--bg);box-shadow:0 0 0 20px var(--bg),0 0 34px 20px rgba(42,14,22,.14);will-change:transform}
-.pane.vt-under{position:fixed;z-index:0;margin:0;pointer-events:none}
+.pane.vt-under{position:fixed;z-index:0;margin:0;pointer-events:none;overflow:hidden;transform-origin:50% 30%;will-change:opacity,filter,transform}
+/* Нижняя вкладка сначала в дымке (полупрозрачная, размытая, чуть меньше) и проясняется, чем дальше тянут
+   верхнюю; когда та уехала — нижняя «включается»: короткая вспышка яркости. */
+@keyframes vt-on{0%{filter:brightness(1.07) saturate(1.05)}100%{filter:none}}
+.pane.vt-on{animation:vt-on .38s ease-out}
 
 /* ——— Знак VIA ——— */
 .wordmark{text-align:center;line-height:1}
@@ -399,7 +403,7 @@ export const SHELL_JS = `<script>
   var sw=null;
   var noSwipe=function(el){for(;el&&el.nodeType===1;el=el.parentElement){if(el.matches("input,textarea,select,[contenteditable],.chips,[data-no-swipe]"))return true;var o=getComputedStyle(el).overflowX;if((o==="auto"||o==="scroll")&&el.scrollWidth>el.clientWidth+1)return true}return false};
   document.addEventListener("touchstart",function(e){sw=null;var t=e.touches[0],m=document.querySelector("main.screen");
-    [].forEach.call(document.querySelectorAll(".vt-lift,.vt-under"),function(c){if(c.classList.contains("vt-under")){c.classList.remove("vt-under");c.style.top=c.style.left=c.style.width="";c.hidden=true}c.classList.remove("vt-lift");c.style.transform="";c.style.transition=""});
+    [].forEach.call(document.querySelectorAll(".vt-lift,.vt-under"),function(c){if(c.classList.contains("vt-under")){unStyle(c);c.hidden=true}c.classList.remove("vt-lift");c.style.transform="";c.style.transition=""});
     if(e.touches.length!==1||!m||document.querySelector(".sheet.open")||t.clientX<24||t.clientX>innerWidth-24||noSwipe(e.target))return;
     var ts=[].slice.call(document.querySelectorAll(".tabbar .tab")),i=ts.findIndex(function(x){return x.getAttribute("aria-current")==="page"}),back=document.querySelector(".nav-back");
     var prev=back||ts[i-1],next=back?null:ts[i+1];if(i<0&&!back||!prev&&!next)return;
@@ -413,13 +417,16 @@ export const SHELL_JS = `<script>
       sw.els.forEach(function(c){c.style.transition="none"})}
     e.preventDefault();sw.dx=dx;var to=dx>0?sw.prev:sw.next,card=to&&to.tagName!=="A"&&sw.els.length===1&&sw.els[0].classList.contains("pane");
     // у гостя — срез колоды: вкладка едет за пальцем вровень, под ней — следующая; у бармена — лёгкий сдвиг
-    under(sw,card?document.querySelector('.pane[data-pane="'+to.dataset.pane+'"]'):null);
+    under(sw,card?document.querySelector('.pane[data-pane="'+to.dataset.pane+'"]'):null);if(sw.under)haze(sw.under,Math.min(1,Math.abs(dx)/(innerWidth*.9)));
     sw.els.forEach(function(c){c.classList.toggle("vt-lift",!!card);c.style.transform="translateX("+dx*(card?1:to?.32:.1)+"px)"})};
   document.addEventListener("touchmove",swMove,{passive:false});
   // Следующая вкладка под верхней картой: на месте, где она окажется после переключения (с самого верха).
-  var under=function(d,tp){if(d.under===tp)return;if(d.under){d.under.classList.remove("vt-under");d.under.style.top=d.under.style.left=d.under.style.width="";d.under.hidden=true;d.under=null}
-    if(!tp)return;if(VIA.panePrep)VIA.panePrep(tp.dataset.pane);var r=d.els[0].getBoundingClientRect();
-    tp.style.top=Math.round(r.top+scrollY)+"px";tp.style.left=r.left+"px";tp.style.width=r.width+"px";tp.classList.add("vt-under");tp.hidden=false;d.under=tp};
+  var unStyle=function(u){u.classList.remove("vt-under");["top","left","width","height","opacity","filter","transform","transition"].forEach(function(k){u.style[k]=""})};
+  var under=function(d,tp){if(d.under===tp)return;if(d.under){unStyle(d.under);d.under.hidden=true;d.under=null}
+    if(!tp)return;if(VIA.panePrep)VIA.panePrep(tp.dataset.pane);var r=d.els[0].getBoundingClientRect(),top=Math.round(r.top+scrollY);
+    tp.style.top=top+"px";tp.style.left=r.left+"px";tp.style.width=r.width+"px";tp.style.height=Math.max(0,innerHeight-top)+"px";tp.classList.add("vt-under");tp.hidden=false;d.under=tp};
+  // дымка нижней вкладки: k = 0 (только начали) … 1 (верхняя почти уехала)
+  var haze=function(u,k){u.style.opacity=(.5+.5*k).toFixed(3);u.style.filter=k>=1?"none":"blur("+((1-k)*5).toFixed(2)+"px)";u.style.transform="scale("+(.97+.03*k).toFixed(4)+")"};
   var swEnd=function(e){var d=sw;sw=null;if(d){d.tg.removeEventListener("touchmove",swMove);d.tg.removeEventListener("touchend",swEnd);d.tg.removeEventListener("touchcancel",swEnd)}if(!d||!d.on)return;
     var dir=d.dx<0?"next":"prev",to=d[dir],go=e.type==="touchend"&&to&&Math.abs(d.dx)>=Math.min(innerWidth*.25,140);
     if(go&&to.tagName==="A"){document.documentElement.dataset.vt=dir;try{sessionStorage.setItem("via-vt",dir)}catch(_){}location.href=to.href;return}
@@ -427,10 +434,14 @@ export const SHELL_JS = `<script>
     if(top&&top.classList.contains("vt-lift")){
       // Срез колоды: дотянули — верхняя карта уезжает за край, под ней уже следующая вкладка, она и остаётся;
       // не дотянули — карта возвращается и закрывает её.
-      var s=d.dx<0?-1:1;top.style.transition="transform "+(go?".24s cubic-bezier(.3,.6,.4,1)":".3s cubic-bezier(.2,.9,.25,1)");
-      top.style.transform=go?"translateX("+s*(innerWidth+60)+"px)":"";
-      setTimeout(function(){var u=d.under;if(go&&u){u.classList.remove("vt-under");u.style.top=u.style.left=u.style.width="";d.under=null}else under(d,null);
-        top.style.transition="none";top.style.transform="";top.classList.remove("vt-lift");if(go)to.click();setTimeout(function(){top.style.transition=""},30)},go?240:300);
+      var s=d.dx<0?-1:1,u=d.under,ms=go?240:300,ease=go?"cubic-bezier(.3,.6,.4,1)":"cubic-bezier(.2,.9,.25,1)";
+      top.style.transition="transform "+ms+"ms "+ease;top.style.transform=go?"translateX("+s*(innerWidth+60)+"px)":"";
+      // нижняя вкладка проясняется до конца (дотянули) или снова уходит в дымку (вернули верхнюю)
+      if(u){u.style.transition="opacity "+ms+"ms ease,filter "+ms+"ms ease,transform "+ms+"ms "+ease;haze(u,go?1:0)}
+      setTimeout(function(){if(go&&u){unStyle(u);d.under=null}else under(d,null);
+        top.style.transition="none";top.style.transform="";top.classList.remove("vt-lift");
+        if(go){to.click();if(u){u.classList.remove("vt-on");void u.offsetWidth;u.classList.add("vt-on");u.addEventListener("animationend",function(){u.classList.remove("vt-on")},{once:true})}}
+        setTimeout(function(){top.style.transition=""},30)},ms);
       return}
     d.els.forEach(function(c){c.style.transition=go?"none":"transform .3s cubic-bezier(.2,.9,.25,1)";c.style.transform=""});
     setTimeout(function(){d.els.forEach(function(c){c.style.transition="";c.classList.remove("vt-lift")})},320);
@@ -438,7 +449,7 @@ export const SHELL_JS = `<script>
     if(p){p.classList.remove("vt-next","vt-prev");void p.offsetWidth;p.classList.add("vt-"+dir);p.addEventListener("animationend",function(){p.classList.remove("vt-"+dir)},{once:true})}};
   document.addEventListener("touchend",swEnd);document.addEventListener("touchcancel",swEnd);
   // Вернулись на страницу кнопкой «назад» (из памяти браузера) — убираем следы свайпа.
-  addEventListener("pageshow",function(e){if(!e.persisted)return;delete document.documentElement.dataset.vt;var m=document.querySelector("main.screen");if(m)[].forEach.call(m.children,function(c){c.style.transform="";c.style.transition="";c.classList.remove("vt-lift");if(c.classList.contains("vt-under")){c.classList.remove("vt-under");c.hidden=true}})});
+  addEventListener("pageshow",function(e){if(!e.persisted)return;delete document.documentElement.dataset.vt;var m=document.querySelector("main.screen");if(m)[].forEach.call(m.children,function(c){c.style.transform="";c.style.transition="";c.classList.remove("vt-lift");if(c.classList.contains("vt-under")){unStyle(c);c.hidden=true}})});
   // Офлайн-режим: сервис-воркер (/sw.js) хранит копию страниц и данных на устройстве.
   VIA.setOffline=function(on){var p=document.getElementById("viaOffline");if(!p){if(!on)return;p=document.createElement("div");p.id="viaOffline";p.className="offline-pill";p.setAttribute("role","status");p.textContent="Нет интернета — сохранённая версия";var m=document.querySelector("main.screen");if(m)m.prepend(p);else document.body.prepend(p)}p.hidden=!on};
   if(document.documentElement.hasAttribute("data-offline")||navigator.onLine===false)VIA.setOffline(true);
