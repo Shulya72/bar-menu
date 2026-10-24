@@ -553,6 +553,40 @@ export const SHELL_JS = `<script>
     leaving=true;setTimeout(function(){document.documentElement.dataset.vt="cut";try{sessionStorage.setItem("via-vt","cut")}catch(_){}location.href=to.href;if(VIA.busyPill)VIA.busyPill(true)},ms)};
   // соседние вкладки готовим заранее, когда страница уже открылась
   if(bar)addEventListener("load",function(){setTimeout(function(){var n=tabNbrs();if(n){deckFor(n.prev);deckFor(n.next)}},600)});
+  // Сжатие фото в браузере перед загрузкой. WebP, если устройство умеет его сохранять, иначе JPEG:
+  // iPhone вместо WebP молча сохраняет PNG — в 8–10 раз тяжелее.
+  VIA.canWebp=(function(){try{var c=document.createElement("canvas");c.width=c.height=1;return c.toDataURL("image/webp").indexOf("data:image/webp")===0}catch(_){return false}})();
+  VIA.encode=function(cv,q){return new Promise(function(res){cv.toBlob(function(b){res(b)},VIA.canWebp?"image/webp":"image/jpeg",q||.85)})};
+  VIA.photoName=function(b,base){return (base||"photo")+(b&&b.type==="image/webp"?".webp":".jpg")};
+  // Не больше max пикселей по длинной стороне. Уже лёгкий (до keepUnder байт) JPEG/WebP нужного размера — как есть;
+  // если сжатый файл вышел не меньше исходного — тоже исходный.
+  VIA.shrink=function(blob,max,q,keepUnder){return new Promise(function(res,rej){var u=URL.createObjectURL(blob),im=new Image();
+    im.onload=function(){URL.revokeObjectURL(u);var w=im.naturalWidth,h=im.naturalHeight,s=Math.min(1,max/Math.max(w,h)),ok=/^image\\/(jpeg|webp)$/.test(blob.type);
+      if(s===1&&ok&&blob.size<=(keepUnder||0))return res(blob);
+      var c=document.createElement("canvas");c.width=Math.max(1,Math.round(w*s));c.height=Math.max(1,Math.round(h*s));var x=c.getContext("2d");
+      if(!VIA.canWebp){x.fillStyle="#F6EFE5";x.fillRect(0,0,c.width,c.height)}x.imageSmoothingEnabled=true;x.imageSmoothingQuality="high";x.drawImage(im,0,0,c.width,c.height);
+      VIA.encode(c,q).then(function(b){res(!b?blob:s===1&&ok&&b.size>=blob.size?blob:b)})};
+    im.onerror=function(){URL.revokeObjectURL(u);rej(new Error("Не удалось прочитать фото"))};im.src=u})};
+  // Автосжатие фото коктейлей: панель бармена сама, в фоне, пережимает тяжёлые фото (раньше iPhone сохранял
+  // кадры меню в PNG — в 8–10 раз тяжелее). Проверка — не чаще раза в 30 минут; сжимает один телефон за раз
+  // (очередь на сервере); по фото за шаг — если приложение закрыть, остальное доделается в следующий раз.
+  // В меню фото выглядят так же. В конце — короткое сообщение.
+  if(bar&&document.querySelector(".tabbar"))addEventListener("load",function(){setTimeout(function(){
+    try{if(Date.now()-Number(localStorage.getItem("via.photoCheck")||0)<30*60e3)return;localStorage.setItem("via.photoCheck",String(Date.now()))}catch(_){}
+    var mb=function(n){return (n/1048576).toFixed(n<1048576?2:1).replace(".",",")+" МБ"},post=function(u,b){return fetch(u,{method:"POST",headers:{"content-type":"application/json"},body:JSON.stringify(b||{})})};
+    fetch("/api/cocktails/photo-stats",{cache:"no-store"}).then(function(r){return r.ok?r.json():null}).then(function(st){
+      var list=st?(st.photos||[]).filter(function(p){return p.heavy}):[];if(!list.length)return;
+      return post("/api/cocktails/photo-claim").then(function(r){return r.ok?r.json():null}).then(function(c){if(!c||!c.ok)return;
+        var i=0,before=0,after=0;
+        var step=function(){if(i>=list.length){if(after<before&&VIA.toast)VIA.toast("Фото коктейлей сжаты: было "+mb(before)+", стало "+mb(after)+" — меню открывается быстрее",false,6000);return}
+          var p=list[i++],tile=p.field!=="photo_url";
+          fetch(p.url).then(function(r){if(!r.ok)throw 0;return r.blob()}).then(function(b){return VIA.shrink(b,tile?600:1200,tile?.85:.82,0).then(function(sm){
+            if(!sm||sm===b||sm.size>=b.size*.9)return; // заметно не сжать — оставляем как есть
+            var fd=new FormData();fd.append("file",new File([sm],VIA.photoName(sm,tile?"cocktail-avatar":"cocktail"),{type:sm.type}));
+            return fetch("/api/cocktail-photo",{method:"POST",body:fd}).then(function(r){return r.json().then(function(d){if(!r.ok||!d.url)throw 0;return d.url})})
+              .then(function(url){var body={id:p.id};body[p.field]=url;return post("/api/cocktails/photos",body).then(function(r){if(!r.ok)throw 0;before+=b.size;after+=sm.size})})})})
+          .catch(function(){}).then(function(){setTimeout(step,150)})};
+        step()})}).catch(function(){})},4000)});
   // Офлайн-режим: сервис-воркер (/sw.js) хранит копию страниц и данных на устройстве.
   VIA.setOffline=function(on){var p=document.getElementById("viaOffline");if(!p){if(!on)return;p=document.createElement("div");p.id="viaOffline";p.className="offline-pill";p.setAttribute("role","status");p.textContent="Нет интернета — сохранённая версия";var m=document.querySelector("main.screen");if(m)m.prepend(p);else document.body.prepend(p)}p.hidden=!on};
   if(document.documentElement.hasAttribute("data-offline")||navigator.onLine===false)VIA.setOffline(true);

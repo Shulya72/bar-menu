@@ -185,7 +185,7 @@ const refreshCocktailPrice = async (env, cocktailId) => {
   return {cost:price,price};
 };
 
-const BUILD_VERSION = "2026-10-22-ivory-v4.14";
+const BUILD_VERSION = "2026-10-24-ivory-v4.16";
 
 const calculateCocktailStrength = (recipeItems) => {
   let alcoholMl = 0;
@@ -426,6 +426,39 @@ export default {
         if(!headers.get("content-type")){const ext=key.split(".").pop().toLowerCase();const ct={jpg:"image/jpeg",jpeg:"image/jpeg",png:"image/png",webp:"image/webp",gif:"image/gif"}[ext];if(ct)headers.set("content-type",ct);}
         headers.set("x-content-type-options","nosniff");
         return new Response(object.body,{headers});
+      }
+
+      // Автосжатие фото (панель бармена): сколько весят фото и какие из них тяжёлые.
+      // Тяжёлые — оригинал больше 300 КБ, кадр 4:5 для плитки больше 100 КБ (после сжатия — 70 и 25 КБ).
+      if (url.pathname === "/api/cocktails/photo-stats" && request.method === "GET") {
+        if(!env.PHOTOS)return json({total:0,heavy:0,photos:[]});
+        const {results}=await env.DB.prepare("SELECT id,name,photo_url,avatar_url FROM cocktails ORDER BY id").all();
+        const list=[];for(const c of results||[])for(const [field,limit] of [["photo_url",300*1024],["avatar_url",100*1024]]){const key=photoKeyOf(c[field]);if(key)list.push({id:c.id,name:c.name,field,limit,key,url:"/api/cocktail-photo?key="+encodeURIComponent(key)})}
+        const heads=await Promise.all(list.map(p=>env.PHOTOS.head(p.key).catch(()=>null)));
+        let total=0,heavy=0;const photos=[];
+        list.forEach((p,i)=>{const o=heads[i];if(!o)return;const h=o.size>p.limit;total+=o.size;if(h)heavy++;photos.push({id:p.id,name:p.name,field:p.field,url:p.url,size:o.size,type:o.httpMetadata?.contentType||"",heavy:h})});
+        return json({total,heavy,photos});
+      }
+      // Автосжатие фото в панели бармена: сжимает один телефон за раз. Очередь занята 5 минут
+      // (дольше сжатие не идёт); другой телефон попробует позже.
+      if (url.pathname === "/api/cocktails/photo-claim" && request.method === "POST") {
+        const now=Date.now();
+        const r=await env.DB.prepare("INSERT INTO app_kv(key,value) VALUES('photo_shrink',?) ON CONFLICT(key) DO UPDATE SET value=excluded.value WHERE CAST(app_kv.value AS INTEGER)<?").bind(String(now),now-5*60e3).run();
+        return json({ok:!!r.meta?.changes});
+      }
+      // Заменить у коктейля только фото (после сжатия): новый файл уже в хранилище, старый удаляется.
+      if (url.pathname === "/api/cocktails/photos" && request.method === "POST") {
+        const b=await request.json().catch(()=>({})),id=Number(b?.id);
+        if(!Number.isInteger(id)||id<1)return json({error:"Некорректный коктейль"},400);
+        const existing=await env.DB.prepare("SELECT id,photo_url,avatar_url FROM cocktails WHERE id=?").bind(id).first();
+        if(!existing)return json({error:"Коктейль не найден"},404);
+        const next={};
+        for(const f of ["photo_url","avatar_url"])if(b[f]){const key=photoKeyOf(b[f]);if(!key||!env.PHOTOS||!(await env.PHOTOS.head(key)))return json({error:"Новое фото не найдено в хранилище"},400);next[f]="/api/cocktail-photo?key="+encodeURIComponent(key)}
+        if(!Object.keys(next).length)return json({error:"Нет нового фото"},400);
+        await env.DB.prepare("UPDATE cocktails SET "+Object.keys(next).map(f=>f+"=?").join(",")+",updated_at=CURRENT_TIMESTAMP WHERE id=?").bind(...Object.values(next),id).run();
+        const keep=new Set([photoKeyOf(next.photo_url||existing.photo_url),photoKeyOf(next.avatar_url||existing.avatar_url)]);
+        for(const f of Object.keys(next)){const old=photoKeyOf(existing[f]);if(old&&!keep.has(old))try{await env.PHOTOS.delete(old)}catch(e){}}
+        return json({ok:true,...next});
       }
 
       if (url.pathname === "/api/cocktails" && request.method === "GET") {
@@ -1282,7 +1315,7 @@ body.has-order:not(:has(.sheet.open)) .toast{bottom:calc(var(--tabbar-h) + 96px 
 <input name="photo_url" id="photoUrl" type="hidden"><input name="avatar_url" id="avatarUrl" type="hidden">
 <div id="avatarCropPanel" hidden>
 <div class="section"><div class="section-header"><h2>Кадр 4:5 для меню и кабинета</h2></div><div class="list crop-panel">
-<div class="crop-stage"><canvas id="avatarCropCanvas" width="320" height="400" aria-label="Кадр 4:5: перетащите фото, чтобы выбрать часть"></canvas></div>
+<div class="crop-stage"><canvas id="avatarCropCanvas" width="480" height="600" aria-label="Кадр 4:5: перетащите фото, чтобы выбрать часть"></canvas></div>
 <label class="field"><span>Масштаб кадра</span><input id="avatarZoom" type="range" min="100" max="250" step="5" value="100"></label>
 <div class="crop-actions"><span id="avatarCropStatus" class="footnote" role="status">Вертикальный кадр 4:5</span><button type="button" class="btn btn-tinted btn-sm" id="applyAvatarCrop">${icon("check")}Применить</button></div>
 <div id="avatarPreview" class="avatar-preview"></div>
@@ -1643,7 +1676,8 @@ const cropCanvas=$("#avatarCropCanvas"),cropCtx=cropCanvas.getContext("2d"),crop
 function clampCropOffset(){if(!cropSourceImage)return;const scale=Math.max(cropCanvas.width/cropSourceImage.naturalWidth,cropCanvas.height/cropSourceImage.naturalHeight)*cropZoom;const w=cropSourceImage.naturalWidth*scale,h=cropSourceImage.naturalHeight*scale,baseX=(cropCanvas.width-w)/2,baseY=(cropCanvas.height-h)/2;cropOffsetX=Math.min(-baseX,Math.max(cropCanvas.width-w-baseX,cropOffsetX));cropOffsetY=Math.min(-baseY,Math.max(cropCanvas.height-h-baseY,cropOffsetY))}
 function drawAvatarCrop(){if(!cropSourceImage)return;const scale=Math.max(cropCanvas.width/cropSourceImage.naturalWidth,cropCanvas.height/cropSourceImage.naturalHeight)*cropZoom,w=cropSourceImage.naturalWidth*scale,h=cropSourceImage.naturalHeight*scale;clampCropOffset();cropCtx.clearRect(0,0,cropCanvas.width,cropCanvas.height);cropCtx.drawImage(cropSourceImage,(cropCanvas.width-w)/2+cropOffsetX,(cropCanvas.height-h)/2+cropOffsetY,w,h)}
 function loadCropSource(src,isObjectUrl){if(cropObjectUrl&&!isObjectUrl){URL.revokeObjectURL(cropObjectUrl);cropObjectUrl=""}avatarCropBlob=null;cropStatus.textContent="Сдвиньте фото и нажмите «Применить»";$("#avatarCropPanel").hidden=!src;if(!src){cropSourceImage=null;cropLoadPromise=Promise.resolve(false);return cropLoadPromise}cropLoadPromise=new Promise(resolve=>{const img=new Image();img.onload=()=>{cropSourceImage=img;cropZoom=1;cropOffsetX=0;cropOffsetY=0;$("#avatarZoom").value="100";drawAvatarCrop();resolve(true)};img.onerror=()=>{cropSourceImage=null;resolve(false)};img.src=src});return cropLoadPromise}
-function captureAvatarCrop(){return new Promise(resolve=>cropCanvas.toBlob(blob=>resolve(blob),"image/webp",.9))}
+// Кадр 4:5 для плиток меню: 480×600 (чётко на iPhone), WebP — или JPEG, если телефон WebP не сохраняет.
+function captureAvatarCrop(){return VIA.encode(cropCanvas,.85)}
 function markCropChanged(){avatarCropBlob=null;needAvatar=true;cropStatus.textContent="Кадр изменён — сохранится вместе с коктейлем"}
 cropCanvas.addEventListener("pointerdown",e=>{if(!cropSourceImage)return;cropPointer={x:e.clientX,y:e.clientY,ox:cropOffsetX,oy:cropOffsetY};try{cropCanvas.setPointerCapture(e.pointerId)}catch(_){}});
 cropCanvas.addEventListener("pointermove",e=>{if(!cropPointer)return;const rect=cropCanvas.getBoundingClientRect(),sx=cropCanvas.width/rect.width,sy=cropCanvas.height/rect.height;cropOffsetX=cropPointer.ox+(e.clientX-cropPointer.x)*sx;cropOffsetY=cropPointer.oy+(e.clientY-cropPointer.y)*sy;markCropChanged();drawAvatarCrop()});
@@ -1802,7 +1836,10 @@ form.onsubmit=async e=>{
     const file=$("#photoFile").files[0];
     if(file){
       setMsg("Загружаем фото…");
-      let url;try{url=await uploadPhoto(file)}catch(err){throw new Error("Фото не загрузилось: "+err.message)}
+      // Оригинал для карточки — не больше 1200 px по длинной стороне и сжатый (уже лёгкий оставляем как есть).
+      setMsg("Сжимаем фото…");let small=file;try{small=await VIA.shrink(file,1200,.82,350*1024)}catch(e){}
+      setMsg("Загружаем фото…");
+      let url;try{url=await uploadPhoto(small===file?file:new File([small],VIA.photoName(small,"cocktail"),{type:small.type}))}catch(err){throw new Error("Фото не загрузилось: "+err.message)}
       $("#photoUrl").value=url;$("#photoFile").value="";
       $("#photoPreview").innerHTML=photoImg(url,"Оригинал фото");
     }
@@ -1810,7 +1847,7 @@ form.onsubmit=async e=>{
       setMsg("Готовим кадр 4:5…");
       if(!avatarCropBlob){const ready=await cropLoadPromise;if(ready)avatarCropBlob=await captureAvatarCrop()}
       if(!avatarCropBlob)throw new Error("Не удалось подготовить кадр 4:5. Выберите фото ещё раз.");
-      let url;try{url=await uploadPhoto(new File([avatarCropBlob],"cocktail-avatar.webp",{type:"image/webp"}))}catch(err){throw new Error("Кадр не загрузился: "+err.message)}
+      let url;try{url=await uploadPhoto(new File([avatarCropBlob],VIA.photoName(avatarCropBlob,"cocktail-avatar"),{type:avatarCropBlob.type||"image/jpeg"}))}catch(err){throw new Error("Кадр не загрузился: "+err.message)}
       $("#avatarUrl").value=url;avatarCropBlob=null;needAvatar=false;
       $("#avatarPreview").innerHTML=photoImg(url,"Кадр 4:5 для меню")+'<span class="footnote">Кадр сохранён</span>';
     }
