@@ -185,7 +185,7 @@ const refreshCocktailPrice = async (env, cocktailId) => {
   return {cost:price,price};
 };
 
-const BUILD_VERSION = "2026-10-24-ivory-v4.15";
+const BUILD_VERSION = "2026-10-24-ivory-v4.16";
 
 const calculateCocktailStrength = (recipeItems) => {
   let alcoholMl = 0;
@@ -428,7 +428,7 @@ export default {
         return new Response(object.body,{headers});
       }
 
-      // «Ещё → Сжать фото коктейлей»: сколько весят фото и какие из них тяжёлые.
+      // Автосжатие фото (панель бармена): сколько весят фото и какие из них тяжёлые.
       // Тяжёлые — оригинал больше 300 КБ, кадр 4:5 для плитки больше 100 КБ (после сжатия — 70 и 25 КБ).
       if (url.pathname === "/api/cocktails/photo-stats" && request.method === "GET") {
         if(!env.PHOTOS)return json({total:0,heavy:0,photos:[]});
@@ -438,6 +438,13 @@ export default {
         let total=0,heavy=0;const photos=[];
         list.forEach((p,i)=>{const o=heads[i];if(!o)return;const h=o.size>p.limit;total+=o.size;if(h)heavy++;photos.push({id:p.id,name:p.name,field:p.field,url:p.url,size:o.size,type:o.httpMetadata?.contentType||"",heavy:h})});
         return json({total,heavy,photos});
+      }
+      // Автосжатие фото в панели бармена: сжимает один телефон за раз. Очередь занята 5 минут
+      // (дольше сжатие не идёт); другой телефон попробует позже.
+      if (url.pathname === "/api/cocktails/photo-claim" && request.method === "POST") {
+        const now=Date.now();
+        const r=await env.DB.prepare("INSERT INTO app_kv(key,value) VALUES('photo_shrink',?) ON CONFLICT(key) DO UPDATE SET value=excluded.value WHERE CAST(app_kv.value AS INTEGER)<?").bind(String(now),now-5*60e3).run();
+        return json({ok:!!r.meta?.changes});
       }
       // Заменить у коктейля только фото (после сжатия): новый файл уже в хранилище, старый удаляется.
       if (url.pathname === "/api/cocktails/photos" && request.method === "POST") {
@@ -956,7 +963,6 @@ export default {
         body:`<div class="section"><div class="section-header"><h2>Бар</h2></div><div class="list">
 <a class="cell has-icon" href="/bar/ingredients"><span class="cell-icon">${icon("leaf")}</span><span class="cell-body"><span class="cell-title">Ингредиенты</span><span class="cell-sub">Справочник для рецептов и склада</span></span>${icon("chevronRight","cell-chevron")}</a>
 <a class="cell has-icon" href="/bar/statistics"><span class="cell-icon">${icon("chart")}</span><span class="cell-body"><span class="cell-title">Статистика</span><span class="cell-sub">Смены, заказы и выручка</span></span>${icon("chevronRight","cell-chevron")}</a>
-<button class="cell has-icon" type="button" id="shrinkBtn" hidden><span class="cell-icon">${icon("camera")}</span><span class="cell-body"><span class="cell-title">Сжать фото коктейлей</span><span class="cell-sub" id="shrinkSub"></span></span></button>
 </div></div>
 <div class="section"><div class="section-header"><h2>Гости</h2></div><div class="list">
 <div class="cell has-icon"><span class="cell-icon">${icon("coin")}</span><span class="cell-body"><span class="cell-title" id="pricesTitle">Цены в меню гостей</span><span class="cell-sub" id="pricesSub" data-live>${pricesHidden?"Скрыты — гости видят меню без цен":"Гости видят цены коктейлей"}</span></span><button class="sw" type="button" role="switch" id="pricesSw" data-live="aria-checked" aria-labelledby="pricesTitle" aria-checked="${pricesHidden?"false":"true"}"></button></div>
@@ -1034,28 +1040,6 @@ var f=document.getElementById("pinForm"),msg=document.getElementById("pinMsg"),s
 f.addEventListener("submit",function(e){e.preventDefault();msg.textContent="";var cur=f.current.value.trim(),pin=f.pin.value.trim();
 if(!/^\\d{6,12}$/.test(pin)){msg.textContent="Новый код — от 6 до 12 цифр";return}if(pin!==f.pin2.value.trim()){msg.textContent="Новые коды не совпадают";return}
 save.disabled=true;post("/api/bar/auth/change",{current:cur,pin:pin}).then(function(){f.reset();VIA.closeSheet("pinSheet");VIA.toast("Код изменён")}).catch(function(e){msg.textContent=e.message}).then(function(){save.disabled=false})});
-})();
-// «Сжать фото коктейлей»: строка видна, только пока есть тяжёлые фото. Сжимает этот телефон (как при загрузке),
-// сервер заменяет файлы, старые удаляет. В меню фото выглядят так же, а весят в разы меньше.
-(function(){var btn=document.getElementById("shrinkBtn"),sub=document.getElementById("shrinkSub");if(!btn)return;
-var mb=function(n){return (n/1048576).toFixed(n<1048576?2:1).replace(".",",")+" МБ"},busy=false,st=null;
-var heavyOf=function(){return st?(st.photos||[]).filter(function(p){return p.heavy}):[]};
-var check=function(){return fetch("/api/cocktails/photo-stats",{cache:"no-store"}).then(function(r){return r.ok?r.json():null}).then(function(d){if(!d||busy)return;st=d;
-  var h=heavyOf(),w=h.reduce(function(a,p){return a+p.size},0);btn.hidden=!h.length;if(h.length)sub.textContent=h.length+" фото весят "+mb(w)+" — меню станет легче в разы. Достаточно нажать один раз"}).catch(function(){})};
-btn.addEventListener("click",function(){var list=heavyOf();if(busy||!list.length)return;
-  if(!confirm("Сжать "+list.length+" фото? В меню они будут выглядеть так же, а весить в разы меньше. Большие исходники на сайте заменятся сжатыми — на вашем телефоне они останутся."))return;
-  busy=true;btn.disabled=true;var i=0,before=0,after=0,fail=0;
-  var step=function(){if(i>=list.length){busy=false;btn.disabled=false;
-      VIA.toast(fail?"Сжато "+(list.length-fail)+" из "+list.length+" — остальные попробуйте ещё раз":"Готово: было "+mb(before)+", стало "+mb(after),!!fail,6000);check();return}
-    var p=list[i++],tile=p.field!=="photo_url";sub.textContent="Сжимаем "+i+" из "+list.length+"… Не закрывайте экран";
-    fetch(p.url).then(function(r){if(!r.ok)throw 0;return r.blob()}).then(function(b){return VIA.shrink(b,tile?600:1200,tile?.85:.82,0).then(function(sm){
-      if(!sm||sm===b||sm.size>=b.size*.9){before+=b.size;after+=b.size;return} // сжать заметно не вышло — оставляем как есть
-      var fd=new FormData();fd.append("file",new File([sm],VIA.photoName(sm,tile?"cocktail-avatar":"cocktail"),{type:sm.type}));
-      return fetch("/api/cocktail-photo",{method:"POST",body:fd}).then(function(r){return r.json().then(function(d){if(!r.ok||!d.url)throw 0;return d.url})})
-        .then(function(url){var body={id:p.id};body[p.field]=url;return fetch("/api/cocktails/photos",{method:"POST",headers:{"content-type":"application/json"},body:JSON.stringify(body)})
-        .then(function(r){if(!r.ok)throw 0;before+=b.size;after+=sm.size})})})}).catch(function(){fail++}).then(step)};
-  step()});
-addEventListener("load",function(){setTimeout(check,400)});
 })();
 // «Устройства»: где открыта панель; название и «Отключить» — в карточке устройства.
 (function(){

@@ -567,6 +567,26 @@ export const SHELL_JS = `<script>
       if(!VIA.canWebp){x.fillStyle="#F6EFE5";x.fillRect(0,0,c.width,c.height)}x.imageSmoothingEnabled=true;x.imageSmoothingQuality="high";x.drawImage(im,0,0,c.width,c.height);
       VIA.encode(c,q).then(function(b){res(!b?blob:s===1&&ok&&b.size>=blob.size?blob:b)})};
     im.onerror=function(){URL.revokeObjectURL(u);rej(new Error("Не удалось прочитать фото"))};im.src=u})};
+  // Автосжатие фото коктейлей: панель бармена сама, в фоне, пережимает тяжёлые фото (раньше iPhone сохранял
+  // кадры меню в PNG — в 8–10 раз тяжелее). Проверка — не чаще раза в 30 минут; сжимает один телефон за раз
+  // (очередь на сервере); по фото за шаг — если приложение закрыть, остальное доделается в следующий раз.
+  // В меню фото выглядят так же. В конце — короткое сообщение.
+  if(bar&&document.querySelector(".tabbar"))addEventListener("load",function(){setTimeout(function(){
+    try{if(Date.now()-Number(localStorage.getItem("via.photoCheck")||0)<30*60e3)return;localStorage.setItem("via.photoCheck",String(Date.now()))}catch(_){}
+    var mb=function(n){return (n/1048576).toFixed(n<1048576?2:1).replace(".",",")+" МБ"},post=function(u,b){return fetch(u,{method:"POST",headers:{"content-type":"application/json"},body:JSON.stringify(b||{})})};
+    fetch("/api/cocktails/photo-stats",{cache:"no-store"}).then(function(r){return r.ok?r.json():null}).then(function(st){
+      var list=st?(st.photos||[]).filter(function(p){return p.heavy}):[];if(!list.length)return;
+      return post("/api/cocktails/photo-claim").then(function(r){return r.ok?r.json():null}).then(function(c){if(!c||!c.ok)return;
+        var i=0,before=0,after=0;
+        var step=function(){if(i>=list.length){if(after<before&&VIA.toast)VIA.toast("Фото коктейлей сжаты: было "+mb(before)+", стало "+mb(after)+" — меню открывается быстрее",false,6000);return}
+          var p=list[i++],tile=p.field!=="photo_url";
+          fetch(p.url).then(function(r){if(!r.ok)throw 0;return r.blob()}).then(function(b){return VIA.shrink(b,tile?600:1200,tile?.85:.82,0).then(function(sm){
+            if(!sm||sm===b||sm.size>=b.size*.9)return; // заметно не сжать — оставляем как есть
+            var fd=new FormData();fd.append("file",new File([sm],VIA.photoName(sm,tile?"cocktail-avatar":"cocktail"),{type:sm.type}));
+            return fetch("/api/cocktail-photo",{method:"POST",body:fd}).then(function(r){return r.json().then(function(d){if(!r.ok||!d.url)throw 0;return d.url})})
+              .then(function(url){var body={id:p.id};body[p.field]=url;return post("/api/cocktails/photos",body).then(function(r){if(!r.ok)throw 0;before+=b.size;after+=sm.size})})})})
+          .catch(function(){}).then(function(){setTimeout(step,150)})};
+        step()})}).catch(function(){})},4000)});
   // Офлайн-режим: сервис-воркер (/sw.js) хранит копию страниц и данных на устройстве.
   VIA.setOffline=function(on){var p=document.getElementById("viaOffline");if(!p){if(!on)return;p=document.createElement("div");p.id="viaOffline";p.className="offline-pill";p.setAttribute("role","status");p.textContent="Нет интернета — сохранённая версия";var m=document.querySelector("main.screen");if(m)m.prepend(p);else document.body.prepend(p)}p.hidden=!on};
   if(document.documentElement.hasAttribute("data-offline")||navigator.onLine===false)VIA.setOffline(true);
